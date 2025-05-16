@@ -5,20 +5,23 @@ import type React from 'react';
 import { OverallSuccessRateDisplay } from './analytics/OverallSuccessRateDisplay';
 import { ProcessorSuccessRatesTable } from './analytics/ProcessorSuccessRatesTable';
 import { TransactionDistributionChart } from './analytics/TransactionDistributionChart';
+import { SuccessRateOverTimeChart } from './analytics/SuccessRateOverTimeChart';
+import { VolumeOverTimeChart } from './analytics/VolumeOverTimeChart';
 import type { FormValues } from './BottomControlsPanel';
 import { PROCESSORS } from '@/lib/constants';
+import type { ProcessorMetricsHistory } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TrendingUp, ListChecks, CheckCircle2, XCircle, Gauge } from 'lucide-react';
 
-
 interface AnalyticsViewProps {
   currentControls: FormValues | null;
-  processedPayments?: number; // Optional: total processed payments for one of the new cards
+  processedPayments?: number;
   totalSuccessful?: number;
   totalFailed?: number;
+  successRateHistory: ProcessorMetricsHistory;
+  volumeHistory: ProcessorMetricsHistory;
 }
 
-// Helper to get HSL color from Tailwind config (conceptual)
 const CHART_COLORS_HSL = {
   '--chart-1': 'hsl(var(--chart-1))',
   '--chart-2': 'hsl(var(--chart-2))',
@@ -29,33 +32,38 @@ const CHART_COLORS_HSL = {
 
 const chartColorKeys = Object.keys(CHART_COLORS_HSL) as (keyof typeof CHART_COLORS_HSL)[];
 
-
-export function AnalyticsView({ currentControls, processedPayments = 0, totalSuccessful = 0, totalFailed = 0 }: AnalyticsViewProps) {
+export function AnalyticsView({
+  currentControls,
+  processedPayments = 0,
+  totalSuccessful = 0,
+  totalFailed = 0,
+  successRateHistory,
+  volumeHistory,
+}: AnalyticsViewProps) {
   const overallSR = currentControls?.overallSuccessRate ?? 0;
   const effectiveTps = currentControls?.tps ?? 0;
-  
-  const processorSRData = currentControls 
+
+  const processorSRData = currentControls
     ? PROCESSORS.map(proc => ({
-        processor: proc.name,
-        sr: currentControls.processorWiseSuccessRates[proc.id]?.sr ?? 0,
-        failureRate: currentControls.processorWiseSuccessRates[proc.id]?.failureRate ?? (100 - (currentControls.processorWiseSuccessRates[proc.id]?.sr ?? 0)),
-        volumeShare: currentControls.processorWiseSuccessRates[proc.id]?.volumeShare ?? 0,
-      }))
+      processor: proc.name,
+      sr: currentControls.processorWiseSuccessRates[proc.id]?.sr ?? 0,
+      failureRate: currentControls.processorWiseSuccessRates[proc.id]?.failureRate ?? (100 - (currentControls.processorWiseSuccessRates[proc.id]?.sr ?? 0)),
+      volumeShare: currentControls.processorWiseSuccessRates[proc.id]?.volumeShare ?? 0,
+    }))
     : PROCESSORS.map(proc => ({
-        processor: proc.name,
-        sr: 0,
-        failureRate: 100,
-        volumeShare: 0,
-      }));
+      processor: proc.name,
+      sr: 0,
+      failureRate: 100,
+      volumeShare: 0,
+    }));
 
   const transactionDistributionData = currentControls
     ? PROCESSORS.map((proc, index) => ({
-        name: proc.name,
-        value: currentControls.processorWiseSuccessRates[proc.id]?.volumeShare ?? 0,
-        fill: CHART_COLORS_HSL[chartColorKeys[index % chartColorKeys.length]],
-      })).filter(item => item.value > 0) // Only show processors with volume
+      name: proc.name,
+      value: currentControls.processorWiseSuccessRates[proc.id]?.volumeShare ?? 0,
+      fill: CHART_COLORS_HSL[chartColorKeys[index % chartColorKeys.length]],
+    })).filter(item => item.value > 0)
     : [];
-
 
   return (
     <div className="space-y-6">
@@ -77,7 +85,7 @@ export function AnalyticsView({ currentControls, processedPayments = 0, totalSuc
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalSuccessful.toLocaleString()}</div>
-             <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               {processedPayments > 0 ? `${((totalSuccessful / processedPayments) * 100).toFixed(1)}% of processed` : ''}
             </p>
           </CardContent>
@@ -94,7 +102,7 @@ export function AnalyticsView({ currentControls, processedPayments = 0, totalSuc
             </p>
           </CardContent>
         </Card>
-         <Card className="shadow-md">
+        <Card className="shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Effective TPS</CardTitle>
             <Gauge className="h-5 w-5 text-muted-foreground" />
@@ -107,12 +115,17 @@ export function AnalyticsView({ currentControls, processedPayments = 0, totalSuc
       </div>
 
       <OverallSuccessRateDisplay rate={overallSR} />
-      
+
+      <div className="grid grid-cols-1 gap-6">
+        <SuccessRateOverTimeChart data={successRateHistory} />
+        <VolumeOverTimeChart data={volumeHistory} />
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ProcessorSuccessRatesTable data={processorSRData} />
         <TransactionDistributionChart data={transactionDistributionData} />
       </div>
-      
+
       <div className="p-6 bg-muted/30 rounded-lg text-center">
         <p className="text-muted-foreground">Further analytics like cost optimization and risk assessment could be added here.</p>
       </div>

@@ -35,13 +35,13 @@ export interface ControlsState {
   simulateSaleEvent: boolean;
   srFluctuation: SRFluctuation;
   processorIncidents: ProcessorIncidentStatus;
-  overallSuccessRate: number; 
+  overallSuccessRate: number;
   processorWiseSuccessRates: Record<string, { sr: number; volumeShare: number; failureRate: number }>;
 }
 
 export interface AISankeyInputData {
   parameters: Omit<ControlsState, 'routingRulesText' | 'overallSuccessRate' | 'processorWiseSuccessRates'> & {
-    routingRules: string; 
+    routingRules: string;
   };
   currentMetrics: {
     overallSuccessRate: number;
@@ -85,3 +85,11 @@ export interface TransactionProcessingState {
   selectedProcessorId: string | null; // ID of the processor node
   isSuccess: boolean | null;
 }
+
+// Types for Time Series Charts
+export interface TimeSeriesDataPoint {
+  time: number; // Represents the simulation step or a timestamp
+  [processorId: string]: number; // Metric value for each processor
+}
+
+export type ProcessorMetricsHistory = TimeSeriesDataPoint[];
