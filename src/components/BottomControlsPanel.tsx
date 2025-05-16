@@ -143,10 +143,10 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
       className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-lg z-20"
       style={{ height: BOTTOM_PANEL_HEIGHT }}
     >
-      <fieldset> {/* Removed: disabled={isSimulationActive} to allow changes during simulation */}
-        <ScrollArea className="h-full p-1">
+      <fieldset>
+        <ScrollArea className="h-full"> {/* Removed p-1 from here */}
           <Form {...form}>
-            <form onSubmit={(e) => e.preventDefault()} className="p-4 space-y-2">
+            <form onSubmit={(e) => e.preventDefault()} className="p-4 space-y-2"> {/* p-4 here provides content padding */}
               <Tabs defaultValue="general" className="w-full">
                 <TabsList className="grid w-full grid-cols-4 mb-2">
                   <TabsTrigger value="general" className="text-xs md:text-sm"><Settings2 className="mr-1 h-4 w-4 md:mr-2" />General</TabsTrigger>
@@ -226,7 +226,7 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
                       render={() => (
                         <FormItem className="col-span-full">
                           <FormLabel>Payment Methods</FormLabel>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2"> {/* Added more cols for responsiveness */}
                             {PAYMENT_METHODS.map((method) => (
                               <FormField
                                 key={method}
