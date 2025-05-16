@@ -16,7 +16,7 @@ export function Header({ onRunSimulation, isSimulating }: HeaderProps) {
         <div className="flex items-center gap-2">
           <Zap className="h-8 w-8 text-primary" />
           <h1 className="text-2xl font-bold text-foreground">
-            Hyperswitch <span className="text-primary">Vision</span>
+            Hyperswitch <span className="text-primary">Intelligent Routing</span>
           </h1>
         </div>
 

@@ -8,7 +8,7 @@ const geistSans = GeistSans;
 const geistMono = GeistMono;
 
 export const metadata: Metadata = {
-  title: 'Hyperswitch Vision',
+  title: 'Hyperswitch Intelligent Routing',
   description: 'Visualize and optimize transaction flows',
 };
 
