@@ -48,7 +48,7 @@ const defaultProcessorWiseSuccessRates = PROCESSORS.reduce((acc, proc) => {
   else if (proc.id === 'razorpay') defaultSr = 95;
   else if (proc.id === 'cashfree') defaultSr = 92;
   else if (proc.id === 'payu') defaultSr = 88;
-  else if (proc.id === 'fampay') defaultSr = 85; // Added Fampay default
+  else if (proc.id === 'fampay') defaultSr = 85; 
 
   acc[proc.id] = { sr: defaultSr, volumeShare: initialVolumeShare, failureRate: 100 - defaultSr };
   return acc;
@@ -82,7 +82,7 @@ export type FormValues = z.infer<typeof formSchema>;
 interface BottomControlsPanelProps {
   onFormChange: (data: FormValues) => void;
   initialValues?: Partial<FormValues>;
-  isSimulationActive: boolean; // This prop can now be used for styling if needed, but not for disabling
+  isSimulationActive: boolean;
 }
 
 const BOTTOM_PANEL_HEIGHT = "350px";
@@ -115,35 +115,30 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
       if (validValues.success) {
          onFormChange(validValues.data as FormValues);
       } else {
-        // Optionally handle invalid intermediate values if needed, or just pass them
-        // console.warn("Form values are invalid during watch:", validValues.error.flatten());
-        onFormChange(values as FormValues); // Pass raw values if parsing fails, page.tsx handles currentControls
+        onFormChange(values as FormValues); 
       }
     });
     
-    // Initialize with default/initial values
     const initialFormValues = form.getValues();
     const validInitial = formSchema.safeParse(initialFormValues);
     if(validInitial.success) {
         onFormChange(validInitial.data as FormValues);
     } else {
-        // console.warn("Initial form values are invalid:", validInitial.error.flatten());
-        onFormChange(initialFormValues as FormValues); // Pass raw values if parsing fails
+        onFormChange(initialFormValues as FormValues); 
     }
     
     return () => subscription.unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.watch, onFormChange, formSchema]); // formSchema added as a dep as it's used in effect
+  }, [form.watch, onFormChange]); 
 
   const { control } = form;
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-lg z-20"
+      className="fixed bottom-0 left-0 right-0 bg-secondary border-t border-border shadow-lg z-20"
       style={{ height: BOTTOM_PANEL_HEIGHT }}
     >
-      {/* The fieldset is no longer disabled by isSimulationActive */}
-      <fieldset className="h-full">
+      <fieldset>
         <ScrollArea className="h-full p-1">
           <Form {...form}>
             <form onSubmit={(e) => e.preventDefault()} className="p-4 space-y-2">
@@ -373,5 +368,3 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
     </div>
   );
 }
-
-    

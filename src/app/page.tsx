@@ -9,8 +9,8 @@ import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { StatsView } from '@/components/StatsView';
 import { AnalyticsGraphsView } from '@/components/AnalyticsGraphsView';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import type { Processor, PaymentMethod, ProcessorMetricsHistory } from '@/lib/types';
-import { PROCESSORS, PAYMENT_METHODS } from '@/lib/constants';
+import type { Processor, PaymentMethod, ProcessorMetricsHistory, SankeyData } from '@/lib/types';
+import { PROCESSORS, PAYMENT_METHODS, RULE_STRATEGY_NODES } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
 
 const SIMULATION_INTERVAL_MS = 1000; // Process transactions every 1 second
@@ -23,7 +23,7 @@ export default function HomePage() {
 
   const [successRateHistory, setSuccessRateHistory] = useState<ProcessorMetricsHistory>([]);
   const [volumeHistory, setVolumeHistory] = useState<ProcessorMetricsHistory>([]);
-
+  
   const simulationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   const accumulatedProcessorStatsRef = useRef<Record<string, { successful: number; failed: number; volumeShareRaw: number }>>(
@@ -37,10 +37,8 @@ export default function HomePage() {
   const { toast } = useToast();
 
   const handleControlsChange = useCallback((data: FormValues) => {
-    if (simulationState !== 'running') {
-      setCurrentControls(data);
-    }
-  }, [simulationState]);
+    setCurrentControls(data);
+  }, []);
 
 
   const resetSimulationState = () => {
@@ -72,7 +70,7 @@ export default function HomePage() {
       }, {} as FormValues['processorWiseSuccessRates']);
 
       setCurrentControls(prevControls => {
-        if (!prevControls) return null; // Should not happen if currentControls is set
+        if (!prevControls) return null; 
         return {
           ...prevControls,
           overallSuccessRate: 0,
@@ -83,11 +81,19 @@ export default function HomePage() {
   };
 
   const processTransactionBatch = useCallback(() => {
-    if (!currentControls || simulationState !== 'running') {
+    if (!currentControls) {
       if (simulationIntervalRef.current) clearInterval(simulationIntervalRef.current);
-      setSimulationState(prev => prev === 'running' ? 'paused' : prev);
+      setSimulationState('idle');
+      toast({ title: "Error", description: "Control data not available. Please configure settings.", variant: "destructive" });
       return;
     }
+    if(currentControls.selectedPaymentMethods.length === 0) {
+        if (simulationIntervalRef.current) clearInterval(simulationIntervalRef.current);
+        setSimulationState('idle');
+        toast({ title: "Error", description: "No payment methods selected. Please select at least one.", variant: "destructive" });
+        return;
+    }
+
 
     const {
       totalPayments,
@@ -96,7 +102,7 @@ export default function HomePage() {
       routingRulesText,
       smartRoutingEnabled,
       eliminationRoutingEnabled,
-      // debitRoutingEnabled, // Not directly used in this simplified processor choice logic
+      debitRoutingEnabled,
       srFluctuation,
       processorIncidents,
       processorWiseSuccessRates: baseProcessorSRsInput,
@@ -133,16 +139,16 @@ export default function HomePage() {
     const processorEffectiveSRs: Record<string, number> = {};
     PROCESSORS.forEach(proc => {
       const baseSRInfo = baseProcessorSRsInput[proc.id];
-      let defaultSR = 85; // A fallback default
+      let defaultSR = 85; 
         if (proc.id === 'stripe') defaultSR = 90;
         else if (proc.id === 'razorpay') defaultSR = 95;
         else if (proc.id === 'cashfree') defaultSR = 92;
         else if (proc.id === 'payu') defaultSR = 88;
         else if (proc.id === 'fampay') defaultSR = 85;
       const baseSR = baseSRInfo ? baseSRInfo.sr : defaultSR;
-      const fluctuationEffect = (srFluctuation[proc.id] - 50) / 100; // Slider 0-100, 50 is neutral
-      let effectiveSR = baseSR / 100 * (1 + fluctuationEffect); // Fluctuation can increase or decrease
-      if (processorIncidents[proc.id]) effectiveSR *= 0.1; // Heavy penalty for incidents
+      const fluctuationEffect = (srFluctuation[proc.id] - 50) / 100; 
+      let effectiveSR = (baseSR / 100) * (1 + fluctuationEffect); 
+      if (processorIncidents[proc.id]) effectiveSR *= 0.1; 
       processorEffectiveSRs[proc.id] = Math.max(0, Math.min(1, effectiveSR));
     });
 
@@ -155,12 +161,18 @@ export default function HomePage() {
         proc => processorMatrix[proc.id]?.[currentPaymentMethod]
       );
 
+      let strategyApplied = RULE_STRATEGY_NODES.STANDARD_ROUTING;
+
       if (eliminationRoutingEnabled) {
+        const initialCount = candidateProcessors.length;
         candidateProcessors = candidateProcessors.filter(proc => {
           const isDown = processorIncidents[proc.id];
           const srTooLow = (processorEffectiveSRs[proc.id] * 100) < 50; 
           return !isDown && !srTooLow;
         });
+        if(candidateProcessors.length < initialCount) {
+            strategyApplied = RULE_STRATEGY_NODES.ELIMINATION_APPLIED;
+        }
       }
 
       let chosenProcessor: Processor | undefined = undefined;
@@ -170,6 +182,7 @@ export default function HomePage() {
         const customRuleProcessor = candidateProcessors.find(p => p.id === targetProcessorId);
         if (customRuleProcessor) {
           chosenProcessor = customRuleProcessor;
+          strategyApplied = RULE_STRATEGY_NODES.CUSTOM_RULE_HIGH_VALUE_CARD;
         }
       }
 
@@ -177,9 +190,15 @@ export default function HomePage() {
         if (smartRoutingEnabled) {
           candidateProcessors.sort((a, b) => processorEffectiveSRs[b.id] - processorEffectiveSRs[a.id]);
           chosenProcessor = candidateProcessors[0];
-        } else {
-          // Standard/random routing if not smart and no custom rule matched
+          strategyApplied = RULE_STRATEGY_NODES.SMART_ROUTING;
+        } else if (debitRoutingEnabled) {
+            // Simplified: just ensure it's a candidate, actual debit-first needs more PM info
+            chosenProcessor = candidateProcessors[Math.floor(Math.random() * candidateProcessors.length)];
+            strategyApplied = RULE_STRATEGY_NODES.DEBIT_FIRST_ROUTING; // Mark as debit-first if selected under this logic
+        }
+         else {
           chosenProcessor = candidateProcessors[Math.floor(Math.random() * candidateProcessors.length)];
+          // strategyApplied remains STANDARD_ROUTING or ELIMINATION_APPLIED
         }
       }
 
@@ -194,7 +213,6 @@ export default function HomePage() {
           accumulatedGlobalStatsRef.current.totalFailed++;
         }
       } else {
-        // No processor found/available
         accumulatedGlobalStatsRef.current.totalFailed++;
       }
     }
@@ -207,8 +225,8 @@ export default function HomePage() {
     const overallSR = newProcessedCount > 0 ? (accumulatedGlobalStatsRef.current.totalSuccessful / newProcessedCount) * 100 : 0;
     const updatedProcessorSRsUi = { ...currentControls.processorWiseSuccessRates };
 
-    const currentSuccessRateDataPoint: Record<string, number> = { time: newTimeStep };
-    const currentVolumeDataPoint: Record<string, number> = { time: newTimeStep };
+    const currentSuccessRateDataPoint: Record<string, number | string> = { time: newTimeStep };
+    const currentVolumeDataPoint: Record<string, number | string> = { time: newTimeStep };
 
     PROCESSORS.forEach(proc => {
       const stats = accumulatedProcessorStatsRef.current[proc.id];
@@ -225,8 +243,8 @@ export default function HomePage() {
       currentVolumeDataPoint[proc.id] = totalRoutedToProc; 
     });
 
-    setSuccessRateHistory(prev => [...prev, currentSuccessRateDataPoint]);
-    setVolumeHistory(prev => [...prev, currentVolumeDataPoint]);
+    setSuccessRateHistory(prev => [...prev, currentSuccessRateDataPoint as ProcessorMetricsHistory[number]]);
+    setVolumeHistory(prev => [...prev, currentVolumeDataPoint as ProcessorMetricsHistory[number]]);
 
 
     setCurrentControls(prevControls => {
@@ -288,13 +306,13 @@ export default function HomePage() {
     toast({ title: "Simulation Stopped & Reset", duration: 3000 });
   }, [toast]);
 
-  const [activeTab, setActiveTab] = useState("stats");
+  const [activeTab, setActiveTab] = useState("analytics");
 
 
   return (
     <>
       <AppLayout>
-        <Tabs defaultValue="stats" value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-grow overflow-hidden">
+        <Tabs defaultValue="analytics" value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-grow overflow-hidden">
           <Header
             activeTab={activeTab}
             onTabChange={setActiveTab}
