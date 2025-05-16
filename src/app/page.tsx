@@ -9,8 +9,8 @@ import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { SankeyDiagramView } from '@/components/SankeyDiagramView';
 import { AnalyticsView } from '@/components/AnalyticsView';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import type { SankeyData, SankeyNode, SankeyLink, Processor } from '@/lib/types';
-import { PROCESSORS } from '@/lib/constants';
+import type { SankeyData, SankeyNode, SankeyLink, Processor, PaymentMethod, TransactionProcessingState } from '@/lib/types';
+import { PROCESSORS, PAYMENT_METHODS, RULE_STRATEGY_NODES } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
 
 
@@ -31,237 +31,256 @@ export default function HomePage() {
       return;
     }
     setIsSimulating(true);
-    setSankeyData(null); 
+    setSankeyData(null);
 
-    // Simulate API call or heavy computation
-    await new Promise(resolve => setTimeout(resolve, 500)); // Shorter delay for quicker feedback
+    await new Promise(resolve => setTimeout(resolve, 300)); // Simulate computation
 
     const {
       totalPayments,
-      selectedPaymentMethods,
+      selectedPaymentMethods: activePMStrings, // These are strings from the form
       processorMatrix,
-      // routingRulesText, // Full parsing of this is out of scope for this iteration.
+      routingRulesText,
       smartRoutingEnabled,
       eliminationRoutingEnabled,
-      // debitRoutingEnabled, // Effect of this will be minimal without more PM/processor attributes.
+      debitRoutingEnabled, // Logic for this will be kept simple for now
       srFluctuation,
       processorIncidents,
-      processorWiseSuccessRates: baseProcessorSRs,
+      processorWiseSuccessRates: baseProcessorSRsInput, // sr, volumeShare, failureRate
+      amount: transactionAmount, // Use this as the general amount for transactions
+      currency: transactionCurrency,
+      simulateSaleEvent, // If true, use higher TPS
+      tps: baseTps,
     } = currentControls;
+
+    const activePaymentMethods = activePMStrings as PaymentMethod[];
+    const effectiveTps = simulateSaleEvent ? 5000 : baseTps; // Traffic spike
 
     const nodes: SankeyNode[] = [];
     const links: SankeyLink[] = [];
+    
+    // Helper to add/update links
+    const upsertLink = (source: string, target: string, value: number = 1) => {
+      const existingLink = links.find(l => l.source === source && l.target === target);
+      if (existingLink) {
+        existingLink.value += value;
+      } else {
+        links.push({ source, target, value });
+      }
+    };
 
-    // Initialize stats
+    // Stats tracking for Sankey link values
+    const transactionFlowStats: Record<string, number> = {}; // key: "sourceId>targetId", value: count
+
     const processorStats: Record<string, {
-      routedTo: number;
       successful: number;
       failed: number;
-      paymentMethodBreakdown: Record<string, { routedTo: number, successful: number, failed: number }>;
-    }> = {};
-
-    PROCESSORS.forEach(proc => {
-      processorStats[proc.id] = { routedTo: 0, successful: 0, failed: 0, paymentMethodBreakdown: {} };
-      selectedPaymentMethods.forEach(pm => {
-        processorStats[proc.id].paymentMethodBreakdown[pm] = { routedTo: 0, successful: 0, failed: 0 };
-      });
-    });
-    let totalSuccessfulTransactions = 0;
-    let totalFailedTransactions = 0; // This will include unrouted as failures for SR calc
-    let transactionsUnrouted = 0;
+      volumeShareRaw: number; // count of transactions routed
+    }> = PROCESSORS.reduce((acc, proc) => {
+      acc[proc.id] = { successful: 0, failed: 0, volumeShareRaw: 0 };
+      return acc;
+    }, {} as Record<string, { successful: number; failed: number; volumeShareRaw: number}>);
+    
+    let totalSuccessfulGlobal = 0;
+    let totalFailedGlobal = 0; // Includes unrouted
 
     // 1. Calculate Effective SR for each processor
     const processorEffectiveSRs: Record<string, number> = {};
     PROCESSORS.forEach(proc => {
-      const baseSR = baseProcessorSRs[proc.id]?.sr ?? 90; // Default SR if not specified
-      const fluctuationEffect = (srFluctuation[proc.id] - 50) / 200; // Fluctuation: 50 is neutral, slider 0-100 maps to -0.25 to +0.25
-      let effectiveSR = baseSR / 100 * (1 + fluctuationEffect);
+      const baseSRInfo = baseProcessorSRsInput[proc.id];
+      const baseSR = baseSRInfo ? baseSRInfo.sr : 90; // Default SR if not in controls
+      const fluctuationEffect = (srFluctuation[proc.id] - 50) / 100; // e.g., 0-100 slider, 50 is neutral. Converts to -0.5 to +0.5.
+      let effectiveSR = baseSR / 100 * (1 + fluctuationEffect); // Apply fluctuation
+      
+      // Reduce SR significantly during an incident
       if (processorIncidents[proc.id]) {
-        effectiveSR *= 0.1; // Drastic SR reduction during an incident
+        effectiveSR *= 0.1; // 90% reduction
       }
-      processorEffectiveSRs[proc.id] = Math.max(0, Math.min(1, effectiveSR)); // Clamp between 0 and 1
+      processorEffectiveSRs[proc.id] = Math.max(0, Math.min(1, effectiveSR)); // Clamp SR between 0 and 1
     });
 
     // 2. Simulate each transaction
     for (let i = 0; i < totalPayments; i++) {
-      // Distribute transactions somewhat evenly across selected payment methods for simulation input
-      const currentPaymentMethod = selectedPaymentMethods[i % selectedPaymentMethods.length];
+      const txnId = `txn_${String(i + 1).padStart(3, '0')}`;
+      const currentPaymentMethod = activePaymentMethods[i % activePaymentMethods.length];
 
-      // Identify applicable processors for this PM
-      let candidateProcessors = PROCESSORS.filter(
-        proc => processorMatrix[proc.id]?.[currentPaymentMethod]
+      const processingState: TransactionProcessingState = {
+        id: txnId,
+        method: currentPaymentMethod,
+        amount: transactionAmount,
+        currency: transactionCurrency,
+        appliedRuleStrategyNodeId: null,
+        selectedProcessorId: null,
+        isSuccess: null,
+      };
+      
+      upsertLink('source', `pm_${currentPaymentMethod.toLowerCase()}`);
+
+      let candidateProcessors: Processor[] = PROCESSORS.filter(
+        proc => processorMatrix[proc.id]?.[currentPaymentMethod] && !processorIncidents[proc.id] // Basic availability and not down
       );
 
-      // Apply Elimination Routing
+      // Apply Elimination Routing (SR < 50% or incident)
+      let eliminationAppliedThisTxn = false;
       if (eliminationRoutingEnabled) {
-        candidateProcessors = candidateProcessors.filter(
-          proc => !processorIncidents[proc.id]
-        );
-      }
-
-      if (candidateProcessors.length === 0) {
-        transactionsUnrouted++;
-        totalFailedTransactions++; // Count unrouted as a general failure for SR
-        continue; // No processor to route to
-      }
-
-      let selectedProcessorData: Processor | undefined;
-
-      // Apply Routing Strategy
-      if (smartRoutingEnabled && candidateProcessors.length > 0) {
-        candidateProcessors.sort((a, b) => processorEffectiveSRs[b.id] - processorEffectiveSRs[a.id]);
-        selectedProcessorData = candidateProcessors[0]; 
-      } else if (candidateProcessors.length > 0) {
-        selectedProcessorData = candidateProcessors[Math.floor(Math.random() * candidateProcessors.length)];
-      }
-      // Note: debitRoutingEnabled logic would be more complex.
-
-      if (selectedProcessorData) {
-        const procId = selectedProcessorData.id;
-        processorStats[procId].routedTo++;
-        if (!processorStats[procId].paymentMethodBreakdown[currentPaymentMethod]) {
-            processorStats[procId].paymentMethodBreakdown[currentPaymentMethod] = { routedTo: 0, successful: 0, failed: 0 };
+        const initialCandidateCount = candidateProcessors.length;
+        candidateProcessors = candidateProcessors.filter(proc => {
+          const isDown = processorIncidents[proc.id];
+          const srTooLow = (processorEffectiveSRs[proc.id] * 100) < 50;
+          return !isDown && !srTooLow;
+        });
+        if (candidateProcessors.length < initialCandidateCount) {
+          eliminationAppliedThisTxn = true;
         }
-        processorStats[procId].paymentMethodBreakdown[currentPaymentMethod].routedTo++;
+      }
+      
+      // Determine routing strategy and processor
+      let chosenProcessor: Processor | undefined = undefined;
+      let strategyNodeId: string = RULE_STRATEGY_NODES.STANDARD_ROUTING; // Default
 
+      // Custom Rule Check (simplified example)
+      const ruleMatch = routingRulesText.match(/IF amount > (\d+) AND method = (\w+) THEN RouteTo (\w+)/i);
+      if (ruleMatch && currentPaymentMethod.toLowerCase() === ruleMatch[2].toLowerCase() && transactionAmount > parseInt(ruleMatch[1])) {
+        const targetProcessorId = ruleMatch[3].toLowerCase();
+        const customRuleProcessor = candidateProcessors.find(p => p.id === targetProcessorId);
+        if (customRuleProcessor) {
+          chosenProcessor = customRuleProcessor;
+          strategyNodeId = RULE_STRATEGY_NODES.CUSTOM_RULE_HIGH_VALUE_CARD;
+        }
+      }
 
-        const success = Math.random() < processorEffectiveSRs[procId];
-        if (success) {
-          processorStats[procId].successful++;
-          processorStats[procId].paymentMethodBreakdown[currentPaymentMethod].successful++;
-          totalSuccessfulTransactions++;
+      if (!chosenProcessor && candidateProcessors.length > 0) {
+        if (smartRoutingEnabled) {
+          candidateProcessors.sort((a, b) => processorEffectiveSRs[b.id] - processorEffectiveSRs[a.id]);
+          chosenProcessor = candidateProcessors[0];
+          strategyNodeId = RULE_STRATEGY_NODES.SMART_ROUTING;
         } else {
-          processorStats[procId].failed++;
-          processorStats[procId].paymentMethodBreakdown[currentPaymentMethod].failed++;
-          totalFailedTransactions++;
+          // Standard/Random if not smart routing and no custom rule hit
+          chosenProcessor = candidateProcessors[Math.floor(Math.random() * candidateProcessors.length)];
+          // strategyNodeId remains STANDARD_ROUTING or could be more specific if needed
+        }
+      }
+      
+      if (eliminationAppliedThisTxn && strategyNodeId !== RULE_STRATEGY_NODES.CUSTOM_RULE_HIGH_VALUE_CARD) {
+        // If elimination happened and it wasn't overridden by a custom rule, show elimination strategy.
+        // This is a simplification; a transaction might pass through multiple "strategy" nodes conceptually.
+        // For Sankey, we pick one dominant strategy for the link.
+        strategyNodeId = RULE_STRATEGY_NODES.ELIMINATION_APPLIED;
+      }
+
+
+      if (chosenProcessor) {
+        processingState.selectedProcessorId = `proc_${chosenProcessor.id}`;
+        processingState.appliedRuleStrategyNodeId = strategyNodeId;
+        
+        upsertLink(`pm_${currentPaymentMethod.toLowerCase()}`, strategyNodeId);
+        upsertLink(strategyNodeId, `proc_${chosenProcessor.id}`);
+
+        const success = Math.random() < processorEffectiveSRs[chosenProcessor.id];
+        processingState.isSuccess = success;
+        processorStats[chosenProcessor.id].volumeShareRaw++;
+
+        if (success) {
+          upsertLink(`proc_${chosenProcessor.id}`, 'status_success');
+          processorStats[chosenProcessor.id].successful++;
+          totalSuccessfulGlobal++;
+        } else {
+          upsertLink(`proc_${chosenProcessor.id}`, 'status_failure');
+          processorStats[chosenProcessor.id].failed++;
+          totalFailedGlobal++;
         }
       } else {
-        transactionsUnrouted++;
-        totalFailedTransactions++; 
+        // No processor found/routed
+        processingState.appliedRuleStrategyNodeId = RULE_STRATEGY_NODES.NO_ROUTE_FOUND;
+        upsertLink(`pm_${currentPaymentMethod.toLowerCase()}`, RULE_STRATEGY_NODES.NO_ROUTE_FOUND);
+        upsertLink(RULE_STRATEGY_NODES.NO_ROUTE_FOUND, 'status_failure'); // Unrouted counts as failure
+        totalFailedGlobal++;
       }
     }
 
-    // 3. Prepare Sankey Data
+    // 3. Prepare Sankey Data (Nodes)
     nodes.push({ id: 'source', name: 'Source', type: 'source' });
-    selectedPaymentMethods.forEach(pm => {
+    activePaymentMethods.forEach(pm => {
       nodes.push({ id: `pm_${pm.toLowerCase()}`, name: pm, type: 'paymentMethod' });
     });
+
+    // Add used strategy nodes dynamically
+    const usedStrategyNodeIds = new Set<string>(links.map(l => l.source).concat(links.map(l => l.target)).filter(id => Object.values(RULE_STRATEGY_NODES).includes(id as any)));
+    
+    if (usedStrategyNodeIds.has(RULE_STRATEGY_NODES.CUSTOM_RULE_HIGH_VALUE_CARD)) nodes.push({ id: RULE_STRATEGY_NODES.CUSTOM_RULE_HIGH_VALUE_CARD, name: 'Custom Rule: High Value Card', type: 'ruleStrategy' });
+    if (usedStrategyNodeIds.has(RULE_STRATEGY_NODES.SMART_ROUTING)) nodes.push({ id: RULE_STRATEGY_NODES.SMART_ROUTING, name: 'Smart Routing', type: 'ruleStrategy' });
+    if (usedStrategyNodeIds.has(RULE_STRATEGY_NODES.ELIMINATION_APPLIED)) nodes.push({ id: RULE_STRATEGY_NODES.ELIMINATION_APPLIED, name: 'Elimination Applied', type: 'ruleStrategy' });
+    if (usedStrategyNodeIds.has(RULE_STRATEGY_NODES.STANDARD_ROUTING)) nodes.push({ id: RULE_STRATEGY_NODES.STANDARD_ROUTING, name: 'Standard Routing', type: 'ruleStrategy' });
+    if (usedStrategyNodeIds.has(RULE_STRATEGY_NODES.DEBIT_FIRST_ROUTING)) nodes.push({ id: RULE_STRATEGY_NODES.DEBIT_FIRST_ROUTING, name: 'Debit First Routing', type: 'ruleStrategy' });
+    if (usedStrategyNodeIds.has(RULE_STRATEGY_NODES.NO_ROUTE_FOUND)) nodes.push({ id: RULE_STRATEGY_NODES.NO_ROUTE_FOUND, name: 'No Route Found', type: 'ruleStrategy' });
+    
     PROCESSORS.forEach(proc => {
-      nodes.push({ id: `proc_${proc.id}`, name: proc.name, type: 'processor' });
+      // Only add processor nodes if they were involved in any link
+      if (links.some(link => link.source === `proc_${proc.id}` || link.target === `proc_${proc.id}` )) {
+        nodes.push({ id: `proc_${proc.id}`, name: proc.name, type: 'processor' });
+      }
     });
     nodes.push({ id: 'status_success', name: 'Success', type: 'status' });
     nodes.push({ id: 'status_failure', name: 'Failure', type: 'status' });
-    nodes.push({ id: 'sink', name: 'Sink', type: 'sink' });
+    nodes.push({ id: 'sink', name: 'Sink', type: 'sink' }); // Added Sink
+
+    // Final links to Sink
+    const totalSuccessToSink = links.filter(l => l.target === 'status_success').reduce((sum, l) => sum + l.value, 0);
+    if (totalSuccessToSink > 0) upsertLink('status_success', 'sink', totalSuccessToSink);
     
-    // Links: Source -> PMs
-    // This shows initial distribution. Sum of these should be totalPayments.
-    const paymentsPerSelectedPM = totalPayments / (selectedPaymentMethods.length || 1);
-    selectedPaymentMethods.forEach(pm => {
-      if (paymentsPerSelectedPM > 0) {
-         links.push({
-            source: 'source',
-            target: `pm_${pm.toLowerCase()}`,
-            value: Math.floor(paymentsPerSelectedPM) // Use floor, adjust last one if needed for sum
-         });
-      }
-    });
-     // Adjust last PM link value if totalPayments is not perfectly divisible
-    if (selectedPaymentMethods.length > 0 && totalPayments % selectedPaymentMethods.length !== 0) {
-        const remainder = totalPayments % selectedPaymentMethods.length;
-        const lastPMLink = links.find(l => l.target === `pm_${selectedPaymentMethods[selectedPaymentMethods.length - 1].toLowerCase()}`);
-        if (lastPMLink) {
-            lastPMLink.value += remainder;
-        } else if (remainder > 0 && selectedPaymentMethods.length === 1) {
-            // If only one PM and it didn't get a link yet (e.g. paymentsPerSelectedPM was < 1 then floored)
-             links.push({
-                source: 'source',
-                target: `pm_${selectedPaymentMethods[0].toLowerCase()}`,
-                value: totalPayments
-             });
-        }
-    }
+    const totalFailureToSink = links.filter(l => l.target === 'status_failure').reduce((sum, l) => sum + l.value, 0);
+    if (totalFailureToSink > 0) upsertLink('status_failure', 'sink', totalFailureToSink);
 
-
-    // Links: PMs -> Processors
-    PROCESSORS.forEach(proc => {
-      selectedPaymentMethods.forEach(pm => {
-        const traffic = processorStats[proc.id].paymentMethodBreakdown[pm]?.routedTo;
-        if (traffic > 0) {
-          links.push({
-            source: `pm_${pm.toLowerCase()}`,
-            target: `proc_${proc.id}`,
-            value: traffic
-          });
-        }
-      });
-    });
-    
-    // Links: Processors -> Success/Failure
-    PROCESSORS.forEach(proc => {
-      if (processorStats[proc.id].successful > 0) {
-        links.push({ source: `proc_${proc.id}`, target: 'status_success', value: processorStats[proc.id].successful });
-      }
-      if (processorStats[proc.id].failed > 0) {
-        links.push({ source: `proc_${proc.id}`, target: 'status_failure', value: processorStats[proc.id].failed });
-      }
-    });
-
-    // Links: Status -> Sink
-    if (totalSuccessfulTransactions > 0) {
-      links.push({ source: 'status_success', target: 'sink', value: totalSuccessfulTransactions });
-    }
-    
-    // Total failures for the sink link include processor failures and unrouted transactions
-    const totalFailuresForSink = Object.values(processorStats).reduce((sum, stat) => sum + stat.failed, 0) + transactionsUnrouted;
-    if (totalFailuresForSink > 0) {
-       links.push({ source: 'status_failure', target: 'sink', value: totalFailuresForSink });
-    }
-
-    const linkedNodeIds = new Set<string>();
+    // Filter out nodes not participating in any links (except source and sink if they have links)
+    const participatingNodeIds = new Set<string>();
     links.forEach(link => {
-      linkedNodeIds.add(link.source);
-      linkedNodeIds.add(link.target);
+      participatingNodeIds.add(link.source);
+      participatingNodeIds.add(link.target);
     });
-    if (links.some(l => l.source === 'source' && l.value > 0)) linkedNodeIds.add('source');
-    if (links.some(l => l.target === 'sink' && l.value > 0)) linkedNodeIds.add('sink');
-    if (totalSuccessfulTransactions > 0) linkedNodeIds.add('status_success');
-    if (totalFailuresForSink > 0) linkedNodeIds.add('status_failure');
+    // Ensure source and sink are included if they have connections
+    if (links.some(l => l.source === 'source')) participatingNodeIds.add('source');
+    if (links.some(l => l.target === 'sink')) participatingNodeIds.add('sink');
     
-    selectedPaymentMethods.forEach(pm => {
-        if (links.some(l => (l.source === `pm_${pm.toLowerCase()}` || l.target === `pm_${pm.toLowerCase()}`) && l.value > 0)) {
-            linkedNodeIds.add(`pm_${pm.toLowerCase()}`);
-        }
-    });
-    PROCESSORS.forEach(proc => {
-        if (links.some(l => (l.source === `proc_${proc.id}` || l.target === `proc_${proc.id}`) && l.value > 0)) {
-            linkedNodeIds.add(`proc_${proc.id}`);
-        }
-    });
-
-
-    const finalNodes = nodes.filter(node => linkedNodeIds.has(node.id));
-    
-    // Ensure all links have a value > 0
+    const finalNodes = nodes.filter(node => participatingNodeIds.has(node.id));
     const finalLinks = links.filter(link => link.value > 0);
-
 
     setSankeyData({ nodes: finalNodes, links: finalLinks });
     setIsSimulating(false);
 
-    const overallSR = totalPayments > 0 ? (totalSuccessfulTransactions / totalPayments) * 100 : 0;
-    toast({ 
-        title: "Simulation Complete", 
-        description: `Overall SR: ${overallSR.toFixed(2)}%. ${transactionsUnrouted} unrouted.`,
+    const overallSR = totalPayments > 0 ? (totalSuccessfulGlobal / totalPayments) * 100 : 0;
+    
+    // Update processorWiseSuccessRates in currentControls for AnalyticsView
+    const updatedProcessorSRs = { ...currentControls.processorWiseSuccessRates };
+    PROCESSORS.forEach(proc => {
+        const stats = processorStats[proc.id];
+        const totalRoutedToProc = stats.volumeShareRaw;
+        const procSR = totalRoutedToProc > 0 ? (stats.successful / totalRoutedToProc) * 100 : 0;
+        const procVolumeShare = totalPayments > 0 ? (totalRoutedToProc / totalPayments) * 100 : 0;
+        updatedProcessorSRs[proc.id] = {
+            sr: parseFloat(procSR.toFixed(2)),
+            volumeShare: parseFloat(procVolumeShare.toFixed(2)),
+            failureRate: parseFloat((100 - procSR).toFixed(2))
+        };
+    });
+
+    if (currentControls) { // Ensure currentControls is not null
+      setCurrentControls(prevControls => ({
+          ...prevControls!,
+          overallSuccessRate: parseFloat(overallSR.toFixed(2)),
+          processorWiseSuccessRates: updatedProcessorSRs,
+          // Update TPS if sale event was simulated
+          tps: effectiveTps, 
+      }));
+    }
+    
+    toast({
+        title: "Simulation Complete",
+        description: `Overall SR: ${overallSR.toFixed(2)}%. ${totalPayments - totalSuccessfulGlobal - totalFailedGlobal} unhandled (should be 0). TPS: ${effectiveTps}`,
         duration: 5000,
     });
 
-    if (currentControls) {
-        setCurrentControls(prevControls => ({
-            ...prevControls!,
-            overallSuccessRate: parseFloat(overallSR.toFixed(2)) // Ensure it's a number
-        }));
-    }
-
+  // Dependency array update:
+  // `currentControls` is the main dependency. Specific fields like `selectedPaymentMethods` are part of `currentControls`.
+  // `toast` and `setCurrentControls` are stable.
   }, [currentControls, toast, setCurrentControls]);
 
 
@@ -273,17 +292,17 @@ export default function HomePage() {
             onRunSimulation={handleRunSimulation}
             isSimulating={isSimulating}
           />
-          {/* Main content area for TabsContent */}
-          <div className="flex-grow overflow-hidden p-0 md:p-2 lg:p-4">
-            <TabsContent value="sankey" className="h-full mt-0"> 
-              <ScrollArea className="h-full">
-                 <SankeyDiagramView currentControls={currentControls} sankeyData={sankeyData} />
-              </ScrollArea>
+          <div className="flex-grow overflow-hidden p-0"> {/* Removed outer padding */}
+            <TabsContent value="sankey" className="h-full mt-0">
+              {/* ScrollArea removed from here; SankeyDiagramView/SankeyDiagram will manage their own height/scroll if necessary or fill */}
+              <SankeyDiagramView currentControls={currentControls} sankeyData={sankeyData} />
             </TabsContent>
-            <TabsContent value="analytics" className="h-full mt-0">  
-               <ScrollArea className="h-full">
-                <AnalyticsView currentControls={currentControls} />
-              </ScrollArea>
+            <TabsContent value="analytics" className="h-full mt-0">
+              <div className="p-2 md:p-4 lg:p-6 h-full"> {/* Added padding inside analytics tab */}
+                <ScrollArea className="h-full">
+                  <AnalyticsView currentControls={currentControls} />
+                </ScrollArea>
+              </div>
             </TabsContent>
           </div>
         </Tabs>
@@ -294,4 +313,3 @@ export default function HomePage() {
     </>
   );
 }
-

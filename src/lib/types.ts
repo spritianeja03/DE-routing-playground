@@ -39,7 +39,6 @@ export interface ControlsState {
   processorWiseSuccessRates: Record<string, { sr: number; volumeShare: number; failureRate: number }>;
 }
 
-// This is what we'll stringify and pass as sankeyDiagramData to AI flows (if used elsewhere)
 export interface AISankeyInputData {
   parameters: Omit<ControlsState, 'routingRulesText' | 'overallSuccessRate' | 'processorWiseSuccessRates'> & {
     routingRules: string; 
@@ -61,7 +60,7 @@ export interface ProcessorSuccessRate {
 export interface SankeyNode {
   id: string;
   name: string;
-  type: 'source' | 'paymentMethod' | 'processor' | 'status' | 'sink';
+  type: 'source' | 'paymentMethod' | 'ruleStrategy' | 'processor' | 'status' | 'sink';
 }
 
 export interface SankeyLink {
@@ -74,4 +73,15 @@ export interface SankeyLink {
 export interface SankeyData {
   nodes: SankeyNode[];
   links: SankeyLink[];
+}
+
+// Represents the state of a single transaction as it's being processed by the simulation
+export interface TransactionProcessingState {
+  id: string;
+  method: PaymentMethod;
+  amount: number; // Assuming amount is part of currentControls, not per-transaction for this simulation
+  currency: Currency; // Same as amount
+  appliedRuleStrategyNodeId: string | null; // ID of the rule/strategy node
+  selectedProcessorId: string | null; // ID of the processor node
+  isSuccess: boolean | null;
 }

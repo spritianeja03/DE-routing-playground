@@ -11,8 +11,10 @@ interface SankeyDiagramViewProps {
 
 export function SankeyDiagramView({ currentControls, sankeyData }: SankeyDiagramViewProps) {
   return (
-    <div className="h-full flex flex-col p-6 space-y-6"> {/* Removed overflow-y-auto */}
-      <div className="flex-grow min-h-[300px] h-full"> {/* Ensure SankeyDiagram has space and can fill height */}
+    // Removed p-6 and space-y-6, set to h-full and flex
+    <div className="h-full flex flex-col"> 
+      {/* Ensure SankeyDiagram has space and can fill height. min-h-[300px] might be redundant if h-full works */}
+      <div className="flex-grow h-full"> 
         <SankeyDiagram data={sankeyData} />
       </div>
     </div>
