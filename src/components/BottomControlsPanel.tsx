@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react'; // Added this line
@@ -126,7 +127,7 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
       <ScrollArea className="h-full p-1">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(() => { /* Submission handled by watch? */ })} className="p-4 space-y-6">
-            <Accordion type="multiple" collapsible className="w-full" defaultValue={['general', 'processors']}>
+            <Accordion type="multiple" className="w-full" defaultValue={['general', 'processors']}>
               <AccordionItem value="general">
                 <AccordionTrigger className="text-lg font-semibold"><Settings2 className="mr-2" /> General Configuration</AccordionTrigger>
                 <AccordionContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-4">
@@ -406,3 +407,5 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
     </div>
   );
 }
+
+    
