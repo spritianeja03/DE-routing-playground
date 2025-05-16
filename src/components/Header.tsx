@@ -1,7 +1,6 @@
 
 import { Zap, PlayCircle, Loader2, PauseCircle, StopCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface HeaderProps {
   onStartSimulation: () => void;
@@ -25,22 +24,7 @@ export function Header({ onStartSimulation, onPauseSimulation, onStopSimulation,
             Hyperswitch <span className="text-primary">Intelligent Routing</span>
           </h1>
         </div>
-
-        {/* TabsList for navigation */}
-        <TabsList className="h-auto p-0 bg-transparent border-none">
-          <TabsTrigger
-            value="sankey"
-            className="px-4 py-2 text-sm data-[state=active]:shadow-none data-[state=active]:bg-primary/10 data-[state=active]:text-primary hover:bg-accent/50 data-[state=active]:hover:bg-primary/10"
-          >
-            Sankey View
-          </TabsTrigger>
-          <TabsTrigger
-            value="analytics"
-            className="px-4 py-2 text-sm data-[state=active]:shadow-none data-[state=active]:bg-primary/10 data-[state=active]:text-primary hover:bg-accent/50 data-[state=active]:hover:bg-primary/10"
-          >
-            Analytics
-          </TabsTrigger>
-        </TabsList>
+        {/* TabsList removed as there's only one view now */}
       </div>
 
       <div className="flex items-center gap-2">

@@ -42,14 +42,22 @@ const defaultProcessorIncidents: ProcessorIncidentStatus = PROCESSORS.reduce((ac
 
 const defaultProcessorWiseSuccessRates = PROCESSORS.reduce((acc, proc) => {
   const initialVolumeShare = Math.round(100 / PROCESSORS.length);
-  acc[proc.id] = { sr: proc.id === 'stripe' ? 90 : (proc.id === 'razorpay' ? 95 : (proc.id === 'cashfree' ? 92 : (proc.id === 'payu' ? 88 : 85))), volumeShare: initialVolumeShare, failureRate: 10 };
+  // Default SRs adjusted for new processors
+  let defaultSr = 85;
+  if (proc.id === 'stripe') defaultSr = 90;
+  else if (proc.id === 'razorpay') defaultSr = 95;
+  else if (proc.id === 'cashfree') defaultSr = 92;
+  else if (proc.id === 'payu') defaultSr = 88;
+  else if (proc.id === 'fampay') defaultSr = 85; // Added Fampay default
+
+  acc[proc.id] = { sr: defaultSr, volumeShare: initialVolumeShare, failureRate: 100 - defaultSr };
   return acc;
 }, {} as ControlsState['processorWiseSuccessRates']);
 
 
 const formSchema = z.object({
   totalPayments: z.number().min(0).max(1000000),
-  tps: z.number().min(1).max(10000), // Increased max TPS for sale event
+  tps: z.number().min(1).max(10000),
   selectedPaymentMethods: z.array(z.string()).min(1, "Please select at least one payment method."),
   amount: z.number().min(0),
   currency: z.enum(CURRENCIES),
@@ -61,7 +69,7 @@ const formSchema = z.object({
   simulateSaleEvent: z.boolean(),
   srFluctuation: z.record(z.string(), z.number().min(0).max(100)),
   processorIncidents: z.record(z.string(), z.boolean()),
-  overallSuccessRate: z.number().min(0).max(100).optional(), // Made optional as it's calculated
+  overallSuccessRate: z.number().min(0).max(100).optional(),
   processorWiseSuccessRates: z.record(z.string(), z.object({
     sr: z.number().min(0).max(100),
     volumeShare: z.number().min(0).max(100),
@@ -74,7 +82,7 @@ export type FormValues = z.infer<typeof formSchema>;
 interface BottomControlsPanelProps {
   onFormChange: (data: FormValues) => void;
   initialValues?: Partial<FormValues>;
-  isSimulationActive: boolean; // New prop
+  isSimulationActive: boolean;
 }
 
 const BOTTOM_PANEL_HEIGHT = "350px";
@@ -96,7 +104,7 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
       simulateSaleEvent: initialValues?.simulateSaleEvent ?? false,
       srFluctuation: initialValues?.srFluctuation ?? defaultSRFluctuation,
       processorIncidents: initialValues?.processorIncidents ?? defaultProcessorIncidents,
-      overallSuccessRate: initialValues?.overallSuccessRate ?? 0, // Start at 0
+      overallSuccessRate: initialValues?.overallSuccessRate ?? 0,
       processorWiseSuccessRates: initialValues?.processorWiseSuccessRates ?? defaultProcessorWiseSuccessRates,
     },
   });
@@ -107,12 +115,10 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
       if (validValues.success) {
          onFormChange(validValues.data as FormValues);
       } else {
-        // If not fully valid yet (e.g., during typing a number), still pass what we have
-        // This helps with reactivity for sliders, etc., before full validation passes
         onFormChange(values as FormValues);
       }
     });
-    // Initial form values push
+    
     const initialFormValues = form.getValues();
     const validInitial = formSchema.safeParse(initialFormValues);
     if(validInitial.success) {
@@ -123,7 +129,7 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
     
     return () => subscription.unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.watch, onFormChange]); // form.formState.isValid removed
+  }, [form.watch, onFormChange]); 
 
   const { control } = form;
 
@@ -132,7 +138,7 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
       className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-lg z-20"
       style={{ height: BOTTOM_PANEL_HEIGHT }}
     >
-      <fieldset disabled={isSimulationActive} className="h-full"> {/* Disable form if simulation is active */}
+      <fieldset disabled={isSimulationActive} className="h-full">
         <ScrollArea className="h-full p-1">
           <Form {...form}>
             <form onSubmit={(e) => e.preventDefault()} className="p-4 space-y-2">
@@ -248,7 +254,7 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
                               />
                             ))}
                           </div>
-                          <FormMessage /> {/* For selectedPaymentMethods array validation */}
+                          <FormMessage />
                         </FormItem>
                       )}
                     />

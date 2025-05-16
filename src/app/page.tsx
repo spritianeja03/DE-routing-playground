@@ -5,19 +5,17 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { AppLayout } from '@/components/AppLayout';
 import { Header } from '@/components/Header';
 import { BottomControlsPanel, type FormValues } from '@/components/BottomControlsPanel';
-import { Tabs, TabsContent } from '@/components/ui/tabs';
-import { SankeyDiagramView } from '@/components/SankeyDiagramView';
+import { Tabs, TabsContent } from '@/components/ui/tabs'; // Keep Tabs for structure, though only one tab content will be active
 import { AnalyticsView } from '@/components/AnalyticsView';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import type { SankeyData, SankeyNode, SankeyLink, Processor, PaymentMethod, ProcessorMetricsHistory } from '@/lib/types';
-import { PROCESSORS, PAYMENT_METHODS, RULE_STRATEGY_NODES } from '@/lib/constants';
+import type { Processor, PaymentMethod, ProcessorMetricsHistory } from '@/lib/types';
+import { PROCESSORS, PAYMENT_METHODS } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
 
 const SIMULATION_INTERVAL_MS = 1000; // Process transactions every 1 second
 
 export default function HomePage() {
   const [currentControls, setCurrentControls] = useState<FormValues | null>(null);
-  const [sankeyData, setSankeyData] = useState<SankeyData | null>(null);
   const [simulationState, setSimulationState] = useState<'idle' | 'running' | 'paused'>('idle');
   const [processedPaymentsCount, setProcessedPaymentsCount] = useState<number>(0);
   const [simulationTimeStep, setSimulationTimeStep] = useState<number>(0);
@@ -26,7 +24,7 @@ export default function HomePage() {
   const [volumeHistory, setVolumeHistory] = useState<ProcessorMetricsHistory>([]);
 
   const simulationIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const accumulatedLinksRef = useRef<Record<string, number>>({});
+  
   const accumulatedProcessorStatsRef = useRef<Record<string, { successful: number; failed: number; volumeShareRaw: number }>>(
     PROCESSORS.reduce((acc, proc) => {
       acc[proc.id] = { successful: 0, failed: 0, volumeShareRaw: 0 };
@@ -38,7 +36,6 @@ export default function HomePage() {
   const { toast } = useToast();
 
   const handleControlsChange = useCallback((data: FormValues) => {
-    // Only update if simulation is not running to prevent mid-simulation changes affecting current run
     if (simulationState !== 'running') {
       setCurrentControls(data);
     }
@@ -46,13 +43,11 @@ export default function HomePage() {
 
 
   const resetSimulationState = () => {
-    setSankeyData(null);
     setProcessedPaymentsCount(0);
     setSimulationTimeStep(0);
     setSuccessRateHistory([]);
     setVolumeHistory([]);
 
-    accumulatedLinksRef.current = {};
     accumulatedProcessorStatsRef.current = PROCESSORS.reduce((acc, proc) => {
       acc[proc.id] = { successful: 0, failed: 0, volumeShareRaw: 0 };
       return acc;
@@ -62,8 +57,7 @@ export default function HomePage() {
     if (currentControls) {
       const initialProcessorSRs = PROCESSORS.reduce((acc, proc) => {
         const baseSRInfo = currentControls.processorWiseSuccessRates[proc.id];
-        // Ensure proc.baseSR exists or use a fallback
-        const defaultSR = proc.id === 'stripe' ? 90 : (proc.id === 'razorpay' ? 95 : (proc.id === 'cashfree' ? 92 : (proc.id === 'payu' ? 88 : 85)));
+        const defaultSR = proc.id === 'stripe' ? 90 : (proc.id === 'razorpay' ? 95 : (proc.id === 'cashfree' ? 92 : (proc.id === 'payu' ? 88 : (proc.id === 'fampay' ? 85 : 85))));
         const initialSR = baseSRInfo ? baseSRInfo.sr : defaultSR;
         acc[proc.id] = { sr: initialSR, volumeShare: 0, failureRate: 100 - initialSR };
         return acc;
@@ -91,6 +85,7 @@ export default function HomePage() {
       routingRulesText,
       smartRoutingEnabled,
       eliminationRoutingEnabled,
+      // debitRoutingEnabled, // Not directly used in this simplified processor choice logic
       srFluctuation,
       processorIncidents,
       processorWiseSuccessRates: baseProcessorSRsInput,
@@ -127,42 +122,30 @@ export default function HomePage() {
     const processorEffectiveSRs: Record<string, number> = {};
     PROCESSORS.forEach(proc => {
       const baseSRInfo = baseProcessorSRsInput[proc.id];
-      const defaultSR = proc.id === 'stripe' ? 90 : (proc.id === 'razorpay' ? 95 : (proc.id === 'cashfree' ? 92 : (proc.id === 'payu' ? 88 : 85)));
+      const defaultSR = proc.id === 'stripe' ? 90 : (proc.id === 'razorpay' ? 95 : (proc.id === 'cashfree' ? 92 : (proc.id === 'payu' ? 88 : (proc.id === 'fampay' ? 85 : 85))));
       const baseSR = baseSRInfo ? baseSRInfo.sr : defaultSR;
-      const fluctuationEffect = (srFluctuation[proc.id] - 50) / 100;
-      let effectiveSR = baseSR / 100 * (1 + fluctuationEffect);
-      if (processorIncidents[proc.id]) effectiveSR *= 0.1;
+      const fluctuationEffect = (srFluctuation[proc.id] - 50) / 100; // Slider 0-100, 50 is neutral
+      let effectiveSR = baseSR / 100 * (1 + fluctuationEffect); // Fluctuation can increase or decrease
+      if (processorIncidents[proc.id]) effectiveSR *= 0.1; // Heavy penalty for incidents
       processorEffectiveSRs[proc.id] = Math.max(0, Math.min(1, effectiveSR));
     });
 
-    const upsertLink = (source: string, target: string, value: number = 1) => {
-      const key = `${source}>${target}`;
-      accumulatedLinksRef.current[key] = (accumulatedLinksRef.current[key] || 0) + value;
-    };
 
     for (let i = 0; i < paymentsToProcessThisBatch; i++) {
       const txnIndex = processedPaymentsCount + i;
       const currentPaymentMethod = activePaymentMethods[txnIndex % activePaymentMethods.length];
-      const currentPaymentMethodId = `pm_${currentPaymentMethod.toLowerCase()}`;
-
-      upsertLink('source', currentPaymentMethodId);
 
       let candidateProcessors: Processor[] = PROCESSORS.filter(
         proc => processorMatrix[proc.id]?.[currentPaymentMethod]
       );
 
-      let strategyNodeId: string = RULE_STRATEGY_NODES.STANDARD_ROUTING;
-
       if (eliminationRoutingEnabled) {
-        const initialCandidateCount = candidateProcessors.length;
         candidateProcessors = candidateProcessors.filter(proc => {
           const isDown = processorIncidents[proc.id];
-          const srTooLow = (processorEffectiveSRs[proc.id] * 100) < 50;
+          // Elimination SR threshold is 50%
+          const srTooLow = (processorEffectiveSRs[proc.id] * 100) < 50; 
           return !isDown && !srTooLow;
         });
-        if (candidateProcessors.length < initialCandidateCount && strategyNodeId === RULE_STRATEGY_NODES.STANDARD_ROUTING) {
-          strategyNodeId = RULE_STRATEGY_NODES.ELIMINATION_APPLIED;
-        }
       }
 
       let chosenProcessor: Processor | undefined = undefined;
@@ -172,7 +155,6 @@ export default function HomePage() {
         const customRuleProcessor = candidateProcessors.find(p => p.id === targetProcessorId);
         if (customRuleProcessor) {
           chosenProcessor = customRuleProcessor;
-          strategyNodeId = RULE_STRATEGY_NODES.CUSTOM_RULE_HIGH_VALUE_CARD;
         }
       }
 
@@ -180,34 +162,24 @@ export default function HomePage() {
         if (smartRoutingEnabled) {
           candidateProcessors.sort((a, b) => processorEffectiveSRs[b.id] - processorEffectiveSRs[a.id]);
           chosenProcessor = candidateProcessors[0];
-          if (strategyNodeId === RULE_STRATEGY_NODES.STANDARD_ROUTING || strategyNodeId === RULE_STRATEGY_NODES.ELIMINATION_APPLIED) {
-            strategyNodeId = RULE_STRATEGY_NODES.SMART_ROUTING;
-          }
         } else {
+          // Standard/random routing if not smart and no custom rule matched
           chosenProcessor = candidateProcessors[Math.floor(Math.random() * candidateProcessors.length)];
         }
       }
 
       if (chosenProcessor) {
-        const processorId = `proc_${chosenProcessor.id}`;
-        upsertLink(currentPaymentMethodId, strategyNodeId);
-        upsertLink(strategyNodeId, processorId);
         accumulatedProcessorStatsRef.current[chosenProcessor.id].volumeShareRaw++;
-
         const success = Math.random() < processorEffectiveSRs[chosenProcessor.id];
         if (success) {
-          upsertLink(processorId, 'status_success');
           accumulatedProcessorStatsRef.current[chosenProcessor.id].successful++;
           accumulatedGlobalStatsRef.current.totalSuccessful++;
         } else {
-          upsertLink(processorId, 'status_failure');
           accumulatedProcessorStatsRef.current[chosenProcessor.id].failed++;
           accumulatedGlobalStatsRef.current.totalFailed++;
         }
       } else {
-        strategyNodeId = RULE_STRATEGY_NODES.NO_ROUTE_FOUND;
-        upsertLink(currentPaymentMethodId, strategyNodeId);
-        upsertLink(strategyNodeId, 'status_failure');
+        // No processor found/available
         accumulatedGlobalStatsRef.current.totalFailed++;
       }
     }
@@ -216,62 +188,6 @@ export default function HomePage() {
     setProcessedPaymentsCount(newProcessedCount);
     const newTimeStep = simulationTimeStep + 1;
     setSimulationTimeStep(newTimeStep);
-
-
-    const nodes: SankeyNode[] = [{ id: 'source', name: 'Source', type: 'source' }];
-    activePaymentMethods.forEach(pm => {
-      nodes.push({ id: `pm_${pm.toLowerCase()}`, name: pm, type: 'paymentMethod' });
-    });
-
-    const usedStrategyNodeIds = new Set<string>();
-    Object.keys(accumulatedLinksRef.current).forEach(key => {
-      const [source, target] = key.split('>');
-      if (Object.values(RULE_STRATEGY_NODES).includes(source as any)) usedStrategyNodeIds.add(source);
-      if (Object.values(RULE_STRATEGY_NODES).includes(target as any)) usedStrategyNodeIds.add(target);
-    });
-
-    Object.entries(RULE_STRATEGY_NODES).forEach(([key, value]) => {
-      if (usedStrategyNodeIds.has(value)) {
-        const name = key.toLowerCase().replace(/_/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-        nodes.push({ id: value, name: name, type: 'ruleStrategy' });
-      }
-    });
-
-    PROCESSORS.forEach(proc => {
-      if (Object.keys(accumulatedLinksRef.current).some(key => key.includes(`proc_${proc.id}`))) {
-        nodes.push({ id: `proc_${proc.id}`, name: proc.name, type: 'processor' });
-      }
-    });
-    nodes.push({ id: 'status_success', name: 'Success', type: 'status' });
-    nodes.push({ id: 'status_failure', name: 'Failure', type: 'status' });
-    nodes.push({ id: 'sink', name: 'Sink', type: 'sink' });
-
-    const finalLinks: SankeyLink[] = [];
-    Object.entries(accumulatedLinksRef.current).forEach(([key, value]) => {
-      const [source, target] = key.split('>');
-      if (value > 0) {
-        finalLinks.push({ source, target, value });
-      }
-    });
-
-    const successTotal = finalLinks.filter(l => l.target === 'status_success').reduce((sum, l) => sum + l.value, 0);
-    const failureTotal = finalLinks.filter(l => l.target === 'status_failure').reduce((sum, l) => sum + l.value, 0);
-
-    if (successTotal > 0 && !finalLinks.some(l => l.source === 'status_success' && l.target === 'sink')) {
-      finalLinks.push({ source: 'status_success', target: 'sink', value: successTotal });
-    }
-    if (failureTotal > 0 && !finalLinks.some(l => l.source === 'status_failure' && l.target === 'sink')) {
-      finalLinks.push({ source: 'status_failure', target: 'sink', value: failureTotal });
-    }
-
-    const participatingNodeIds = new Set<string>(['source', 'sink']);
-    finalLinks.forEach(link => {
-      participatingNodeIds.add(link.source);
-      participatingNodeIds.add(link.target);
-    });
-
-    const finalNodes = nodes.filter(node => participatingNodeIds.has(node.id));
-    setSankeyData({ nodes: finalNodes, links: finalLinks });
 
     const overallSR = newProcessedCount > 0 ? (accumulatedGlobalStatsRef.current.totalSuccessful / newProcessedCount) * 100 : 0;
     const updatedProcessorSRsUi = { ...currentControls.processorWiseSuccessRates };
@@ -291,7 +207,7 @@ export default function HomePage() {
         failureRate: parseFloat((100 - procSR).toFixed(2)) || 0,
       };
       currentSuccessRateDataPoint[proc.id] = parseFloat(procSR.toFixed(2)) || 0;
-      currentVolumeDataPoint[proc.id] = totalRoutedToProc;
+      currentVolumeDataPoint[proc.id] = totalRoutedToProc; // Cumulative volume for this processor
     });
 
     setSuccessRateHistory(prev => [...prev, currentSuccessRateDataPoint]);
@@ -302,7 +218,7 @@ export default function HomePage() {
       ...prevControls!,
       overallSuccessRate: parseFloat(overallSR.toFixed(2)) || 0,
       processorWiseSuccessRates: updatedProcessorSRsUi,
-      tps: effectiveTps,
+      tps: effectiveTps, 
     }));
 
   }, [currentControls, simulationState, processedPaymentsCount, toast, setCurrentControls, simulationTimeStep]);
@@ -333,12 +249,12 @@ export default function HomePage() {
       return;
     }
     if (simulationState === 'idle') {
-      resetSimulationState();
+      resetSimulationState(); // Reset only if starting fresh
     }
     setSimulationState('running');
     if (simulationState === 'idle') {
       toast({ title: "Simulation Started", description: `Processing ${currentControls.totalPayments} payments.`, duration: 3000 });
-    } else {
+    } else { // Resuming
       toast({ title: "Simulation Resumed", duration: 3000 });
     }
   }, [currentControls, toast, simulationState]);
@@ -350,16 +266,16 @@ export default function HomePage() {
 
   const handleStopSimulation = useCallback(() => {
     setSimulationState('idle');
-    resetSimulationState();
+    resetSimulationState(); // Full reset on stop
     toast({ title: "Simulation Stopped & Reset", duration: 3000 });
   }, [toast]);
 
-  const [activeTab, setActiveTab] = useState<string>("sankey");
 
   return (
     <>
       <AppLayout>
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-grow overflow-hidden">
+        {/* Tabs component is kept for structural consistency, but only "analytics" is used */}
+        <Tabs defaultValue="analytics" className="flex flex-col flex-grow overflow-hidden">
           <Header
             onStartSimulation={handleStartSimulation}
             onPauseSimulation={handlePauseSimulation}
@@ -367,9 +283,7 @@ export default function HomePage() {
             simulationState={simulationState}
           />
           <div className="flex-grow overflow-hidden p-0">
-            <TabsContent value="sankey" className="h-full mt-0">
-              <SankeyDiagramView currentControls={currentControls} sankeyData={sankeyData} />
-            </TabsContent>
+            {/* Only AnalyticsView is rendered now */}
             <TabsContent value="analytics" className="h-full mt-0">
               <div className="p-2 md:p-4 lg:p-6 h-full">
                 <ScrollArea className="h-full">
