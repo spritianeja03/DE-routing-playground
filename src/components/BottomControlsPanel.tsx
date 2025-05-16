@@ -115,10 +115,15 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
       if (validValues.success) {
          onFormChange(validValues.data as FormValues);
       } else {
+        // If parsing fails, still call onFormChange with raw values
+        // This ensures intermediate/invalid states are still propagated if needed
+        // for UI responsiveness or partial data handling, though the simulation
+        // should ideally only run with valid data.
         onFormChange(values as FormValues); 
       }
     });
     
+    // Also propagate initial form values
     const initialFormValues = form.getValues();
     const validInitial = formSchema.safeParse(initialFormValues);
     if(validInitial.success) {
@@ -129,16 +134,16 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
     
     return () => subscription.unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.watch, onFormChange]); 
+  }, [form.watch, onFormChange]); // form.watch is stable, onFormChange is memoized in parent
 
   const { control } = form;
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 bg-secondary border-t border-border shadow-lg z-20"
+      className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-lg z-20"
       style={{ height: BOTTOM_PANEL_HEIGHT }}
     >
-      <fieldset>
+      <fieldset> {/* Removed: disabled={isSimulationActive} to allow changes during simulation */}
         <ScrollArea className="h-full p-1">
           <Form {...form}>
             <form onSubmit={(e) => e.preventDefault()} className="p-4 space-y-2">
