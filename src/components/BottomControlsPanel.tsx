@@ -115,15 +115,10 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
       if (validValues.success) {
          onFormChange(validValues.data as FormValues);
       } else {
-        // If parsing fails, still call onFormChange with raw values
-        // This ensures intermediate/invalid states are still propagated if needed
-        // for UI responsiveness or partial data handling, though the simulation
-        // should ideally only run with valid data.
         onFormChange(values as FormValues); 
       }
     });
     
-    // Also propagate initial form values
     const initialFormValues = form.getValues();
     const validInitial = formSchema.safeParse(initialFormValues);
     if(validInitial.success) {
@@ -134,7 +129,7 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
     
     return () => subscription.unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.watch, onFormChange]); // form.watch is stable, onFormChange is memoized in parent
+  }, [form.watch, onFormChange]);
 
   const { control } = form;
 
@@ -143,233 +138,232 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
       className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-lg z-20"
       style={{ height: BOTTOM_PANEL_HEIGHT }}
     >
-      <fieldset>
-        <ScrollArea className="h-full"> {/* Removed p-1 from here */}
-          <Form {...form}>
-            <form onSubmit={(e) => e.preventDefault()} className="p-4 space-y-2"> {/* p-4 here provides content padding */}
-              <Tabs defaultValue="general" className="w-full">
-                <TabsList className="grid w-full grid-cols-4 mb-2">
-                  <TabsTrigger value="general" className="text-xs md:text-sm"><Settings2 className="mr-1 h-4 w-4 md:mr-2" />General</TabsTrigger>
-                  <TabsTrigger value="processors" className="text-xs md:text-sm"><VenetianMaskIcon className="mr-1 h-4 w-4 md:mr-2" />Processors</TabsTrigger>
-                  <TabsTrigger value="routing" className="text-xs md:text-sm"><Zap className="mr-1 h-4 w-4 md:mr-2" />Routing</TabsTrigger>
-                  <TabsTrigger value="sr-fluctuation" className="text-xs md:text-sm"><TrendingUp className="mr-1 h-4 w-4 md:mr-2" />SR & Incidents</TabsTrigger>
-                </TabsList>
+      <ScrollArea className="h-full">
+        <Form {...form}>
+          <form onSubmit={(e) => e.preventDefault()} className="p-4 space-y-2">
+            <Tabs defaultValue="general" className="w-full">
+              <TabsList className="grid w-full grid-cols-4 mb-2">
+                <TabsTrigger value="general" className="text-xs md:text-sm"><Settings2 className="mr-1 h-4 w-4 md:mr-2" />General</TabsTrigger>
+                <TabsTrigger value="processors" className="text-xs md:text-sm"><VenetianMaskIcon className="mr-1 h-4 w-4 md:mr-2" />Processors</TabsTrigger>
+                <TabsTrigger value="routing" className="text-xs md:text-sm"><Zap className="mr-1 h-4 w-4 md:mr-2" />Routing</TabsTrigger>
+                <TabsTrigger value="sr-fluctuation" className="text-xs md:text-sm"><TrendingUp className="mr-1 h-4 w-4 md:mr-2" />SR & Incidents</TabsTrigger>
+              </TabsList>
 
-                <TabsContent value="general" className="pt-2">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <FormField
-                      control={control}
-                      name="totalPayments"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Total Payments</FormLabel>
+              <TabsContent value="general" className="pt-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <FormField
+                    control={control}
+                    name="totalPayments"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Total Payments</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="e.g., 1000" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={control}
+                    name="tps"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>TPS ({field.value})</FormLabel>
+                        <FormControl>
+                          <Slider
+                            defaultValue={[field.value]}
+                            min={1} max={10000} step={50}
+                            onValueChange={(value) => field.onChange(value[0])}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={control}
+                    name="amount"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Amount (txn)</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="e.g., 2500" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={control}
+                    name="currency"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Currency</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
-                            <Input type="number" placeholder="e.g., 1000" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select currency" />
+                            </SelectTrigger>
                           </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={control}
-                      name="tps"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>TPS ({field.value})</FormLabel>
-                          <FormControl>
-                            <Slider
-                              defaultValue={[field.value]}
-                              min={1} max={10000} step={50}
-                              onValueChange={(value) => field.onChange(value[0])}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={control}
-                      name="amount"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Amount (txn)</FormLabel>
-                          <FormControl>
-                            <Input type="number" placeholder="e.g., 2500" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={control}
-                      name="currency"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Currency</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select currency" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {CURRENCIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={control}
-                      name="selectedPaymentMethods"
-                      render={() => (
-                        <FormItem className="col-span-full">
-                          <FormLabel>Payment Methods</FormLabel>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2"> {/* Added more cols for responsiveness */}
-                            {PAYMENT_METHODS.map((method) => (
-                              <FormField
-                                key={method}
-                                control={control}
-                                name="selectedPaymentMethods"
-                                render={({ field: singleMethodField }) => {
-                                  return (
-                                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                                      <FormControl>
-                                        <Checkbox
-                                          checked={singleMethodField.value?.includes(method)}
-                                          onCheckedChange={(checked) => {
-                                            const currentSelection = singleMethodField.value ?? [];
-                                            return checked
-                                              ? singleMethodField.onChange([...currentSelection, method])
-                                              : singleMethodField.onChange(
-                                                  currentSelection.filter(
-                                                    (value) => value !== method
-                                                  )
-                                                );
-                                          }}
-                                        />
-                                      </FormControl>
-                                      <FormLabel className="font-normal">
-                                        {method}
-                                      </FormLabel>
-                                    </FormItem>
-                                  );
-                                }}
-                              />
-                            ))}
-                          </div>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="processors" className="pt-2">
-                  <Card>
-                    <CardHeader><CardTitle className="text-base">Processor ↔ PM Matrix</CardTitle></CardHeader>
-                    <CardContent className="space-y-1 p-2">
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                        {PROCESSORS.map(proc => (
-                          <div key={proc.id} className="border p-2 rounded-md">
-                            <h4 className="font-medium mb-1 text-sm">{proc.name}</h4>
-                            {PAYMENT_METHODS.map(method => (
-                              <FormField
-                                key={`${proc.id}-${method}`}
-                                control={control}
-                                name={`processorMatrix.${proc.id}.${method}`}
-                                render={({ field }) => (
-                                  <FormItem className="flex items-center justify-between py-0.5">
-                                    <FormLabel className="font-normal text-xs">{method}</FormLabel>
+                          <SelectContent>
+                            {CURRENCIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={control}
+                    name="selectedPaymentMethods"
+                    render={() => (
+                      <FormItem className="col-span-full">
+                        <FormLabel>Payment Methods</FormLabel>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                          {PAYMENT_METHODS.map((method) => (
+                            <FormField
+                              key={method}
+                              control={control}
+                              name="selectedPaymentMethods"
+                              render={({ field: singleMethodField }) => {
+                                return (
+                                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                                     <FormControl>
-                                      <Switch checked={field.value ?? false} onCheckedChange={field.onChange} size="sm" />
+                                      <Checkbox
+                                        checked={singleMethodField.value?.includes(method)}
+                                        onCheckedChange={(checked) => {
+                                          const currentSelection = singleMethodField.value ?? [];
+                                          return checked
+                                            ? singleMethodField.onChange([...currentSelection, method])
+                                            : singleMethodField.onChange(
+                                                currentSelection.filter(
+                                                  (value) => value !== method
+                                                )
+                                              );
+                                        }}
+                                      />
                                     </FormControl>
+                                    <FormLabel className="font-normal">
+                                      {method}
+                                    </FormLabel>
                                   </FormItem>
-                                )}
-                              />
-                            ))}
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
+                                );
+                              }}
+                            />
+                          ))}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </TabsContent>
 
-                <TabsContent value="routing" className="pt-2">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <TabsContent value="processors" className="pt-2">
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Processor ↔ PM Matrix</CardTitle></CardHeader>
+                  <CardContent className="space-y-1 p-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {PROCESSORS.map(proc => (
+                        <div key={proc.id} className="border p-2 rounded-md">
+                          <h4 className="font-medium mb-1 text-sm">{proc.name}</h4>
+                          {PAYMENT_METHODS.map(method => (
+                            <FormField
+                              key={`${proc.id}-${method}`}
+                              control={control}
+                              name={`processorMatrix.${proc.id}.${method}`}
+                              render={({ field }) => (
+                                <FormItem className="flex items-center justify-between py-0.5">
+                                  <FormLabel className="font-normal text-xs">{method}</FormLabel>
+                                  <FormControl>
+                                    <Switch checked={field.value ?? false} onCheckedChange={field.onChange} size="sm" />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="routing" className="pt-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={control}
+                      name="routingRulesText"
+                      render={({ field }) => (
+                        <FormItem className="col-span-full">
+                          <FormLabel>Routing Rules</FormLabel>
+                          <FormControl>
+                            <Textarea placeholder="e.g., IF amount > 5000 AND method = Card THEN RouteTo stripe" {...field} rows={2}/>
+                          </FormControl>
+                          <FormDescription className="text-xs">Define routing rules (simplified text format).</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  <div className="space-y-1">
+                    <FormField control={control} name="smartRoutingEnabled" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel className="text-sm">Smart Routing (SR)</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} size="sm" /></FormControl></FormItem> )} />
+                    <FormField control={control} name="eliminationRoutingEnabled" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel className="text-sm">Elimination Routing</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} size="sm" /></FormControl></FormItem> )} />
+                    <FormField control={control} name="debitRoutingEnabled" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel className="text-sm">Debit-first Routing</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} size="sm" /></FormControl></FormItem> )} />
+                  </div>
+                  <div className="space-y-1">
+                    <FormField control={control} name="simulateSaleEvent" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel className="text-sm">Simulate Sale Event (TPS Spike)</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} size="sm" /></FormControl></FormItem> )} />
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="sr-fluctuation" className="pt-2 space-y-3">
+                <Card>
+                  <CardHeader className="p-2"><CardTitle className="text-base">SR Fluctuation (Base SR defined per processor)</CardTitle><CardDescription className="text-xs">Adjust success rate +/-. 50 is neutral.</CardDescription></CardHeader>
+                  <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2 p-2">
+                    {PROCESSORS.map(proc => (
                       <FormField
+                        key={proc.id}
                         control={control}
-                        name="routingRulesText"
+                        name={`srFluctuation.${proc.id}`}
                         render={({ field }) => (
-                          <FormItem className="col-span-full">
-                            <FormLabel>Routing Rules</FormLabel>
+                          <FormItem>
+                            <FormLabel className="text-xs">{proc.name} SR Fluct: {field.value}%</FormLabel>
                             <FormControl>
-                              <Textarea placeholder="e.g., IF amount > 5000 AND method = Card THEN RouteTo stripe" {...field} rows={2}/>
+                              <Slider defaultValue={[field.value]} min={0} max={100} step={1} onValueChange={(value) => field.onChange(value[0])} />
                             </FormControl>
-                            <FormDescription className="text-xs">Define routing rules (simplified text format).</FormDescription>
-                            <FormMessage />
                           </FormItem>
                         )}
                       />
-                    <div className="space-y-1">
-                      <FormField control={control} name="smartRoutingEnabled" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel className="text-sm">Smart Routing (SR)</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} size="sm" /></FormControl></FormItem> )} />
-                      <FormField control={control} name="eliminationRoutingEnabled" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel className="text-sm">Elimination Routing</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} size="sm" /></FormControl></FormItem> )} />
-                      <FormField control={control} name="debitRoutingEnabled" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel className="text-sm">Debit-first Routing</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} size="sm" /></FormControl></FormItem> )} />
-                    </div>
-                    <div className="space-y-1">
-                      <FormField control={control} name="simulateSaleEvent" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel className="text-sm">Simulate Sale Event (TPS Spike)</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} size="sm" /></FormControl></FormItem> )} />
-                    </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="sr-fluctuation" className="pt-2 space-y-3">
-                  <Card>
-                    <CardHeader className="p-2"><CardTitle className="text-base">SR Fluctuation (Base SR defined per processor)</CardTitle><CardDescription className="text-xs">Adjust success rate +/-. 50 is neutral.</CardDescription></CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2 p-2">
-                      {PROCESSORS.map(proc => (
-                        <FormField
-                          key={proc.id}
-                          control={control}
-                          name={`srFluctuation.${proc.id}`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-xs">{proc.name} SR Fluct: {field.value}%</FormLabel>
-                              <FormControl>
-                                <Slider defaultValue={[field.value]} min={0} max={100} step={1} onValueChange={(value) => field.onChange(value[0])} />
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
-                      ))}
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardHeader className="p-2"><CardTitle className="text-base">Processor Incidents (Downtime)</CardTitle><CardDescription className="text-xs">Trigger temporary outages.</CardDescription></CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-1 p-2">
-                      {PROCESSORS.map(proc => (
-                        <FormField
-                          key={proc.id}
-                          control={control}
-                          name={`processorIncidents.${proc.id}`}
-                          render={({ field }) => (
-                            <FormItem className="flex items-center justify-between py-0.5">
-                              <FormLabel className="text-xs">{proc.name} Incident</FormLabel>
-                              <FormControl>
-                                <Switch checked={field.value} onCheckedChange={field.onChange} size="sm"/>
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
-                      ))}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
-            </form>
-          </Form>
-        </ScrollArea>
-      </fieldset>
+                    ))}
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="p-2"><CardTitle className="text-base">Processor Incidents (Downtime)</CardTitle><CardDescription className="text-xs">Trigger temporary outages.</CardDescription></CardHeader>
+                  <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-1 p-2">
+                    {PROCESSORS.map(proc => (
+                      <FormField
+                        key={proc.id}
+                        control={control}
+                        name={`processorIncidents.${proc.id}`}
+                        render={({ field }) => (
+                          <FormItem className="flex items-center justify-between py-0.5">
+                            <FormLabel className="text-xs">{proc.name} Incident</FormLabel>
+                            <FormControl>
+                              <Switch checked={field.value} onCheckedChange={field.onChange} size="sm"/>
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    ))}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </form>
+        </Form>
+      </ScrollArea>
     </div>
   );
 }
+
