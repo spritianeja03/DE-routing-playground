@@ -3,20 +3,19 @@
 
 import Image from 'next/image';
 import type { SankeyData, SankeyNode } from '@/lib/types';
-import { ResponsiveContainer, Sankey, Tooltip, Rectangle } from 'recharts';
-import { RULE_STRATEGY_NODES } from '@/lib/constants';
+import { ResponsiveContainer, Sankey, Tooltip, Rectangle, Text } from 'recharts';
 
 interface SankeyDiagramProps {
   data: SankeyData | null;
 }
 
 const NODE_COLORS: Record<SankeyNode['type'], string> = {
-  source: '#42A5F5', // Primary (Neon Blue)
-  paymentMethod: '#BB86FC', // Accent (Electric Purple)
-  ruleStrategy: '#26A69A', // Teal/Cyan (similar to chart-3)
-  processor: '#FFA726', // Orange
-  status: '#66BB6A', // Green for success, could be dynamic
-  sink: '#BDBDBD',   // Neutral Grey
+  source: 'hsl(var(--chart-1))', 
+  paymentMethod: 'hsl(var(--chart-2))', 
+  ruleStrategy: 'hsl(var(--chart-3))',
+  processor: 'hsl(var(--chart-4))', 
+  status: 'hsl(var(--chart-5))', 
+  sink: '#BDBDBD',   
 };
 
 const STATUS_NODE_COLORS: Record<string, string> = {
@@ -24,44 +23,71 @@ const STATUS_NODE_COLORS: Record<string, string> = {
   status_failure: '#EF5350', // Red
 }
 
-// Custom Sankey Node component for better styling control if needed
+// Custom Sankey Node component for styling
 const CustomSankeyNode = (props: any) => {
-  const { x, y, width, height, index, payload, containerWidth } = props;
-  const isOut = x + width / 2 > containerWidth / 2;
-  const nodeColor = payload.id === 'status_success' ? STATUS_NODE_COLORS.status_success :
-                    payload.id === 'status_failure' ? STATUS_NODE_COLORS.status_failure :
-                    NODE_COLORS[payload.type as SankeyNode['type']] || '#8884d8';
+  const { x, y, width, height, payload } = props; // payload contains the node data
+  // payload will be { name: 'node_id', displayName: 'Actual Name', type: '...', ... }
 
+  const nodeColor = payload.name === 'status_success' ? STATUS_NODE_COLORS.status_success : // payload.name is the ID here
+                    payload.name === 'status_failure' ? STATUS_NODE_COLORS.status_failure :
+                    NODE_COLORS[payload.type as SankeyNode['type']] || '#8884d8';
+  
   return (
     <Rectangle
       x={x}
       y={y}
       width={width}
-      height={height}
+      height={Math.max(height, 20)} // Ensure minimum height for visibility
       fill={nodeColor}
       fillOpacity="1"
-      stroke="#333"
-      strokeWidth={0.5}
+      stroke="hsl(var(--background))" // Use background for stroke for better contrast
+      strokeWidth={1}
     />
+  );
+};
+
+// Custom label for Sankey nodes to display `displayName`
+const CustomNodeLabel = (props: any) => {
+  const { x, y, width, height, payload, containerWidth } = props;
+  // payload is { name: 'node_id', displayName: 'Actual Name', type: '...', ... }
+  const isOut = x + width / 2 > containerWidth / 2;
+  
+  // Prevent label overflow for very wide nodes or very short heights
+  const labelText = payload.displayName.length > 20 ? payload.displayName.substring(0, 17) + '...' : payload.displayName;
+
+  if (height < 10) return null; // Don't render label if node is too small
+
+  return (
+    <g>
+      <Text
+        x={isOut ? x - 6 : x + width + 6}
+        y={y + height / 2}
+        textAnchor={isOut ? "end" : "start"}
+        dominantBaseline="middle"
+        fill="hsl(var(--foreground))" // Use themed foreground color
+        fontSize="12px"
+        fontWeight="500"
+      >
+        {labelText}
+      </Text>
+    </g>
   );
 };
 
 
 export function SankeyDiagram({ data }: SankeyDiagramProps) {
   if (data && data.nodes.length > 0 && data.links.length > 0) {
-    // Ensure all linked nodes exist in the nodes array
     const validNodeIds = new Set(data.nodes.map(n => n.id));
     const filteredLinks = data.links.filter(
       link => validNodeIds.has(link.source) && validNodeIds.has(link.target) && link.value > 0
     );
 
-    // Check if there are any links left after filtering
     if (filteredLinks.length === 0) {
       return (
         <div className="h-full w-full flex flex-col items-start text-left bg-muted/20 rounded-lg p-4">
           <h2 className="text-xl font-semibold mb-1">Live Transaction Flow</h2>
           <p className="text-sm text-muted-foreground mb-4">
-            Simulation is running or has run, but no transaction flows to display yet (e.g., all transactions failed before reaching processors or no valid routes).
+            Simulation is running or has run, but no transaction flows to display yet.
           </p>
           <div className="flex-grow w-full flex flex-col items-center justify-center text-center">
               <Image 
@@ -80,40 +106,48 @@ export function SankeyDiagram({ data }: SankeyDiagramProps) {
     
     const sankeyChartData = {
       nodes: data.nodes.map(node => ({ 
-        name: node.name, 
-        id: node.id, // Keep id for custom node component
-        type: node.type // Keep type for custom node component
+        name: node.id, // Use ID as the linking key for Recharts
+        displayName: node.name, // Original name for display
+        type: node.type, // For custom node coloring
+        // id: node.id // Keep id if CustomSankeyNode needs it directly as `payload.id` instead of `payload.name`
       })),
-      links: filteredLinks,
+      links: filteredLinks.map(link => ({
+        ...link,
+        // Ensure source/target match the `name` (which is now id) of nodes
+        source: link.source, 
+        target: link.target,
+      })),
     };
 
     return (
       <div className="h-full w-full flex flex-col items-start text-left bg-muted/20 rounded-lg p-1">
         <h2 className="text-lg font-semibold mb-0.5 px-3 pt-2">Live Transaction Flow</h2>
         <p className="text-xs text-muted-foreground mb-1 px-3">
-          Visualizing transactions: Payment Method → Rule → Processor → Status. Nodes: {sankeyChartData.nodes.length}, Links: {sankeyChartData.links.length}.
+          Visualizing transactions. Nodes: {sankeyChartData.nodes.length}, Links: {sankeyChartData.links.length}.
         </p>
         
-        <ResponsiveContainer width="100%" height="100%" className="flex-grow">
+        <ResponsiveContainer width="100%" height="100%" className="flex-grow min-h-[300px]">
           <Sankey
             data={sankeyChartData}
             node={<CustomSankeyNode />}
-            nodePadding={50} // Increased padding
-            margin={{ top: 20, right: 30, left: 30, bottom: 20 }} // Added more margin
-            link={{ stroke: '#777', strokeOpacity: 0.5, strokeWidth: 1 }} // Thicker links
-            iterations={32} // Default is 32, can adjust for complex diagrams
+            label={<CustomNodeLabel />}
+            nodePadding={20} 
+            margin={{ top: 20, right: 100, left: 100, bottom: 20 }} // Increased side margins for labels
+            link={{ stroke: 'hsl(var(--border))', strokeOpacity: 0.6, strokeWidth: 1 }} 
+            iterations={32} 
           >
             <Tooltip 
-              contentStyle={{ backgroundColor: 'rgba(18, 18, 18, 0.8)', border: '1px solid #333', borderRadius: '4px' }}
-              labelStyle={{ color: '#FFF', fontWeight: 'bold' }}
-              itemStyle={{ color: '#DDD' }}
+              contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)' }}
+              labelStyle={{ color: 'hsl(var(--popover-foreground))', fontWeight: 'bold' }}
+              itemStyle={{ color: 'hsl(var(--popover-foreground))' }}
               formatter={(value: any, name: any, props: any) => {
+                // props.payload.source and props.payload.target are the node objects from sankeyChartData.nodes
                 if (props.payload && props.payload.source && props.payload.target) {
-                  const sourceName = props.payload.source.name || props.payload.source;
-                  const targetName = props.payload.target.name || props.payload.target;
+                  const sourceName = props.payload.source.displayName || props.payload.source.name; // Use displayName
+                  const targetName = props.payload.target.displayName || props.payload.target.name; // Use displayName
                   return [`${value} transactions`, `${sourceName} → ${targetName}`];
                 }
-                return [value, name];
+                return [value, name]; // Fallback, 'name' here is the link's source/target ID
               }}
             />
           </Sankey>
@@ -140,4 +174,3 @@ export function SankeyDiagram({ data }: SankeyDiagramProps) {
     </div>
   );
 }
-

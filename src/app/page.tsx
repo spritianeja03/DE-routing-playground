@@ -9,7 +9,7 @@ import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { SankeyDiagramView } from '@/components/SankeyDiagramView';
 import { AnalyticsView } from '@/components/AnalyticsView';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import type { SankeyData, SankeyNode, SankeyLink, Processor, PaymentMethod, TransactionProcessingState } from '@/lib/types';
+import type { SankeyData, SankeyNode, SankeyLink, Processor, PaymentMethod } from '@/lib/types';
 import { PROCESSORS, PAYMENT_METHODS, RULE_STRATEGY_NODES } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
 
@@ -22,8 +22,7 @@ export default function HomePage() {
   const [processedPaymentsCount, setProcessedPaymentsCount] = useState<number>(0);
   
   const simulationIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const currentTransactionBatchRef = useRef<TransactionProcessingState[]>([]); // To accumulate states for Sankey update
-  const accumulatedLinksRef = useRef<Record<string, number>>({}); // For accumulating link values: "source>target" -> value
+  const accumulatedLinksRef = useRef<Record<string, number>>({}); 
   const accumulatedProcessorStatsRef = useRef<Record<string, { successful: number; failed: number; volumeShareRaw: number }>>(
     PROCESSORS.reduce((acc, proc) => {
       acc[proc.id] = { successful: 0, failed: 0, volumeShareRaw: 0 };
@@ -36,7 +35,6 @@ export default function HomePage() {
   const { toast } = useToast();
 
   const handleControlsChange = useCallback((data: FormValues) => {
-    // Only update controls if simulation is not running to avoid mid-simulation changes for now
     if (simulationState !== 'running') {
       setCurrentControls(data);
     }
@@ -45,19 +43,33 @@ export default function HomePage() {
   const resetSimulationState = () => {
     setSankeyData(null);
     setProcessedPaymentsCount(0);
-    currentTransactionBatchRef.current = [];
     accumulatedLinksRef.current = {};
     accumulatedProcessorStatsRef.current = PROCESSORS.reduce((acc, proc) => {
       acc[proc.id] = { successful: 0, failed: 0, volumeShareRaw: 0 };
       return acc;
     }, {} as Record<string, { successful: number; failed: number; volumeShareRaw: number}>);
     accumulatedGlobalStatsRef.current = { totalSuccessful: 0, totalFailed: 0 };
+     // Also reset overallSuccessRate and processorWiseSuccessRates in currentControls if they exist
+    if (currentControls) {
+      const initialProcessorSRs = PROCESSORS.reduce((acc, proc) => {
+        const baseSRInfo = currentControls.processorWiseSuccessRates[proc.id];
+        const initialSR = baseSRInfo ? baseSRInfo.sr : (proc.id === 'stripe' ? 90 : (proc.id === 'razorpay' ? 95 : (proc.id === 'cashfree' ? 92 : (proc.id === 'payu' ? 88 : 85))));
+        acc[proc.id] = { sr: initialSR, volumeShare: 0, failureRate: 100 - initialSR };
+        return acc;
+      }, {} as FormValues['processorWiseSuccessRates']);
+
+      setCurrentControls(prevControls => ({
+        ...prevControls!,
+        overallSuccessRate: 0,
+        processorWiseSuccessRates: initialProcessorSRs,
+      }));
+    }
   };
   
   const processTransactionBatch = useCallback(() => {
     if (!currentControls || simulationState !== 'running') {
       if (simulationIntervalRef.current) clearInterval(simulationIntervalRef.current);
-      setSimulationState(prev => prev === 'running' ? 'paused' : prev); // If it was running, pause it.
+      setSimulationState(prev => prev === 'running' ? 'paused' : prev); 
       return;
     }
 
@@ -68,12 +80,12 @@ export default function HomePage() {
       routingRulesText,
       smartRoutingEnabled,
       eliminationRoutingEnabled,
-      // debitRoutingEnabled, // Not heavily used in this simplified model yet
+      // debitRoutingEnabled, // Logic needs further refinement for clear impact
       srFluctuation,
       processorIncidents,
-      processorWiseSuccessRates: baseProcessorSRsInput,
+      processorWiseSuccessRates: baseProcessorSRsInput, // These are initial SR settings
       amount: transactionAmount,
-      currency: transactionCurrency,
+      // currency: transactionCurrency, // Not directly used in core logic beyond being a setting
       simulateSaleEvent,
       tps: baseTps,
     } = currentControls;
@@ -81,9 +93,10 @@ export default function HomePage() {
     if (processedPaymentsCount >= totalPayments) {
       if (simulationIntervalRef.current) clearInterval(simulationIntervalRef.current);
       setSimulationState('idle');
+      const finalOverallSR = totalPayments > 0 ? (accumulatedGlobalStatsRef.current.totalSuccessful / totalPayments) * 100 : 0;
       toast({
         title: "Simulation Complete",
-        description: `Processed ${totalPayments} payments. Overall SR: ${((accumulatedGlobalStatsRef.current.totalSuccessful / totalPayments) * 100).toFixed(2)}%`,
+        description: `Processed ${totalPayments} payments. Overall SR: ${finalOverallSR.toFixed(2)}%`,
         duration: 5000,
       });
       return;
@@ -97,57 +110,62 @@ export default function HomePage() {
         return;
     }
     
-    const effectiveTps = simulateSaleEvent ? Math.min(5000, baseTps * 5) : baseTps; // Example traffic spike
+    const effectiveTps = simulateSaleEvent ? Math.min(5000, baseTps * 5) : baseTps; 
     const transactionsThisInterval = Math.max(1, Math.floor(effectiveTps * (SIMULATION_INTERVAL_MS / 1000)));
     const remainingPayments = totalPayments - processedPaymentsCount;
     const paymentsToProcessThisBatch = Math.min(transactionsThisInterval, remainingPayments);
 
-    // Calculate Effective SR for each processor (should ideally be done once per simulation start/resume or if controls change)
     const processorEffectiveSRs: Record<string, number> = {};
     PROCESSORS.forEach(proc => {
       const baseSRInfo = baseProcessorSRsInput[proc.id];
       const baseSR = baseSRInfo ? baseSRInfo.sr : 90; 
       const fluctuationEffect = (srFluctuation[proc.id] - 50) / 100; 
-      let effectiveSR = baseSR / 100 * (1 + fluctuationEffect);
-      if (processorIncidents[proc.id]) effectiveSR *= 0.1;
+      let effectiveSR = baseSR / 100 * (1 + fluctuationEffect); // Fluctuation can increase or decrease
+      if (processorIncidents[proc.id]) effectiveSR *= 0.1; // 90% reduction during incident
       processorEffectiveSRs[proc.id] = Math.max(0, Math.min(1, effectiveSR));
     });
 
-    const newLinksForBatch: Record<string, number> = {};
-    const upsertLinkInBatch = (source: string, target: string, value: number = 1) => {
+    const upsertLink = (source: string, target: string, value: number = 1) => {
         const key = `${source}>${target}`;
-        newLinksForBatch[key] = (newLinksForBatch[key] || 0) + value;
         accumulatedLinksRef.current[key] = (accumulatedLinksRef.current[key] || 0) + value;
     };
 
     for (let i = 0; i < paymentsToProcessThisBatch; i++) {
       const txnIndex = processedPaymentsCount + i;
       const currentPaymentMethod = activePaymentMethods[txnIndex % activePaymentMethods.length];
+      const currentPaymentMethodId = `pm_${currentPaymentMethod.toLowerCase()}`;
       
-      upsertLinkInBatch('source', `pm_${currentPaymentMethod.toLowerCase()}`);
+      upsertLink('source', currentPaymentMethodId);
 
       let candidateProcessors: Processor[] = PROCESSORS.filter(
-        proc => processorMatrix[proc.id]?.[currentPaymentMethod] // Basic availability
+        proc => processorMatrix[proc.id]?.[currentPaymentMethod] 
       );
       
       let eliminationAppliedThisTxn = false;
+      let strategyNodeId: string = RULE_STRATEGY_NODES.STANDARD_ROUTING; // Default strategy
+
       if (eliminationRoutingEnabled) {
         const initialCandidateCount = candidateProcessors.length;
         candidateProcessors = candidateProcessors.filter(proc => {
           const isDown = processorIncidents[proc.id];
-          const srTooLow = (processorEffectiveSRs[proc.id] * 100) < 50;
+          const srTooLow = (processorEffectiveSRs[proc.id] * 100) < 50; // Check against effective SR
           return !isDown && !srTooLow;
         });
-        if (candidateProcessors.length < initialCandidateCount) eliminationAppliedThisTxn = true;
+        if (candidateProcessors.length < initialCandidateCount) {
+          eliminationAppliedThisTxn = true;
+          // If standard routing was the default, and elimination happened, update strategy ID
+          if(strategyNodeId === RULE_STRATEGY_NODES.STANDARD_ROUTING) {
+            strategyNodeId = RULE_STRATEGY_NODES.ELIMINATION_APPLIED;
+          }
+        }
       }
       
       let chosenProcessor: Processor | undefined = undefined;
-      let strategyNodeId: string = RULE_STRATEGY_NODES.STANDARD_ROUTING;
-
+      
       const ruleMatch = routingRulesText.match(/IF amount > (\d+) AND method = (\w+) THEN RouteTo (\w+)/i);
       if (ruleMatch && currentPaymentMethod.toLowerCase() === ruleMatch[2].toLowerCase() && transactionAmount > parseInt(ruleMatch[1])) {
         const targetProcessorId = ruleMatch[3].toLowerCase();
-        const customRuleProcessor = candidateProcessors.find(p => p.id === targetProcessorId);
+        const customRuleProcessor = candidateProcessors.find(p => p.id === targetProcessorId); // Check if still a candidate
         if (customRuleProcessor) {
           chosenProcessor = customRuleProcessor;
           strategyNodeId = RULE_STRATEGY_NODES.CUSTOM_RULE_HIGH_VALUE_CARD;
@@ -156,49 +174,54 @@ export default function HomePage() {
 
       if (!chosenProcessor && candidateProcessors.length > 0) {
         if (smartRoutingEnabled) {
+          // Smart routing prioritizes highest effective SR
           candidateProcessors.sort((a, b) => processorEffectiveSRs[b.id] - processorEffectiveSRs[a.id]);
           chosenProcessor = candidateProcessors[0];
-          strategyNodeId = RULE_STRATEGY_NODES.SMART_ROUTING;
+          // Update strategy ID only if not already set by custom rule or elimination (if elimination is more specific)
+          if (strategyNodeId === RULE_STRATEGY_NODES.STANDARD_ROUTING || strategyNodeId === RULE_STRATEGY_NODES.ELIMINATION_APPLIED) {
+            strategyNodeId = RULE_STRATEGY_NODES.SMART_ROUTING;
+          }
         } else {
+          // Standard routing (e.g., random or first available if not smart)
           chosenProcessor = candidateProcessors[Math.floor(Math.random() * candidateProcessors.length)];
+          // strategyNodeId remains STANDARD_ROUTING or ELIMINATION_APPLIED if elimination was already determined
         }
       }
       
-      if (eliminationAppliedThisTxn && strategyNodeId === RULE_STRATEGY_NODES.STANDARD_ROUTING) {
-         strategyNodeId = RULE_STRATEGY_NODES.ELIMINATION_APPLIED;
-      }
-
       if (chosenProcessor) {
-        upsertLinkInBatch(`pm_${currentPaymentMethod.toLowerCase()}`, strategyNodeId);
-        upsertLinkInBatch(strategyNodeId, `proc_${chosenProcessor.id}`);
+        const processorId = `proc_${chosenProcessor.id}`;
+        upsertLink(currentPaymentMethodId, strategyNodeId);
+        upsertLink(strategyNodeId, processorId);
         accumulatedProcessorStatsRef.current[chosenProcessor.id].volumeShareRaw++;
 
         const success = Math.random() < processorEffectiveSRs[chosenProcessor.id];
         if (success) {
-          upsertLinkInBatch(`proc_${chosenProcessor.id}`, 'status_success');
+          upsertLink(processorId, 'status_success');
           accumulatedProcessorStatsRef.current[chosenProcessor.id].successful++;
           accumulatedGlobalStatsRef.current.totalSuccessful++;
         } else {
-          upsertLinkInBatch(`proc_${chosenProcessor.id}`, 'status_failure');
+          upsertLink(processorId, 'status_failure');
           accumulatedProcessorStatsRef.current[chosenProcessor.id].failed++;
           accumulatedGlobalStatsRef.current.totalFailed++;
         }
       } else {
-        strategyNodeId = RULE_STRATEGY_NODES.NO_ROUTE_FOUND;
-        upsertLinkInBatch(`pm_${currentPaymentMethod.toLowerCase()}`, strategyNodeId);
-        upsertLinkInBatch(strategyNodeId, 'status_failure');
+        // No processor found/chosen (e.g., all eliminated)
+        strategyNodeId = RULE_STRATEGY_NODES.NO_ROUTE_FOUND; // Update to specific "no route" strategy
+        upsertLink(currentPaymentMethodId, strategyNodeId);
+        upsertLink(strategyNodeId, 'status_failure'); // Route to failure if no processor
         accumulatedGlobalStatsRef.current.totalFailed++;
       }
     }
     
-    setProcessedPaymentsCount(prev => prev + paymentsToProcessThisBatch);
+    const newProcessedCount = processedPaymentsCount + paymentsToProcessThisBatch;
+    setProcessedPaymentsCount(newProcessedCount);
 
-    // Update Sankey Data
+    // Update Sankey Data for display
     const nodes: SankeyNode[] = [{ id: 'source', name: 'Source', type: 'source' }];
     activePaymentMethods.forEach(pm => {
       nodes.push({ id: `pm_${pm.toLowerCase()}`, name: pm, type: 'paymentMethod' });
     });
-    // Dynamically add used strategy nodes
+    
     const usedStrategyNodeIds = new Set<string>();
     Object.keys(accumulatedLinksRef.current).forEach(key => {
         const [source, target] = key.split('>');
@@ -206,31 +229,33 @@ export default function HomePage() {
         if (Object.values(RULE_STRATEGY_NODES).includes(target as any)) usedStrategyNodeIds.add(target);
     });
 
-    if (usedStrategyNodeIds.has(RULE_STRATEGY_NODES.CUSTOM_RULE_HIGH_VALUE_CARD)) nodes.push({ id: RULE_STRATEGY_NODES.CUSTOM_RULE_HIGH_VALUE_CARD, name: 'Custom Rule: High Value Card', type: 'ruleStrategy' });
-    if (usedStrategyNodeIds.has(RULE_STRATEGY_NODES.SMART_ROUTING)) nodes.push({ id: RULE_STRATEGY_NODES.SMART_ROUTING, name: 'Smart Routing', type: 'ruleStrategy' });
-    if (usedStrategyNodeIds.has(RULE_STRATEGY_NODES.ELIMINATION_APPLIED)) nodes.push({ id: RULE_STRATEGY_NODES.ELIMINATION_APPLIED, name: 'Elimination Applied', type: 'ruleStrategy' });
-    if (usedStrategyNodeIds.has(RULE_STRATEGY_NODES.STANDARD_ROUTING)) nodes.push({ id: RULE_STRATEGY_NODES.STANDARD_ROUTING, name: 'Standard Routing', type: 'ruleStrategy' });
-    if (usedStrategyNodeIds.has(RULE_STRATEGY_NODES.DEBIT_FIRST_ROUTING)) nodes.push({ id: RULE_STRATEGY_NODES.DEBIT_FIRST_ROUTING, name: 'Debit First Routing', type: 'ruleStrategy' });
-    if (usedStrategyNodeIds.has(RULE_STRATEGY_NODES.NO_ROUTE_FOUND)) nodes.push({ id: RULE_STRATEGY_NODES.NO_ROUTE_FOUND, name: 'No Route Found', type: 'ruleStrategy' });
+    Object.entries(RULE_STRATEGY_NODES).forEach(([key, value]) => {
+        if (usedStrategyNodeIds.has(value)) {
+            // Convert key from CAMEL_CASE_EXTENDED to "Camel Case Extended"
+            const name = key.toLowerCase().replace(/_/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+            nodes.push({ id: value, name: name, type: 'ruleStrategy'});
+        }
+    });
     
     PROCESSORS.forEach(proc => {
+      // Only add processor node if it has been involved in any link
       if (Object.keys(accumulatedLinksRef.current).some(key => key.includes(`proc_${proc.id}`))) {
         nodes.push({ id: `proc_${proc.id}`, name: proc.name, type: 'processor' });
       }
     });
     nodes.push({ id: 'status_success', name: 'Success', type: 'status' });
     nodes.push({ id: 'status_failure', name: 'Failure', type: 'status' });
-    nodes.push({ id: 'sink', name: 'Sink', type: 'sink' });
+    nodes.push({ id: 'sink', name: 'Sink', type: 'sink' }); // Always add sink
 
     const finalLinks: SankeyLink[] = [];
     Object.entries(accumulatedLinksRef.current).forEach(([key, value]) => {
         const [source, target] = key.split('>');
-        if (value > 0) {
+        if (value > 0) { // Only add links with actual flow
             finalLinks.push({ source, target, value });
         }
     });
     
-    // Add links to sink if not already handled by direct links
+    // Add links from status_success and status_failure to sink if they have incoming flow
     const successTotal = finalLinks.filter(l => l.target === 'status_success').reduce((sum, l) => sum + l.value, 0);
     const failureTotal = finalLinks.filter(l => l.target === 'status_failure').reduce((sum, l) => sum + l.value, 0);
 
@@ -241,38 +266,36 @@ export default function HomePage() {
         finalLinks.push({ source: 'status_failure', target: 'sink', value: failureTotal });
     }
     
-    const participatingNodeIds = new Set<string>();
+    const participatingNodeIds = new Set<string>(['source', 'sink']); // Always include source and sink
     finalLinks.forEach(link => {
       participatingNodeIds.add(link.source);
       participatingNodeIds.add(link.target);
     });
-    if (finalLinks.some(l => l.source === 'source')) participatingNodeIds.add('source');
-    if (finalLinks.some(l => l.target === 'sink')) participatingNodeIds.add('sink');
     
     const finalNodes = nodes.filter(node => participatingNodeIds.has(node.id));
 
     setSankeyData({ nodes: finalNodes, links: finalLinks });
     
-    // Update analytics data for current controls
-    const overallSR = totalPayments > 0 ? (accumulatedGlobalStatsRef.current.totalSuccessful / processedPaymentsCount) * 100 : 0; // Use processedPaymentsCount for live SR
-    const updatedProcessorSRs = { ...currentControls.processorWiseSuccessRates };
+    const overallSR = newProcessedCount > 0 ? (accumulatedGlobalStatsRef.current.totalSuccessful / newProcessedCount) * 100 : 0;
+    const updatedProcessorSRsUi = { ...currentControls.processorWiseSuccessRates }; // For UI display
+    
     PROCESSORS.forEach(proc => {
         const stats = accumulatedProcessorStatsRef.current[proc.id];
-        const totalRoutedToProc = stats.volumeShareRaw;
+        const totalRoutedToProc = stats.volumeShareRaw; // Total transactions routed to this processor so far
         const procSR = totalRoutedToProc > 0 ? (stats.successful / totalRoutedToProc) * 100 : 0;
-        const procVolumeShare = processedPaymentsCount > 0 ? (totalRoutedToProc / processedPaymentsCount) * 100 : 0; // Use processedPaymentsCount
-        updatedProcessorSRs[proc.id] = {
+        const procVolumeShare = newProcessedCount > 0 ? (totalRoutedToProc / newProcessedCount) * 100 : 0;
+        
+        updatedProcessorSRsUi[proc.id] = {
             sr: parseFloat(procSR.toFixed(2)) || 0,
             volumeShare: parseFloat(procVolumeShare.toFixed(2)) || 0,
-            failureRate: parseFloat((100 - procSR).toFixed(2)) || 0
+            failureRate: parseFloat((100 - procSR).toFixed(2)) || 0,
         };
     });
 
-    // Update controls state for analytics view to reflect live data
     setCurrentControls(prevControls => ({
         ...prevControls!,
         overallSuccessRate: parseFloat(overallSR.toFixed(2)) || 0,
-        processorWiseSuccessRates: updatedProcessorSRs,
+        processorWiseSuccessRates: updatedProcessorSRsUi,
         tps: effectiveTps, 
     }));
 
@@ -297,14 +320,22 @@ export default function HomePage() {
 
   const handleStartSimulation = useCallback(() => {
     if (!currentControls) {
-      toast({ title: "Error", description: "Control data not available.", variant: "destructive" });
+      toast({ title: "Error", description: "Control data not available. Please configure settings.", variant: "destructive" });
+      return;
+    }
+    if (currentControls.selectedPaymentMethods.length === 0) {
+      toast({ title: "Error", description: "No payment methods selected.", variant: "destructive" });
       return;
     }
     if (simulationState === 'idle') {
-      resetSimulationState(); // Reset stats only if starting fresh
+      resetSimulationState(); 
     }
     setSimulationState('running');
-    toast({ title: "Simulation Started", description: `Processing ${currentControls.totalPayments} payments.`, duration: 3000 });
+    if(simulationState === 'idle') {
+        toast({ title: "Simulation Started", description: `Processing ${currentControls.totalPayments} payments.`, duration: 3000 });
+    } else {
+        toast({ title: "Simulation Resumed", duration: 3000 });
+    }
   }, [currentControls, toast, simulationState]);
 
   const handlePauseSimulation = useCallback(() => {
@@ -314,8 +345,8 @@ export default function HomePage() {
 
   const handleStopSimulation = useCallback(() => {
     setSimulationState('idle');
-    resetSimulationState(); // Reset all stats and Sankey data
-    toast({ title: "Simulation Stopped", duration: 3000 });
+    resetSimulationState(); 
+    toast({ title: "Simulation Stopped & Reset", duration: 3000 });
   }, [toast]);
 
   const [activeTab, setActiveTab] = useState<string>("sankey");
@@ -337,8 +368,12 @@ export default function HomePage() {
             <TabsContent value="analytics" className="h-full mt-0">
               <div className="p-2 md:p-4 lg:p-6 h-full"> 
                 <ScrollArea className="h-full">
-                  {/* Pass processedPaymentsCount to AnalyticsView if you want to show # processed */}
-                  <AnalyticsView currentControls={currentControls} />
+                  <AnalyticsView 
+                    currentControls={currentControls} 
+                    processedPayments={processedPaymentsCount}
+                    totalSuccessful={accumulatedGlobalStatsRef.current.totalSuccessful}
+                    totalFailed={accumulatedGlobalStatsRef.current.totalFailed}
+                  />
                 </ScrollArea>
               </div>
             </TabsContent>
@@ -347,7 +382,7 @@ export default function HomePage() {
       </AppLayout>
       <BottomControlsPanel
         onFormChange={handleControlsChange}
-        isSimulationActive={simulationState === 'running'} // Pass this prop
+        isSimulationActive={simulationState === 'running'}
       />
     </>
   );

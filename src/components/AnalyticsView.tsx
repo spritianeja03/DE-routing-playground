@@ -1,3 +1,4 @@
+
 "use client";
 
 import type React from 'react';
@@ -6,14 +7,18 @@ import { ProcessorSuccessRatesTable } from './analytics/ProcessorSuccessRatesTab
 import { TransactionDistributionChart } from './analytics/TransactionDistributionChart';
 import type { FormValues } from './BottomControlsPanel';
 import { PROCESSORS } from '@/lib/constants';
-// ScrollArea import removed from here, will be handled by parent in page.tsx
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { TrendingUp, ListChecks, CheckCircle2, XCircle, Gauge } from 'lucide-react';
+
 
 interface AnalyticsViewProps {
   currentControls: FormValues | null;
+  processedPayments?: number; // Optional: total processed payments for one of the new cards
+  totalSuccessful?: number;
+  totalFailed?: number;
 }
 
 // Helper to get HSL color from Tailwind config (conceptual)
-// In a real app, you might need a more robust way to get these if they are dynamic
 const CHART_COLORS_HSL = {
   '--chart-1': 'hsl(var(--chart-1))',
   '--chart-2': 'hsl(var(--chart-2))',
@@ -25,14 +30,15 @@ const CHART_COLORS_HSL = {
 const chartColorKeys = Object.keys(CHART_COLORS_HSL) as (keyof typeof CHART_COLORS_HSL)[];
 
 
-export function AnalyticsView({ currentControls }: AnalyticsViewProps) {
+export function AnalyticsView({ currentControls, processedPayments = 0, totalSuccessful = 0, totalFailed = 0 }: AnalyticsViewProps) {
   const overallSR = currentControls?.overallSuccessRate ?? 0;
+  const effectiveTps = currentControls?.tps ?? 0;
   
   const processorSRData = currentControls 
     ? PROCESSORS.map(proc => ({
         processor: proc.name,
         sr: currentControls.processorWiseSuccessRates[proc.id]?.sr ?? 0,
-        failureRate: 100 - (currentControls.processorWiseSuccessRates[proc.id]?.sr ?? 0),
+        failureRate: currentControls.processorWiseSuccessRates[proc.id]?.failureRate ?? (100 - (currentControls.processorWiseSuccessRates[proc.id]?.sr ?? 0)),
         volumeShare: currentControls.processorWiseSuccessRates[proc.id]?.volumeShare ?? 0,
       }))
     : PROCESSORS.map(proc => ({
@@ -52,16 +58,63 @@ export function AnalyticsView({ currentControls }: AnalyticsViewProps) {
 
 
   return (
-    // Outermost ScrollArea removed, content directly in a div
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="shadow-md">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Processed</CardTitle>
+            <ListChecks className="h-5 w-5 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{processedPayments.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">transactions simulated</p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-md">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Successful</CardTitle>
+            <CheckCircle2 className="h-5 w-5 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalSuccessful.toLocaleString()}</div>
+             <p className="text-xs text-muted-foreground">
+              {processedPayments > 0 ? `${((totalSuccessful / processedPayments) * 100).toFixed(1)}% of processed` : ''}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-md">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Failed</CardTitle>
+            <XCircle className="h-5 w-5 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalFailed.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              {processedPayments > 0 ? `${((totalFailed / processedPayments) * 100).toFixed(1)}% of processed` : ''}
+            </p>
+          </CardContent>
+        </Card>
+         <Card className="shadow-md">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Effective TPS</CardTitle>
+            <Gauge className="h-5 w-5 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{effectiveTps.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">transactions per second</p>
+          </CardContent>
+        </Card>
+      </div>
+
       <OverallSuccessRateDisplay rate={overallSR} />
+      
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ProcessorSuccessRatesTable data={processorSRData} />
         <TransactionDistributionChart data={transactionDistributionData} />
       </div>
-      {/* Placeholder for other metrics */}
+      
       <div className="p-6 bg-muted/30 rounded-lg text-center">
-        <p className="text-muted-foreground">More detailed analytics and trends will be displayed here.</p>
+        <p className="text-muted-foreground">Further analytics like cost optimization and risk assessment could be added here.</p>
       </div>
     </div>
   );
