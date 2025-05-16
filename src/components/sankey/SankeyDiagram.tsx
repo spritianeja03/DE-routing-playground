@@ -25,13 +25,21 @@ const CustomSankeyNode = (props: any) => {
 
   if (typeof x !== 'number' || typeof y !== 'number' || typeof width !== 'number' || typeof height !== 'number' || 
       !payload || typeof payload.name !== 'string' || typeof payload.type !== 'string') {
+    console.warn("CustomSankeyNode: Invalid props or payload", props);
     return null;
   }
 
-  const nodeColor = 
-    payload.name === 'status_success' ? STATUS_NODE_COLORS.status_success :
-    payload.name === 'status_failure' ? STATUS_NODE_COLORS.status_failure :
-    NODE_COLORS[payload.type as AppSankeyNode['type']] || '#8884d8'; // Fallback color
+  const nodeType = payload.type as AppSankeyNode['type'];
+  let nodeColor = NODE_COLORS[nodeType] || '#8884d8'; // Fallback color
+
+  if (payload.name === 'status_success') {
+    nodeColor = STATUS_NODE_COLORS.status_success;
+  } else if (payload.name === 'status_failure') {
+    nodeColor = STATUS_NODE_COLORS.status_failure;
+  } else if (!NODE_COLORS[nodeType]) {
+    console.warn("CustomSankeyNode: Unknown node type for color", payload.type, "using fallback.");
+  }
+
 
   return (
     <Rectangle
@@ -53,6 +61,7 @@ const CustomNodeLabel = (props: any) => {
 
   if (typeof x !== 'number' || typeof y !== 'number' || typeof width !== 'number' || typeof height !== 'number' || 
       !payload || typeof payload.displayName !== 'string' || typeof containerWidth !== 'number') {
+    console.warn("CustomNodeLabel: Invalid props or payload", props);
     return null;
   }
   
@@ -78,10 +87,12 @@ const CustomNodeLabel = (props: any) => {
   );
 };
 
+interface SankeyDiagramProps {
+  data: SankeyData | null;
+}
 
 export function SankeyDiagram({ data }: SankeyDiagramProps) {
   if (!data || !data.nodes || data.nodes.length === 0) {
-    // Initial placeholder when no data or no nodes at all
     return (
       <div className="h-full w-full flex flex-col items-start text-left bg-muted/20 rounded-lg p-4">
         <h2 className="text-xl font-semibold mb-1">Live Transaction Flow</h2>
@@ -101,27 +112,26 @@ export function SankeyDiagram({ data }: SankeyDiagramProps) {
     );
   }
   
-  // Robust mapping for nodes
-  const mappedNodes = data.nodes
+  const initialMappedNodes = data.nodes
     .map(node => {
       if (!node || typeof node.id !== 'string' || typeof node.name !== 'string' || typeof node.type !== 'string') {
-        return null; // Explicitly return null for invalid node structures
+        console.warn("SankeyDiagram: Invalid node structure in input data", node);
+        return null; 
       }
       return {
-        name: node.id, // Recharts uses 'name' for linking
-        displayName: node.name, // Original name for display
-        type: node.type, // For custom styling
+        name: node.id, 
+        displayName: node.name, 
+        type: node.type as AppSankeyNode['type'],
       };
     })
     .filter(Boolean) as Array<{ name: string; displayName: string; type: AppSankeyNode['type'] }>;
 
-  if (mappedNodes.length === 0 && data.nodes.length > 0) {
-     // All original nodes were invalid
+  if (initialMappedNodes.length === 0 && data.nodes.length > 0) {
     return (
         <div className="h-full w-full flex flex-col items-start text-left bg-muted/20 rounded-lg p-4">
         <h2 className="text-xl font-semibold mb-1">Live Transaction Flow</h2>
         <p className="text-sm text-muted-foreground mb-4">
-            Error preparing node data for Sankey Diagram.
+            Error: No valid nodes could be processed from the input data for the Sankey Diagram.
         </p>
         <div className="flex-grow w-full flex flex-col items-center justify-center text-center">
             <Image
@@ -138,94 +148,84 @@ export function SankeyDiagram({ data }: SankeyDiagramProps) {
     );
   }
 
-  const rechartsNodeNames = new Set(mappedNodes.map(n => n.name));
+  const rechartsNodeIdSet = new Set(initialMappedNodes.map(n => n.name));
 
-  const validRechartsLinks = data.links
+  const validRechartsLinks = (data.links || [])
     .filter(link => {
-      return (
-        link &&
+      const isValid = link &&
         typeof link.source === 'string' &&
-        rechartsNodeNames.has(link.source) &&
+        rechartsNodeIdSet.has(link.source) &&
         typeof link.target === 'string' &&
-        rechartsNodeNames.has(link.target) &&
+        rechartsNodeIdSet.has(link.target) &&
         typeof link.value === 'number' &&
-        link.value > 0
-      );
+        link.value > 0;
+      if (!isValid && link && link.value > 0) {
+        console.warn("SankeyDiagram: Invalid or orphaned link detected", link, "Available node IDs:", Array.from(rechartsNodeIdSet));
+      }
+      return isValid;
     })
-    .map(link => ({ // Ensure clean link objects
+    .map(link => ({ 
         source: link.source,
         target: link.target,
         value: link.value,
-    }));
+    }))
+    .filter(Boolean);
 
 
-  if (validRechartsLinks.length === 0 && data.links && data.links.length > 0) {
-    // Original links existed, but none were valid after filtering against mappedNodes
+  // Filter nodes to only those participating in valid links, plus source and sink
+  const participatingNodeIds = new Set<string>();
+  validRechartsLinks.forEach(link => {
+    participatingNodeIds.add(link.source);
+    participatingNodeIds.add(link.target);
+  });
+
+  // Always try to include source and sink if they exist in initialMappedNodes
+  const sourceNodeExists = initialMappedNodes.find(n => n.name === 'source');
+  const sinkNodeExists = initialMappedNodes.find(n => n.name === 'sink');
+  if (sourceNodeExists) participatingNodeIds.add('source');
+  if (sinkNodeExists) participatingNodeIds.add('sink');
+
+  const finalMappedNodes = initialMappedNodes.filter(node => participatingNodeIds.has(node.name));
+
+  if (finalMappedNodes.length === 0 || (finalMappedNodes.length > 0 && validRechartsLinks.length === 0 && !(finalMappedNodes.length === 1 && finalMappedNodes[0].name === 'source'))) {
+    let message = "No valid transaction flows to display yet.";
+    let subMessage = "Waiting for consistent transaction data with positive flow values.";
+    let imgText = "No Valid Flows";
+    let hint = "empty chart";
+
+    if (finalMappedNodes.length === 0 && data.nodes.length > 0) {
+        message = "No nodes are part of an active transaction flow.";
+        subMessage = "Check if simulation is generating links between nodes.";
+        imgText = "No Active Nodes";
+        hint = "data flow";
+    } else if (finalMappedNodes.length > 0 && validRechartsLinks.length === 0 && !(finalMappedNodes.length === 1 && finalMappedNodes[0].name === 'source')) {
+        message = "Nodes are present but no transactions have flowed between them.";
+        subMessage = "This can happen if all transaction values are zero or links are invalid.";
+        imgText = "Awaiting Connections";
+        hint = "data flow";
+    } else if (data.nodes.length === 0) { // Initial state check already at the top
+        message = "Run simulation to see flow.";
+        subMessage = "Click 'Start Simulation' in the header to generate data.";
+        imgText = "Run Simulation";
+        hint = "flow chart";
+    }
+    
     return (
       <div className="h-full w-full flex flex-col items-start text-left bg-muted/20 rounded-lg p-4">
         <h2 className="text-xl font-semibold mb-1">Live Transaction Flow</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Simulation is running or has run, but no valid transaction flows to display. Check node and link consistency.
-        </p>
+        <p className="text-sm text-muted-foreground mb-4">{message}</p>
         <div className="flex-grow w-full flex flex-col items-center justify-center text-center">
             <Image
-                src="https://placehold.co/800x400.png?text=No+Valid+Flows"
-                alt="No Valid Flow Data Placeholder"
+                src={`https://placehold.co/800x400.png?text=${encodeURIComponent(imgText)}`}
+                alt={`${imgText} Placeholder`}
                 width={800}
                 height={400}
                 className="rounded-md shadow-lg object-contain opacity-70"
-                data-ai-hint="empty chart"
+                data-ai-hint={hint}
             />
-            <p className="mt-4 text-muted-foreground">Waiting for consistent transaction data with positive flow values.</p>
+            <p className="mt-4 text-muted-foreground">{subMessage}</p>
         </div>
       </div>
-    );
-  }
-  
-  if (mappedNodes.length > 0 && validRechartsLinks.length === 0 && !(mappedNodes.length ===1 && mappedNodes[0].name === 'source')) {
-     // We have nodes, but no links to connect them (and it's not just the initial "source" node)
-     return (
-      <div className="h-full w-full flex flex-col items-start text-left bg-muted/20 rounded-lg p-4">
-        <h2 className="text-xl font-semibold mb-1">Live Transaction Flow</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Nodes are present but no transactions have flowed between them yet.
-        </p>
-        <div className="flex-grow w-full flex flex-col items-center justify-center text-center">
-            <Image
-                src="https://placehold.co/800x400.png?text=Awaiting+Connections"
-                alt="Awaiting Connections Placeholder"
-                width={800}
-                height={400}
-                className="rounded-md shadow-lg object-contain opacity-70"
-                data-ai-hint="data flow"
-            />
-            <p className="mt-4 text-muted-foreground">Waiting for link data.</p>
-        </div>
-      </div>
-    );
-  }
-  
-  // If, after all filtering, we have no nodes to render, show placeholder.
-  // This case should ideally be caught by earlier checks.
-  if (mappedNodes.length === 0) {
-     return (
-        <div className="h-full w-full flex flex-col items-start text-left bg-muted/20 rounded-lg p-4">
-        <h2 className="text-xl font-semibold mb-1">Live Transaction Flow</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-            No valid nodes to display for Sankey Diagram.
-        </p>
-        <div className="flex-grow w-full flex flex-col items-center justify-center text-center">
-            <Image
-                src="https://placehold.co/800x400.png?text=No+Nodes"
-                alt="No Nodes Placeholder"
-                width={800}
-                height={400}
-                className="rounded-md shadow-lg object-contain opacity-70"
-                data-ai-hint="empty state"
-            />
-            <p className="mt-4 text-muted-foreground">No node data available for rendering.</p>
-        </div>
-        </div>
     );
   }
 
@@ -233,18 +233,18 @@ export function SankeyDiagram({ data }: SankeyDiagramProps) {
     <div className="h-full w-full flex flex-col items-start text-left bg-muted/20 rounded-lg p-1">
       <h2 className="text-lg font-semibold mb-0.5 px-3 pt-2">Live Transaction Flow</h2>
       <p className="text-xs text-muted-foreground mb-1 px-3">
-        Visualizing transactions. Nodes: {mappedNodes.length}, Links: {validRechartsLinks.length}.
+        Nodes: {finalMappedNodes.length}, Links: {validRechartsLinks.length}.
       </p>
 
       <ResponsiveContainer width="100%" height="100%" className="flex-grow min-h-[300px]">
         <Sankey
-          data={{nodes: mappedNodes, links: validRechartsLinks}}
+          data={{nodes: finalMappedNodes, links: validRechartsLinks}}
           node={<CustomSankeyNode />}
           label={<CustomNodeLabel />}
-          nodePadding={25} // Increased padding
-          margin={{ top: 20, right: 150, left: 150, bottom: 20 }} // Increased side margins for labels
+          nodePadding={25} 
+          margin={{ top: 20, right: 150, left: 150, bottom: 20 }} 
           link={{ stroke: 'hsl(var(--border))', strokeOpacity: 0.5, strokeWidth: 1 }}
-          iterations={32} // Default Sankey calculation iterations
+          iterations={32} 
         >
           <Tooltip
             contentStyle={{ 
@@ -256,16 +256,15 @@ export function SankeyDiagram({ data }: SankeyDiagramProps) {
             labelStyle={{ color: 'hsl(var(--popover-foreground))', fontWeight: 'bold', marginBottom: '4px' }}
             itemStyle={{ color: 'hsl(var(--popover-foreground))' }}
             formatter={(value: any, name: any, props: any) => {
-              // props.payload contains the link object: {source, target, value, ...}
-              // props.payload.source and props.payload.target are the node objects themselves
-              if (props.payload && props.payload.source && props.payload.target) {
-                const sourceNode = mappedNodes.find(n => n.name === props.payload.source.name);
-                const targetNode = mappedNodes.find(n => n.name === props.payload.target.name);
-                const sourceName = sourceNode?.displayName || props.payload.source.name;
-                const targetName = targetNode?.displayName || props.payload.target.name;
+              if (props.payload && props.payload.source && props.payload.target && 
+                  typeof props.payload.source === 'object' && typeof props.payload.target === 'object') {
+                const sourceNode = finalMappedNodes.find(n => n.name === props.payload.source.name);
+                const targetNode = finalMappedNodes.find(n => n.name === props.payload.target.name);
+                const sourceName = sourceNode?.displayName || props.payload.source.name || 'Unknown Source';
+                const targetName = targetNode?.displayName || props.payload.target.name || 'Unknown Target';
                 return [`${value.toLocaleString()} transactions`, `${sourceName} → ${targetName}`];
               }
-              return [value.toLocaleString(), name];
+              return [value.toLocaleString(), name || 'Link'];
             }}
           />
         </Sankey>
@@ -273,3 +272,4 @@ export function SankeyDiagram({ data }: SankeyDiagramProps) {
     </div>
   );
 }
+
