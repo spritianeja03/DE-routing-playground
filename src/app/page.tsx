@@ -5,7 +5,7 @@ import React, { useState, useCallback } from 'react';
 import { AppLayout } from '@/components/AppLayout';
 import { Header } from '@/components/Header';
 import { BottomControlsPanel, type FormValues } from '@/components/BottomControlsPanel';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs'; // TabsList and TabsTrigger removed from here
 import { SankeyDiagramView } from '@/components/SankeyDiagramView';
 import { AnalyticsView } from '@/components/AnalyticsView';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -18,6 +18,7 @@ export default function HomePage() {
   const [currentControls, setCurrentControls] = useState<FormValues | null>(null);
   const [sankeyData, setSankeyData] = useState<SankeyData | null>(null);
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<string>("sankey");
   const { toast } = useToast();
 
   const handleControlsChange = useCallback((data: FormValues) => {
@@ -44,10 +45,10 @@ export default function HomePage() {
     // 2. Add Payment Method Nodes
     currentControls.selectedPaymentMethods.forEach(pm => {
       nodes.push({ id: `pm_${pm.toLowerCase()}`, name: pm, type: 'paymentMethod' });
-      links.push({ 
-        source: 'source', 
-        target: `pm_${pm.toLowerCase()}`, 
-        value: currentControls.totalPayments / (currentControls.selectedPaymentMethods.length || 1) 
+      links.push({
+        source: 'source',
+        target: `pm_${pm.toLowerCase()}`,
+        value: currentControls.totalPayments / (currentControls.selectedPaymentMethods.length || 1)
       });
     });
 
@@ -69,7 +70,7 @@ export default function HomePage() {
           PROCESSORS.forEach(p => {
             if(currentControls.processorMatrix[p.id]?.[pm]) supportingProcessorsCount++;
           });
-          
+
           const trafficToThisProcessorForPm = pmTraffic / (supportingProcessorsCount || 1);
           links.push({
             source: `pm_${pm.toLowerCase()}`,
@@ -80,17 +81,17 @@ export default function HomePage() {
         }
       });
     });
-    
+
     // 4. Links from Processors to Success/Failure
     PROCESSORS.forEach(proc => {
       if (processorTraffic[proc.id] > 0) {
-        const baseSR = currentControls.processorWiseSuccessRates[proc.id]?.sr ?? 90; 
-        const fluctuationEffect = (currentControls.srFluctuation[proc.id] - 50) / 200; 
+        const baseSR = currentControls.processorWiseSuccessRates[proc.id]?.sr ?? 90;
+        const fluctuationEffect = (currentControls.srFluctuation[proc.id] - 50) / 200;
         let effectiveSR = baseSR / 100 * (1 + fluctuationEffect);
-        effectiveSR = Math.max(0, Math.min(1, effectiveSR)); 
+        effectiveSR = Math.max(0, Math.min(1, effectiveSR));
 
         if (currentControls.processorIncidents[proc.id]) {
-            effectiveSR *= 0.1; 
+            effectiveSR *= 0.1;
         }
 
         const successValue = processorTraffic[proc.id] * effectiveSR;
@@ -121,13 +122,13 @@ export default function HomePage() {
     if (totalFailure > 0) {
         links.push({ source: 'status_failure', target: 'sink', value: totalFailure });
     }
-    
+
     const linkedNodeIds = new Set<string>();
     links.forEach(link => {
       linkedNodeIds.add(link.source);
       linkedNodeIds.add(link.target);
     });
-    
+
     const finalNodes = nodes.filter(node => node.type === 'source' || node.type === 'sink' || linkedNodeIds.has(node.id));
 
     setSankeyData({ nodes: finalNodes, links });
@@ -137,36 +138,31 @@ export default function HomePage() {
   }, [currentControls, toast]);
 
   return (
-    <AppLayout>
-      <Header 
-        onRunSimulation={handleRunSimulation}
-        isSimulating={isSimulating}
-      />
-      <div className="flex-grow flex flex-row overflow-hidden p-0 md:p-2 lg:p-4">
-        <Tabs defaultValue="sankey" className="flex-grow flex flex-row w-full overflow-hidden">
-          <TabsList className="flex flex-col h-auto w-auto p-2 space-y-1 border-r mr-4 sticky top-0 bg-background/90 backdrop-blur-sm z-[5] rounded-lg shadow-sm">
-            <TabsTrigger value="sankey" className="px-4 py-2 text-sm w-full justify-start">Sankey View</TabsTrigger>
-            <TabsTrigger value="analytics" className="px-4 py-2 text-sm w-full justify-start">Analytics</TabsTrigger>
-          </TabsList>
-          
-          <div className="flex-grow overflow-hidden">
-            <TabsContent value="sankey" className="h-full mt-0 -m-px">
+    <>
+      <AppLayout>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-grow overflow-hidden">
+          <Header
+            onRunSimulation={handleRunSimulation}
+            isSimulating={isSimulating}
+          />
+          {/* Main content area for TabsContent */}
+          <div className="flex-grow overflow-hidden p-0 md:p-2 lg:p-4">
+            <TabsContent value="sankey" className="h-full mt-0"> {/* Removed -m-px */}
               <ScrollArea className="h-full">
                  <SankeyDiagramView currentControls={currentControls} sankeyData={sankeyData} />
               </ScrollArea>
             </TabsContent>
-            <TabsContent value="analytics" className="h-full mt-0 -m-px">
+            <TabsContent value="analytics" className="h-full mt-0">  {/* Removed -m-px */}
                <ScrollArea className="h-full">
                 <AnalyticsView currentControls={currentControls} />
               </ScrollArea>
             </TabsContent>
           </div>
         </Tabs>
-      </div>
-      <BottomControlsPanel 
+      </AppLayout>
+      <BottomControlsPanel
         onFormChange={handleControlsChange}
-        // onRunSimulation and isSimulating are removed as button is in Header
       />
-    </AppLayout>
+    </>
   );
 }
