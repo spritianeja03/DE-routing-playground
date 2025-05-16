@@ -1,6 +1,6 @@
 "use client";
 
-import type React from 'react';
+import React from 'react'; // Added this line
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -22,7 +22,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Bot, Settings2, TrendingUp, Zap, AlertTriangle, DollarSign, VenetianMaskIcon } from 'lucide-react';
 
 const defaultProcessorMatrix: ProcessorPaymentMethodMatrix = PROCESSORS.reduce((acc, proc) => {
-  acc[proc.id] = DEFAULT_PROCESSOR_AVAILABILITY[proc.id] || 
+  acc[proc.id] = DEFAULT_PROCESSOR_AVAILABILITY[proc.id] ||
     PAYMENT_METHODS.reduce((methodsAcc, method) => {
       methodsAcc[method] = false;
       return methodsAcc;
@@ -115,11 +115,11 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
     onFormChange(form.getValues() as FormValues);
     return () => subscription.unsubscribe();
   }, [form, onFormChange]);
-  
+
   const { control } = form;
 
   return (
-    <div 
+    <div
       className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-lg z-20"
       style={{ height: BOTTOM_PANEL_HEIGHT }}
     >
@@ -150,9 +150,9 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                       <FormItem>
                         <FormLabel>TPS (Transactions Per Second): {field.value}</FormLabel>
                         <FormControl>
-                           <Slider 
-                            defaultValue={[field.value]} 
-                            min={1} max={5000} step={1} 
+                           <Slider
+                            defaultValue={[field.value]}
+                            min={1} max={5000} step={1}
                             onValueChange={(value) => field.onChange(value[0])}
                           />
                         </FormControl>
@@ -298,7 +298,7 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                   </div>
                 </AccordionContent>
               </AccordionItem>
-              
+
               <AccordionItem value="sr-fluctuation">
                 <AccordionTrigger className="text-lg font-semibold"><TrendingUp className="mr-2" /> SR Fluctuation & Incidents</AccordionTrigger>
                 <AccordionContent className="pt-4 space-y-6">
@@ -355,9 +355,9 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                       <FormItem>
                         <FormLabel>Overall Success Rate (%): {field.value}</FormLabel>
                         <FormControl>
-                           <Slider 
-                            defaultValue={[field.value]} 
-                            min={0} max={100} step={0.1} 
+                           <Slider
+                            defaultValue={[field.value]}
+                            min={0} max={100} step={0.1}
                             onValueChange={(value) => field.onChange(value[0])}
                           />
                         </FormControl>
@@ -366,7 +366,7 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                     )}
                   />
                   <div className="col-span-full space-y-4">
-                    <Label className="text-base font-medium">Processor-wise Success Rates (for AI)</Label>
+                    <Label className="text-base font-medium">Processor-wise SuccessRates (for AI)</Label>
                     {PROCESSORS.map(proc => (
                       <div key={proc.id} className="grid grid-cols-3 gap-2 items-center border p-2 rounded-md">
                         <Label className="col-span-3 sm:col-span-1">{proc.name}</Label>
