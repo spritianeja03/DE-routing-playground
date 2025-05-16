@@ -1,8 +1,8 @@
 
 "use client";
 
-import React from 'react'; // Added this line
-import { useForm, Controller, useFieldArray } from 'react-hook-form';
+import React from 'react';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -14,13 +14,12 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 import { CURRENCIES, PAYMENT_METHODS, PROCESSORS, DEFAULT_PROCESSOR_AVAILABILITY } from '@/lib/constants';
 import type { ControlsState, PaymentMethod, ProcessorPaymentMethodMatrix, SRFluctuation, ProcessorIncidentStatus } from '@/lib/types';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Textarea } from '@/components/ui/textarea';
-import { Bot, Settings2, TrendingUp, Zap, AlertTriangle, DollarSign, VenetianMaskIcon } from 'lucide-react';
+import { Bot, Settings2, TrendingUp, Zap, VenetianMaskIcon } from 'lucide-react';
 
 const defaultProcessorMatrix: ProcessorPaymentMethodMatrix = PROCESSORS.reduce((acc, proc) => {
   acc[proc.id] = DEFAULT_PROCESSOR_AVAILABILITY[proc.id] ||
@@ -102,17 +101,13 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
 
   React.useEffect(() => {
     const subscription = form.watch((values) => {
-      // Type assertion as watch might return incomplete data during initialization
       if (form.formState.isValid) {
          onFormChange(values as FormValues);
       } else {
-        // Even if not fully valid, pass current values for real-time feedback if desired
-        // This might require careful handling if partial data is problematic
         const currentValues = form.getValues();
         onFormChange(currentValues as FormValues);
       }
     });
-    // Initial call with default values
     onFormChange(form.getValues() as FormValues);
     return () => subscription.unsubscribe();
   }, [form, onFormChange]);
@@ -126,11 +121,18 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
     >
       <ScrollArea className="h-full p-1">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(() => { /* Submission handled by watch? */ })} className="p-4 space-y-6">
-            <Accordion type="multiple" className="w-full" defaultValue={['general', 'processors']}>
-              <AccordionItem value="general">
-                <AccordionTrigger className="text-lg font-semibold"><Settings2 className="mr-2" /> General Configuration</AccordionTrigger>
-                <AccordionContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-4">
+          <form onSubmit={form.handleSubmit(() => { /* Submission handled by watch */ })} className="p-4 space-y-6">
+            <Tabs defaultValue="general" className="w-full">
+              <TabsList className="grid w-full grid-cols-5 mb-4">
+                <TabsTrigger value="general" className="text-xs md:text-sm"><Settings2 className="mr-1 h-4 w-4 md:mr-2" />General</TabsTrigger>
+                <TabsTrigger value="processors" className="text-xs md:text-sm"><VenetianMaskIcon className="mr-1 h-4 w-4 md:mr-2" />Processors</TabsTrigger>
+                <TabsTrigger value="routing" className="text-xs md:text-sm"><Zap className="mr-1 h-4 w-4 md:mr-2" />Routing</TabsTrigger>
+                <TabsTrigger value="sr-fluctuation" className="text-xs md:text-sm"><TrendingUp className="mr-1 h-4 w-4 md:mr-2" />SR & Incidents</TabsTrigger>
+                <TabsTrigger value="ai-metrics" className="text-xs md:text-sm"><Bot className="mr-1 h-4 w-4 md:mr-2" />AI Metrics</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="general" className="pt-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <FormField
                     control={control}
                     name="totalPayments"
@@ -236,45 +238,41 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                       </FormItem>
                     )}
                   />
-                </AccordionContent>
-              </AccordionItem>
+                </div>
+              </TabsContent>
 
-              <AccordionItem value="processors">
-                <AccordionTrigger className="text-lg font-semibold"><VenetianMaskIcon className="mr-2" /> Processor Configuration</AccordionTrigger>
-                <AccordionContent className="pt-4">
-                  <Card>
-                    <CardHeader><CardTitle>Processor ↔ Payment Method Matrix</CardTitle></CardHeader>
-                    <CardContent className="space-y-2">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {PROCESSORS.map(proc => (
-                          <div key={proc.id} className="border p-3 rounded-md">
-                            <h4 className="font-medium mb-2">{proc.name}</h4>
-                            {PAYMENT_METHODS.map(method => (
-                              <FormField
-                                key={`${proc.id}-${method}`}
-                                control={control}
-                                name={`processorMatrix.${proc.id}.${method}`}
-                                render={({ field }) => (
-                                  <FormItem className="flex items-center justify-between py-1">
-                                    <FormLabel className="font-normal">{method}</FormLabel>
-                                    <FormControl>
-                                      <Switch checked={field.value} onCheckedChange={field.onChange} />
-                                    </FormControl>
-                                  </FormItem>
-                                )}
-                              />
-                            ))}
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </AccordionContent>
-              </AccordionItem>
+              <TabsContent value="processors" className="pt-4">
+                <Card>
+                  <CardHeader><CardTitle>Processor ↔ Payment Method Matrix</CardTitle></CardHeader>
+                  <CardContent className="space-y-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {PROCESSORS.map(proc => (
+                        <div key={proc.id} className="border p-3 rounded-md">
+                          <h4 className="font-medium mb-2">{proc.name}</h4>
+                          {PAYMENT_METHODS.map(method => (
+                            <FormField
+                              key={`${proc.id}-${method}`}
+                              control={control}
+                              name={`processorMatrix.${proc.id}.${method}`}
+                              render={({ field }) => (
+                                <FormItem className="flex items-center justify-between py-1">
+                                  <FormLabel className="font-normal">{method}</FormLabel>
+                                  <FormControl>
+                                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
-              <AccordionItem value="routing">
-                <AccordionTrigger className="text-lg font-semibold"><Zap className="mr-2" /> Routing & Simulation</AccordionTrigger>
-                <AccordionContent className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+              <TabsContent value="routing" className="pt-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <FormField
                       control={control}
                       name="routingRulesText"
@@ -297,110 +295,102 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                   <div className="space-y-2">
                      <FormField control={control} name="simulateSaleEvent" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel>Simulate Sale Event</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )} />
                   </div>
-                </AccordionContent>
-              </AccordionItem>
+                </div>
+              </TabsContent>
 
-              <AccordionItem value="sr-fluctuation">
-                <AccordionTrigger className="text-lg font-semibold"><TrendingUp className="mr-2" /> SR Fluctuation & Incidents</AccordionTrigger>
-                <AccordionContent className="pt-4 space-y-6">
-                  <Card>
-                    <CardHeader><CardTitle>SR Fluctuation Sliders</CardTitle><CardDescription>Simulate SR increase/decrease per processor.</CardDescription></CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                      {PROCESSORS.map(proc => (
-                        <FormField
-                          key={proc.id}
-                          control={control}
-                          name={`srFluctuation.${proc.id}`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>{proc.name} SR Fluctuation: {field.value}%</FormLabel>
-                              <FormControl>
-                                <Slider defaultValue={[field.value]} min={0} max={100} step={1} onValueChange={(value) => field.onChange(value[0])} />
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
-                      ))}
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardHeader><CardTitle>Processor Incidents/Downtime</CardTitle><CardDescription>Trigger temporary outages.</CardDescription></CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                      {PROCESSORS.map(proc => (
-                        <FormField
-                          key={proc.id}
-                          control={control}
-                          name={`processorIncidents.${proc.id}`}
-                          render={({ field }) => (
-                            <FormItem className="flex items-center justify-between">
-                              <FormLabel>{proc.name} Incident</FormLabel>
-                              <FormControl>
-                                <Switch checked={field.value} onCheckedChange={field.onChange} />
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
-                      ))}
-                    </CardContent>
-                  </Card>
-                </AccordionContent>
-              </AccordionItem>
-
-               <AccordionItem value="metrics-for-ai">
-                <AccordionTrigger className="text-lg font-semibold"><Bot className="mr-2" /> Metrics for AI Input</AccordionTrigger>
-                <AccordionContent className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-                  <FormField
-                    control={control}
-                    name="overallSuccessRate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Overall Success Rate (%): {field.value}</FormLabel>
-                        <FormControl>
-                           <Slider
-                            defaultValue={[field.value]}
-                            min={0} max={100} step={0.1}
-                            onValueChange={(value) => field.onChange(value[0])}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <div className="col-span-full space-y-4">
-                    <Label className="text-base font-medium">Processor-wise SuccessRates (for AI)</Label>
+              <TabsContent value="sr-fluctuation" className="pt-4 space-y-6">
+                <Card>
+                  <CardHeader><CardTitle>SR Fluctuation Sliders</CardTitle><CardDescription>Simulate SR increase/decrease per processor.</CardDescription></CardHeader>
+                  <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                     {PROCESSORS.map(proc => (
-                      <div key={proc.id} className="grid grid-cols-3 gap-2 items-center border p-2 rounded-md">
-                        <Label className="col-span-3 sm:col-span-1">{proc.name}</Label>
-                        <FormField
-                          control={control}
-                          name={`processorWiseSuccessRates.${proc.id}.sr`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-xs">SR (%)</FormLabel>
-                              <Input type="number" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} className="h-8"/>
-                            </FormItem>
-                          )}
-                        />
-                         <FormField
-                          control={control}
-                          name={`processorWiseSuccessRates.${proc.id}.volumeShare`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-xs">Volume (%)</FormLabel>
-                              <Input type="number" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} className="h-8"/>
-                            </FormItem>
-                          )}
-                        />
-                         {/* Failure rate can be derived (100 - SR) or also made an input if needed */}
-                      </div>
+                      <FormField
+                        key={proc.id}
+                        control={control}
+                        name={`srFluctuation.${proc.id}`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{proc.name} SR Fluctuation: {field.value}%</FormLabel>
+                            <FormControl>
+                              <Slider defaultValue={[field.value]} min={0} max={100} step={1} onValueChange={(value) => field.onChange(value[0])} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
                     ))}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader><CardTitle>Processor Incidents/Downtime</CardTitle><CardDescription>Trigger temporary outages.</CardDescription></CardHeader>
+                  <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                    {PROCESSORS.map(proc => (
+                      <FormField
+                        key={proc.id}
+                        control={control}
+                        name={`processorIncidents.${proc.id}`}
+                        render={({ field }) => (
+                          <FormItem className="flex items-center justify-between">
+                            <FormLabel>{proc.name} Incident</FormLabel>
+                            <FormControl>
+                              <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    ))}
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
-            {/* <Button type="submit" className="w-full">Apply Changes</Button> */}
-            {/* Submit button might not be needed if changes are applied on watch */}
+              <TabsContent value="ai-metrics" className="pt-4">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={control}
+                      name="overallSuccessRate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Overall Success Rate (%): {field.value}</FormLabel>
+                          <FormControl>
+                             <Slider
+                              defaultValue={[field.value]}
+                              min={0} max={100} step={0.1}
+                              onValueChange={(value) => field.onChange(value[0])}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="col-span-full space-y-4">
+                      <Label className="text-base font-medium">Processor-wise SuccessRates (for AI)</Label>
+                      {PROCESSORS.map(proc => (
+                        <div key={proc.id} className="grid grid-cols-3 gap-2 items-center border p-2 rounded-md">
+                          <Label className="col-span-3 sm:col-span-1">{proc.name}</Label>
+                          <FormField
+                            control={control}
+                            name={`processorWiseSuccessRates.${proc.id}.sr`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs">SR (%)</FormLabel>
+                                <Input type="number" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} className="h-8"/>
+                              </FormItem>
+                            )}
+                          />
+                           <FormField
+                            control={control}
+                            name={`processorWiseSuccessRates.${proc.id}.volumeShare`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs">Volume (%)</FormLabel>
+                                <Input type="number" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} className="h-8"/>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+              </TabsContent>
+            </Tabs>
           </form>
         </Form>
       </ScrollArea>
@@ -408,4 +398,3 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
   );
 }
 
-    
