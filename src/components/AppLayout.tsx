@@ -4,7 +4,7 @@ interface AppLayoutProps {
   children: React.ReactNode;
 }
 
-const BOTTOM_PANEL_HEIGHT = "350px"; // Adjust as needed
+const BOTTOM_PANEL_HEIGHT = "350px"; // Matches BottomControlsPanel.tsx
 
 export function AppLayout({ children }: AppLayoutProps) {
   return (

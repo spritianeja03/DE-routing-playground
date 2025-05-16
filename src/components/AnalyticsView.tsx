@@ -6,7 +6,7 @@ import { ProcessorSuccessRatesTable } from './analytics/ProcessorSuccessRatesTab
 import { TransactionDistributionChart } from './analytics/TransactionDistributionChart';
 import type { FormValues } from './BottomControlsPanel';
 import { PROCESSORS } from '@/lib/constants';
-import { ScrollArea } from './ui/scroll-area';
+// ScrollArea import removed from here, will be handled by parent in page.tsx
 
 interface AnalyticsViewProps {
   currentControls: FormValues | null;
@@ -52,18 +52,17 @@ export function AnalyticsView({ currentControls }: AnalyticsViewProps) {
 
 
   return (
-    <ScrollArea className="h-full">
-      <div className="p-6 space-y-6">
-        <OverallSuccessRateDisplay rate={overallSR} />
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <ProcessorSuccessRatesTable data={processorSRData} />
-          <TransactionDistributionChart data={transactionDistributionData} />
-        </div>
-        {/* Placeholder for other metrics */}
-        <div className="p-6 bg-muted/30 rounded-lg text-center">
-          <p className="text-muted-foreground">More detailed analytics and trends will be displayed here.</p>
-        </div>
+    // Outermost ScrollArea removed, content directly in a div
+    <div className="p-6 space-y-6">
+      <OverallSuccessRateDisplay rate={overallSR} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <ProcessorSuccessRatesTable data={processorSRData} />
+        <TransactionDistributionChart data={transactionDistributionData} />
       </div>
-    </ScrollArea>
+      {/* Placeholder for other metrics */}
+      <div className="p-6 bg-muted/30 rounded-lg text-center">
+        <p className="text-muted-foreground">More detailed analytics and trends will be displayed here.</p>
+      </div>
+    </div>
   );
 }

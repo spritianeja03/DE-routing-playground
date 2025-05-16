@@ -10,7 +10,7 @@ interface HeaderProps {
 
 export function Header({ onRunSimulation, isSimulating }: HeaderProps) {
   return (
-    <header className="p-4 border-b border-border flex items-center justify-between sticky top-0 bg-background/80 backdrop-blur-sm z-10">
+    <header className="p-4 border-b border-border flex items-center justify-between sticky top-0 bg-background/95 backdrop-blur-sm z-10">
       <div className="flex items-center gap-x-6">
         {/* Logo */}
         <div className="flex items-center gap-2">
@@ -21,7 +21,6 @@ export function Header({ onRunSimulation, isSimulating }: HeaderProps) {
         </div>
 
         {/* TabsList for navigation */}
-        {/* This TabsList is part of the Tabs component instantiated in HomePage */}
         <TabsList className="h-auto p-0 bg-transparent border-none">
           <TabsTrigger
             value="sankey"
