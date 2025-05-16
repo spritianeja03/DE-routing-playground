@@ -1,6 +1,7 @@
+
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { AppLayout } from '@/components/AppLayout';
 import { Header } from '@/components/Header';
 import { BottomControlsPanel, type FormValues } from '@/components/BottomControlsPanel';
@@ -12,9 +13,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 export default function HomePage() {
   const [currentControls, setCurrentControls] = useState<FormValues | null>(null);
 
-  const handleControlsChange = (data: FormValues) => {
+  const handleControlsChange = useCallback((data: FormValues) => {
     setCurrentControls(data);
-  };
+  }, []); // setCurrentControls from useState is stable
 
   return (
     <AppLayout>
