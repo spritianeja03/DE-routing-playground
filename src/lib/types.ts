@@ -1,3 +1,4 @@
+
 import type { PaymentMethod, Currency, Processor } from './constants';
 
 export interface ProcessorPaymentMethodMatrix {
@@ -34,15 +35,14 @@ export interface ControlsState {
   simulateSaleEvent: boolean;
   srFluctuation: SRFluctuation;
   processorIncidents: ProcessorIncidentStatus;
-  // These might be derived or manually set for AI input
   overallSuccessRate: number; 
   processorWiseSuccessRates: Record<string, { sr: number; volumeShare: number; failureRate: number }>;
 }
 
-// This is what we'll stringify and pass as sankeyDiagramData to AI flows
+// This is what we'll stringify and pass as sankeyDiagramData to AI flows (if used elsewhere)
 export interface AISankeyInputData {
   parameters: Omit<ControlsState, 'routingRulesText' | 'overallSuccessRate' | 'processorWiseSuccessRates'> & {
-    routingRules: string; // Keep routingRulesText as routingRules for AI
+    routingRules: string; 
   };
   currentMetrics: {
     overallSuccessRate: number;
@@ -55,4 +55,23 @@ export interface ProcessorSuccessRate {
   sr: number;
   failureRate: number;
   volumeShare: number;
+}
+
+// Types for Sankey Diagram Data
+export interface SankeyNode {
+  id: string;
+  name: string;
+  type: 'source' | 'paymentMethod' | 'processor' | 'status' | 'sink';
+}
+
+export interface SankeyLink {
+  source: string; // Node ID
+  target: string; // Node ID
+  value: number;
+  label?: string;
+}
+
+export interface SankeyData {
+  nodes: SankeyNode[];
+  links: SankeyLink[];
 }

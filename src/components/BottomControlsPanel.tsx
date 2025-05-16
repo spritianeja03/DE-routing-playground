@@ -19,7 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { CURRENCIES, PAYMENT_METHODS, PROCESSORS, DEFAULT_PROCESSOR_AVAILABILITY } from '@/lib/constants';
 import type { ControlsState, PaymentMethod, ProcessorPaymentMethodMatrix, SRFluctuation, ProcessorIncidentStatus } from '@/lib/types';
-import { Bot, Settings2, TrendingUp, Zap, VenetianMaskIcon } from 'lucide-react';
+import { Settings2, TrendingUp, Zap, VenetianMaskIcon, PlayCircle, Loader2 } from 'lucide-react';
 
 const defaultProcessorMatrix: ProcessorPaymentMethodMatrix = PROCESSORS.reduce((acc, proc) => {
   acc[proc.id] = DEFAULT_PROCESSOR_AVAILABILITY[proc.id] ||
@@ -60,6 +60,7 @@ const formSchema = z.object({
   simulateSaleEvent: z.boolean(),
   srFluctuation: z.record(z.string(), z.number().min(0).max(100)),
   processorIncidents: z.record(z.string(), z.boolean()),
+  // These fields were in AI Metrics tab, keep in schema for now for simulation data
   overallSuccessRate: z.number().min(0).max(100),
   processorWiseSuccessRates: z.record(z.string(), z.object({
     sr: z.number().min(0).max(100),
@@ -73,11 +74,13 @@ export type FormValues = z.infer<typeof formSchema>;
 interface BottomControlsPanelProps {
   onFormChange: (data: FormValues) => void;
   initialValues?: Partial<FormValues>;
+  onRunSimulation: () => void;
+  isSimulating: boolean;
 }
 
 const BOTTOM_PANEL_HEIGHT = "350px";
 
-export function BottomControlsPanel({ onFormChange, initialValues }: BottomControlsPanelProps) {
+export function BottomControlsPanel({ onFormChange, initialValues, onRunSimulation, isSimulating }: BottomControlsPanelProps) {
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -104,13 +107,15 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
       if (form.formState.isValid) {
          onFormChange(values as FormValues);
       } else {
+        // Still pass partial/default data if form is not fully valid yet or during initialization
         const currentValues = form.getValues();
         onFormChange(currentValues as FormValues);
       }
     });
-    onFormChange(form.getValues() as FormValues);
+    // Trigger initial form change
+     onFormChange(form.getValues() as FormValues);
     return () => subscription.unsubscribe();
-  }, [form, onFormChange]);
+  }, [form, onFormChange]); // form and onFormChange are dependencies
 
   const { control } = form;
 
@@ -121,14 +126,19 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
     >
       <ScrollArea className="h-full p-1">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(() => { /* Submission handled by watch */ })} className="p-4 space-y-6">
+          <form onSubmit={(e) => e.preventDefault()} className="p-4 space-y-6"> {/* Prevent default submit */}
+            <div className="flex justify-center mb-4">
+                <Button type="button" onClick={onRunSimulation} disabled={isSimulating} size="lg" className="w-full max-w-xs">
+                    {isSimulating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlayCircle className="mr-2 h-5 w-5" />}
+                    Run Simulation
+                </Button>
+            </div>
             <Tabs defaultValue="general" className="w-full">
-              <TabsList className="grid w-full grid-cols-5 mb-4">
+              <TabsList className="grid w-full grid-cols-4 mb-4"> {/* Adjusted to grid-cols-4 */}
                 <TabsTrigger value="general" className="text-xs md:text-sm"><Settings2 className="mr-1 h-4 w-4 md:mr-2" />General</TabsTrigger>
                 <TabsTrigger value="processors" className="text-xs md:text-sm"><VenetianMaskIcon className="mr-1 h-4 w-4 md:mr-2" />Processors</TabsTrigger>
                 <TabsTrigger value="routing" className="text-xs md:text-sm"><Zap className="mr-1 h-4 w-4 md:mr-2" />Routing</TabsTrigger>
                 <TabsTrigger value="sr-fluctuation" className="text-xs md:text-sm"><TrendingUp className="mr-1 h-4 w-4 md:mr-2" />SR & Incidents</TabsTrigger>
-                <TabsTrigger value="ai-metrics" className="text-xs md:text-sm"><Bot className="mr-1 h-4 w-4 md:mr-2" />AI Metrics</TabsTrigger>
               </TabsList>
 
               <TabsContent value="general" className="pt-4">
@@ -340,56 +350,7 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                   </CardContent>
                 </Card>
               </TabsContent>
-
-              <TabsContent value="ai-metrics" className="pt-4">
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormField
-                      control={control}
-                      name="overallSuccessRate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Overall Success Rate (%): {field.value}</FormLabel>
-                          <FormControl>
-                             <Slider
-                              defaultValue={[field.value]}
-                              min={0} max={100} step={0.1}
-                              onValueChange={(value) => field.onChange(value[0])}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <div className="col-span-full space-y-4">
-                      <Label className="text-base font-medium">Processor-wise SuccessRates (for AI)</Label>
-                      {PROCESSORS.map(proc => (
-                        <div key={proc.id} className="grid grid-cols-3 gap-2 items-center border p-2 rounded-md">
-                          <Label className="col-span-3 sm:col-span-1">{proc.name}</Label>
-                          <FormField
-                            control={control}
-                            name={`processorWiseSuccessRates.${proc.id}.sr`}
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel className="text-xs">SR (%)</FormLabel>
-                                <Input type="number" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} className="h-8"/>
-                              </FormItem>
-                            )}
-                          />
-                           <FormField
-                            control={control}
-                            name={`processorWiseSuccessRates.${proc.id}.volumeShare`}
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel className="text-xs">Volume (%)</FormLabel>
-                                <Input type="number" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} className="h-8"/>
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-              </TabsContent>
+              {/* AI Metrics Tab Content Removed */}
             </Tabs>
           </form>
         </Form>
@@ -397,4 +358,3 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
     </div>
   );
 }
-
