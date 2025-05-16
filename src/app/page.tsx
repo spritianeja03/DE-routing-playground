@@ -5,8 +5,9 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { AppLayout } from '@/components/AppLayout';
 import { Header } from '@/components/Header';
 import { BottomControlsPanel, type FormValues } from '@/components/BottomControlsPanel';
-import { Tabs, TabsContent } from '@/components/ui/tabs'; // Keep Tabs for structure, though only one tab content will be active
-import { AnalyticsView } from '@/components/AnalyticsView';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { StatsView } from '@/components/StatsView';
+import { AnalyticsGraphsView } from '@/components/AnalyticsGraphsView';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { Processor, PaymentMethod, ProcessorMetricsHistory } from '@/lib/types';
 import { PROCESSORS, PAYMENT_METHODS } from '@/lib/constants';
@@ -57,17 +58,27 @@ export default function HomePage() {
     if (currentControls) {
       const initialProcessorSRs = PROCESSORS.reduce((acc, proc) => {
         const baseSRInfo = currentControls.processorWiseSuccessRates[proc.id];
-        const defaultSR = proc.id === 'stripe' ? 90 : (proc.id === 'razorpay' ? 95 : (proc.id === 'cashfree' ? 92 : (proc.id === 'payu' ? 88 : (proc.id === 'fampay' ? 85 : 85))));
+        // Ensure defaultSR is robust against missing baseSRInfo
+        let defaultSR = 85; // A fallback default
+        if (proc.id === 'stripe') defaultSR = 90;
+        else if (proc.id === 'razorpay') defaultSR = 95;
+        else if (proc.id === 'cashfree') defaultSR = 92;
+        else if (proc.id === 'payu') defaultSR = 88;
+        else if (proc.id === 'fampay') defaultSR = 85;
+        
         const initialSR = baseSRInfo ? baseSRInfo.sr : defaultSR;
         acc[proc.id] = { sr: initialSR, volumeShare: 0, failureRate: 100 - initialSR };
         return acc;
       }, {} as FormValues['processorWiseSuccessRates']);
 
-      setCurrentControls(prevControls => ({
-        ...prevControls!,
-        overallSuccessRate: 0,
-        processorWiseSuccessRates: initialProcessorSRs,
-      }));
+      setCurrentControls(prevControls => {
+        if (!prevControls) return null; // Should not happen if currentControls is set
+        return {
+          ...prevControls,
+          overallSuccessRate: 0,
+          processorWiseSuccessRates: initialProcessorSRs,
+        }
+      });
     }
   };
 
@@ -122,7 +133,12 @@ export default function HomePage() {
     const processorEffectiveSRs: Record<string, number> = {};
     PROCESSORS.forEach(proc => {
       const baseSRInfo = baseProcessorSRsInput[proc.id];
-      const defaultSR = proc.id === 'stripe' ? 90 : (proc.id === 'razorpay' ? 95 : (proc.id === 'cashfree' ? 92 : (proc.id === 'payu' ? 88 : (proc.id === 'fampay' ? 85 : 85))));
+      let defaultSR = 85; // A fallback default
+        if (proc.id === 'stripe') defaultSR = 90;
+        else if (proc.id === 'razorpay') defaultSR = 95;
+        else if (proc.id === 'cashfree') defaultSR = 92;
+        else if (proc.id === 'payu') defaultSR = 88;
+        else if (proc.id === 'fampay') defaultSR = 85;
       const baseSR = baseSRInfo ? baseSRInfo.sr : defaultSR;
       const fluctuationEffect = (srFluctuation[proc.id] - 50) / 100; // Slider 0-100, 50 is neutral
       let effectiveSR = baseSR / 100 * (1 + fluctuationEffect); // Fluctuation can increase or decrease
@@ -142,7 +158,6 @@ export default function HomePage() {
       if (eliminationRoutingEnabled) {
         candidateProcessors = candidateProcessors.filter(proc => {
           const isDown = processorIncidents[proc.id];
-          // Elimination SR threshold is 50%
           const srTooLow = (processorEffectiveSRs[proc.id] * 100) < 50; 
           return !isDown && !srTooLow;
         });
@@ -207,19 +222,22 @@ export default function HomePage() {
         failureRate: parseFloat((100 - procSR).toFixed(2)) || 0,
       };
       currentSuccessRateDataPoint[proc.id] = parseFloat(procSR.toFixed(2)) || 0;
-      currentVolumeDataPoint[proc.id] = totalRoutedToProc; // Cumulative volume for this processor
+      currentVolumeDataPoint[proc.id] = totalRoutedToProc; 
     });
 
     setSuccessRateHistory(prev => [...prev, currentSuccessRateDataPoint]);
     setVolumeHistory(prev => [...prev, currentVolumeDataPoint]);
 
 
-    setCurrentControls(prevControls => ({
-      ...prevControls!,
-      overallSuccessRate: parseFloat(overallSR.toFixed(2)) || 0,
-      processorWiseSuccessRates: updatedProcessorSRsUi,
-      tps: effectiveTps, 
-    }));
+    setCurrentControls(prevControls => {
+       if (!prevControls) return null;
+       return {
+        ...prevControls,
+        overallSuccessRate: parseFloat(overallSR.toFixed(2)) || 0,
+        processorWiseSuccessRates: updatedProcessorSRsUi,
+        tps: effectiveTps, 
+       }
+    });
 
   }, [currentControls, simulationState, processedPaymentsCount, toast, setCurrentControls, simulationTimeStep]);
 
@@ -249,12 +267,12 @@ export default function HomePage() {
       return;
     }
     if (simulationState === 'idle') {
-      resetSimulationState(); // Reset only if starting fresh
+      resetSimulationState(); 
     }
     setSimulationState('running');
     if (simulationState === 'idle') {
       toast({ title: "Simulation Started", description: `Processing ${currentControls.totalPayments} payments.`, duration: 3000 });
-    } else { // Resuming
+    } else { 
       toast({ title: "Simulation Resumed", duration: 3000 });
     }
   }, [currentControls, toast, simulationState]);
@@ -266,32 +284,42 @@ export default function HomePage() {
 
   const handleStopSimulation = useCallback(() => {
     setSimulationState('idle');
-    resetSimulationState(); // Full reset on stop
+    resetSimulationState(); 
     toast({ title: "Simulation Stopped & Reset", duration: 3000 });
   }, [toast]);
+
+  const [activeTab, setActiveTab] = useState("stats");
 
 
   return (
     <>
       <AppLayout>
-        {/* Tabs component is kept for structural consistency, but only "analytics" is used */}
-        <Tabs defaultValue="analytics" className="flex flex-col flex-grow overflow-hidden">
+        <Tabs defaultValue="stats" value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-grow overflow-hidden">
           <Header
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
             onStartSimulation={handleStartSimulation}
             onPauseSimulation={handlePauseSimulation}
             onStopSimulation={handleStopSimulation}
             simulationState={simulationState}
           />
           <div className="flex-grow overflow-hidden p-0">
-            {/* Only AnalyticsView is rendered now */}
-            <TabsContent value="analytics" className="h-full mt-0">
-              <div className="p-2 md:p-4 lg:p-6 h-full">
+            <TabsContent value="stats" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
+              <div className="p-2 md:p-4 lg:p-6 h-full flex-grow">
                 <ScrollArea className="h-full">
-                  <AnalyticsView
+                  <StatsView
                     currentControls={currentControls}
                     processedPayments={processedPaymentsCount}
                     totalSuccessful={accumulatedGlobalStatsRef.current.totalSuccessful}
                     totalFailed={accumulatedGlobalStatsRef.current.totalFailed}
+                  />
+                </ScrollArea>
+              </div>
+            </TabsContent>
+            <TabsContent value="analytics" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
+              <div className="p-2 md:p-4 lg:p-6 h-full flex-grow">
+                <ScrollArea className="h-full">
+                  <AnalyticsGraphsView
                     successRateHistory={successRateHistory}
                     volumeHistory={volumeHistory}
                   />
