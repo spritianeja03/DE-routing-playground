@@ -5,7 +5,6 @@ import React from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
@@ -19,7 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { CURRENCIES, PAYMENT_METHODS, PROCESSORS, DEFAULT_PROCESSOR_AVAILABILITY } from '@/lib/constants';
 import type { ControlsState, PaymentMethod, ProcessorPaymentMethodMatrix, SRFluctuation, ProcessorIncidentStatus } from '@/lib/types';
-import { Settings2, TrendingUp, Zap, VenetianMaskIcon, PlayCircle, Loader2 } from 'lucide-react';
+import { Settings2, TrendingUp, Zap, VenetianMaskIcon } from 'lucide-react'; // PlayCircle, Loader2 removed
 
 const defaultProcessorMatrix: ProcessorPaymentMethodMatrix = PROCESSORS.reduce((acc, proc) => {
   acc[proc.id] = DEFAULT_PROCESSOR_AVAILABILITY[proc.id] ||
@@ -31,7 +30,7 @@ const defaultProcessorMatrix: ProcessorPaymentMethodMatrix = PROCESSORS.reduce((
 }, {} as ProcessorPaymentMethodMatrix);
 
 const defaultSRFluctuation: SRFluctuation = PROCESSORS.reduce((acc, proc) => {
-  acc[proc.id] = 50; // Default to 50%
+  acc[proc.id] = 50; 
   return acc;
 }, {} as SRFluctuation);
 
@@ -60,7 +59,6 @@ const formSchema = z.object({
   simulateSaleEvent: z.boolean(),
   srFluctuation: z.record(z.string(), z.number().min(0).max(100)),
   processorIncidents: z.record(z.string(), z.boolean()),
-  // These fields were in AI Metrics tab, keep in schema for now for simulation data
   overallSuccessRate: z.number().min(0).max(100),
   processorWiseSuccessRates: z.record(z.string(), z.object({
     sr: z.number().min(0).max(100),
@@ -74,13 +72,12 @@ export type FormValues = z.infer<typeof formSchema>;
 interface BottomControlsPanelProps {
   onFormChange: (data: FormValues) => void;
   initialValues?: Partial<FormValues>;
-  onRunSimulation: () => void;
-  isSimulating: boolean;
+  // onRunSimulation and isSimulating props are removed
 }
 
 const BOTTOM_PANEL_HEIGHT = "350px";
 
-export function BottomControlsPanel({ onFormChange, initialValues, onRunSimulation, isSimulating }: BottomControlsPanelProps) {
+export function BottomControlsPanel({ onFormChange, initialValues }: BottomControlsPanelProps) {
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -107,15 +104,13 @@ export function BottomControlsPanel({ onFormChange, initialValues, onRunSimulati
       if (form.formState.isValid) {
          onFormChange(values as FormValues);
       } else {
-        // Still pass partial/default data if form is not fully valid yet or during initialization
         const currentValues = form.getValues();
         onFormChange(currentValues as FormValues);
       }
     });
-    // Trigger initial form change
      onFormChange(form.getValues() as FormValues);
     return () => subscription.unsubscribe();
-  }, [form, onFormChange]); // form and onFormChange are dependencies
+  }, [form, onFormChange]);
 
   const { control } = form;
 
@@ -126,23 +121,18 @@ export function BottomControlsPanel({ onFormChange, initialValues, onRunSimulati
     >
       <ScrollArea className="h-full p-1">
         <Form {...form}>
-          <form onSubmit={(e) => e.preventDefault()} className="p-4 space-y-6"> {/* Prevent default submit */}
-            <div className="flex justify-center mb-4">
-                <Button type="button" onClick={onRunSimulation} disabled={isSimulating} size="lg" className="w-full max-w-xs">
-                    {isSimulating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlayCircle className="mr-2 h-5 w-5" />}
-                    Run Simulation
-                </Button>
-            </div>
+          <form onSubmit={(e) => e.preventDefault()} className="p-4 space-y-2"> {/* Reduced space-y */}
+            {/* Run Simulation button removed from here */}
             <Tabs defaultValue="general" className="w-full">
-              <TabsList className="grid w-full grid-cols-4 mb-4"> {/* Adjusted to grid-cols-4 */}
+              <TabsList className="grid w-full grid-cols-4 mb-2"> {/* Reduced mb */}
                 <TabsTrigger value="general" className="text-xs md:text-sm"><Settings2 className="mr-1 h-4 w-4 md:mr-2" />General</TabsTrigger>
                 <TabsTrigger value="processors" className="text-xs md:text-sm"><VenetianMaskIcon className="mr-1 h-4 w-4 md:mr-2" />Processors</TabsTrigger>
                 <TabsTrigger value="routing" className="text-xs md:text-sm"><Zap className="mr-1 h-4 w-4 md:mr-2" />Routing</TabsTrigger>
                 <TabsTrigger value="sr-fluctuation" className="text-xs md:text-sm"><TrendingUp className="mr-1 h-4 w-4 md:mr-2" />SR & Incidents</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="general" className="pt-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <TabsContent value="general" className="pt-2"> {/* Reduced pt */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"> {/* Reduced gap */}
                   <FormField
                     control={control}
                     name="totalPayments"
@@ -161,7 +151,7 @@ export function BottomControlsPanel({ onFormChange, initialValues, onRunSimulati
                     name="tps"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>TPS (Transactions Per Second): {field.value}</FormLabel>
+                        <FormLabel>TPS: {field.value}</FormLabel>
                         <FormControl>
                            <Slider
                             defaultValue={[field.value]}
@@ -251,24 +241,24 @@ export function BottomControlsPanel({ onFormChange, initialValues, onRunSimulati
                 </div>
               </TabsContent>
 
-              <TabsContent value="processors" className="pt-4">
+              <TabsContent value="processors" className="pt-2"> {/* Reduced pt */}
                 <Card>
-                  <CardHeader><CardTitle>Processor ↔ Payment Method Matrix</CardTitle></CardHeader>
-                  <CardContent className="space-y-2">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <CardHeader><CardTitle className="text-base">Processor ↔ PM Matrix</CardTitle></CardHeader> {/* Smaller title */}
+                  <CardContent className="space-y-1 p-2"> {/* Reduced padding and space */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2"> {/* Reduced gap */}
                       {PROCESSORS.map(proc => (
-                        <div key={proc.id} className="border p-3 rounded-md">
-                          <h4 className="font-medium mb-2">{proc.name}</h4>
+                        <div key={proc.id} className="border p-2 rounded-md"> {/* Reduced padding */}
+                          <h4 className="font-medium mb-1 text-sm">{proc.name}</h4> {/* Smaller heading */}
                           {PAYMENT_METHODS.map(method => (
                             <FormField
                               key={`${proc.id}-${method}`}
                               control={control}
                               name={`processorMatrix.${proc.id}.${method}`}
                               render={({ field }) => (
-                                <FormItem className="flex items-center justify-between py-1">
-                                  <FormLabel className="font-normal">{method}</FormLabel>
+                                <FormItem className="flex items-center justify-between py-0.5"> {/* Reduced py */}
+                                  <FormLabel className="font-normal text-xs">{method}</FormLabel> {/* Smaller label */}
                                   <FormControl>
-                                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                    <Switch checked={field.value} onCheckedChange={field.onChange} size="sm" /> {/* Smaller switch */}
                                   </FormControl>
                                 </FormItem>
                               )}
@@ -281,8 +271,8 @@ export function BottomControlsPanel({ onFormChange, initialValues, onRunSimulati
                 </Card>
               </TabsContent>
 
-              <TabsContent value="routing" className="pt-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <TabsContent value="routing" className="pt-2"> {/* Reduced pt */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4"> {/* Reduced gap */}
                     <FormField
                       control={control}
                       name="routingRulesText"
@@ -290,28 +280,28 @@ export function BottomControlsPanel({ onFormChange, initialValues, onRunSimulati
                         <FormItem className="col-span-full">
                           <FormLabel>Routing Rules</FormLabel>
                           <FormControl>
-                            <Textarea placeholder="e.g., IF PaymentMethod = Card AND Amount > 5000 THEN RouteTo Stripe" {...field} rows={3}/>
+                            <Textarea placeholder="e.g., IF PM = Card THEN RouteTo Stripe" {...field} rows={2}/> {/* Reduced rows */}
                           </FormControl>
-                          <FormDescription>Define routing rules (simplified text format).</FormDescription>
+                          <FormDescription className="text-xs">Define routing rules (simplified text format).</FormDescription> {/* Smaller desc */}
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                  <div className="space-y-2">
-                    <FormField control={control} name="smartRoutingEnabled" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel>Enable Smart Routing (SR)</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )} />
-                    <FormField control={control} name="eliminationRoutingEnabled" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel>Enable Elimination Routing</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )} />
-                    <FormField control={control} name="debitRoutingEnabled" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel>Enable Debit Routing</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )} />
+                  <div className="space-y-1"> {/* Reduced space */}
+                    <FormField control={control} name="smartRoutingEnabled" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel className="text-sm">Smart Routing (SR)</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} size="sm" /></FormControl></FormItem> )} />
+                    <FormField control={control} name="eliminationRoutingEnabled" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel className="text-sm">Elimination Routing</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} size="sm" /></FormControl></FormItem> )} />
+                    <FormField control={control} name="debitRoutingEnabled" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel className="text-sm">Debit Routing</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} size="sm" /></FormControl></FormItem> )} />
                   </div>
-                  <div className="space-y-2">
-                     <FormField control={control} name="simulateSaleEvent" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel>Simulate Sale Event</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )} />
+                  <div className="space-y-1"> {/* Reduced space */}
+                     <FormField control={control} name="simulateSaleEvent" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel className="text-sm">Simulate Sale Event</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} size="sm" /></FormControl></FormItem> )} />
                   </div>
                 </div>
               </TabsContent>
 
-              <TabsContent value="sr-fluctuation" className="pt-4 space-y-6">
+              <TabsContent value="sr-fluctuation" className="pt-2 space-y-3"> {/* Reduced pt and space */}
                 <Card>
-                  <CardHeader><CardTitle>SR Fluctuation Sliders</CardTitle><CardDescription>Simulate SR increase/decrease per processor.</CardDescription></CardHeader>
-                  <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                  <CardHeader className="p-2"><CardTitle className="text-base">SR Fluctuation</CardTitle><CardDescription className="text-xs">Simulate SR increase/decrease.</CardDescription></CardHeader> {/* Smaller text, reduced padding */}
+                  <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 p-2"> {/* Reduced padding and gap */}
                     {PROCESSORS.map(proc => (
                       <FormField
                         key={proc.id}
@@ -319,7 +309,7 @@ export function BottomControlsPanel({ onFormChange, initialValues, onRunSimulati
                         name={`srFluctuation.${proc.id}`}
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>{proc.name} SR Fluctuation: {field.value}%</FormLabel>
+                            <FormLabel className="text-xs">{proc.name} SR Fluct: {field.value}%</FormLabel> {/* Smaller label */}
                             <FormControl>
                               <Slider defaultValue={[field.value]} min={0} max={100} step={1} onValueChange={(value) => field.onChange(value[0])} />
                             </FormControl>
@@ -330,18 +320,18 @@ export function BottomControlsPanel({ onFormChange, initialValues, onRunSimulati
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardHeader><CardTitle>Processor Incidents/Downtime</CardTitle><CardDescription>Trigger temporary outages.</CardDescription></CardHeader>
-                  <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                  <CardHeader className="p-2"><CardTitle className="text-base">Processor Incidents</CardTitle><CardDescription className="text-xs">Trigger temporary outages.</CardDescription></CardHeader> {/* Smaller text, reduced padding */}
+                  <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 p-2"> {/* Reduced padding and gap */}
                     {PROCESSORS.map(proc => (
                       <FormField
                         key={proc.id}
                         control={control}
                         name={`processorIncidents.${proc.id}`}
                         render={({ field }) => (
-                          <FormItem className="flex items-center justify-between">
-                            <FormLabel>{proc.name} Incident</FormLabel>
+                          <FormItem className="flex items-center justify-between py-0.5"> {/* Reduced py */}
+                            <FormLabel className="text-xs">{proc.name} Incident</FormLabel> {/* Smaller label */}
                             <FormControl>
-                              <Switch checked={field.value} onCheckedChange={field.onChange} />
+                              <Switch checked={field.value} onCheckedChange={field.onChange} size="sm"/> {/* Smaller switch */}
                             </FormControl>
                           </FormItem>
                         )}
@@ -350,7 +340,6 @@ export function BottomControlsPanel({ onFormChange, initialValues, onRunSimulati
                   </CardContent>
                 </Card>
               </TabsContent>
-              {/* AI Metrics Tab Content Removed */}
             </Tabs>
           </form>
         </Form>

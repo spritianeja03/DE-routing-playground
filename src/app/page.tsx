@@ -10,7 +10,7 @@ import { SankeyDiagramView } from '@/components/SankeyDiagramView';
 import { AnalyticsView } from '@/components/AnalyticsView';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { SankeyData, SankeyNode, SankeyLink } from '@/lib/types';
-import { PROCESSORS, PAYMENT_METHODS } from '@/lib/constants';
+import { PROCESSORS } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
 
 
@@ -64,10 +64,7 @@ export default function HomePage() {
       // Links from Payment Methods to Processors
       currentControls.selectedPaymentMethods.forEach(pm => {
         if (currentControls.processorMatrix[proc.id]?.[pm]) {
-          // Simplified: Assume even split for now if PM supported by multiple processors.
-          // A real routing logic would be more complex.
           const pmTraffic = currentControls.totalPayments / (currentControls.selectedPaymentMethods.length || 1);
-          // Count how many processors support this PM
           let supportingProcessorsCount = 0;
           PROCESSORS.forEach(p => {
             if(currentControls.processorMatrix[p.id]?.[pm]) supportingProcessorsCount++;
@@ -87,14 +84,13 @@ export default function HomePage() {
     // 4. Links from Processors to Success/Failure
     PROCESSORS.forEach(proc => {
       if (processorTraffic[proc.id] > 0) {
-        const baseSR = currentControls.processorWiseSuccessRates[proc.id]?.sr ?? 90; // Default 90% SR
-        const fluctuationEffect = (currentControls.srFluctuation[proc.id] - 50) / 200; // e.g. 0-100 slider -> -0.25 to +0.25
+        const baseSR = currentControls.processorWiseSuccessRates[proc.id]?.sr ?? 90; 
+        const fluctuationEffect = (currentControls.srFluctuation[proc.id] - 50) / 200; 
         let effectiveSR = baseSR / 100 * (1 + fluctuationEffect);
-        effectiveSR = Math.max(0, Math.min(1, effectiveSR)); // Clamp between 0 and 1
+        effectiveSR = Math.max(0, Math.min(1, effectiveSR)); 
 
-        // Consider incidents
         if (currentControls.processorIncidents[proc.id]) {
-            effectiveSR *= 0.1; // Drastic reduction if incident
+            effectiveSR *= 0.1; 
         }
 
         const successValue = processorTraffic[proc.id] * effectiveSR;
@@ -126,7 +122,6 @@ export default function HomePage() {
         links.push({ source: 'status_failure', target: 'sink', value: totalFailure });
     }
     
-    // Filter out nodes with no links if they are not source or sink
     const linkedNodeIds = new Set<string>();
     links.forEach(link => {
       linkedNodeIds.add(link.source);
@@ -134,7 +129,6 @@ export default function HomePage() {
     });
     
     const finalNodes = nodes.filter(node => node.type === 'source' || node.type === 'sink' || linkedNodeIds.has(node.id));
-
 
     setSankeyData({ nodes: finalNodes, links });
     setIsSimulating(false);
@@ -144,30 +138,34 @@ export default function HomePage() {
 
   return (
     <AppLayout>
-      <Header />
-      <div className="flex-grow flex flex-col overflow-hidden p-0 md:p-2 lg:p-4">
-        <Tabs defaultValue="sankey" className="flex-grow flex flex-col w-full overflow-hidden">
-          <TabsList className="mx-auto w-fit mb-4 sticky top-0 bg-background/90 backdrop-blur-sm z-[5] p-2 rounded-lg shadow-sm">
-            <TabsTrigger value="sankey" className="px-6 py-2 text-base">Sankey View</TabsTrigger>
-            <TabsTrigger value="analytics" className="px-6 py-2 text-base">Analytics Dashboard</TabsTrigger>
+      <Header 
+        onRunSimulation={handleRunSimulation}
+        isSimulating={isSimulating}
+      />
+      <div className="flex-grow flex flex-row overflow-hidden p-0 md:p-2 lg:p-4">
+        <Tabs defaultValue="sankey" className="flex-grow flex flex-row w-full overflow-hidden">
+          <TabsList className="flex flex-col h-auto w-auto p-2 space-y-1 border-r mr-4 sticky top-0 bg-background/90 backdrop-blur-sm z-[5] rounded-lg shadow-sm">
+            <TabsTrigger value="sankey" className="px-4 py-2 text-sm w-full justify-start">Sankey View</TabsTrigger>
+            <TabsTrigger value="analytics" className="px-4 py-2 text-sm w-full justify-start">Analytics</TabsTrigger>
           </TabsList>
           
-          <TabsContent value="sankey" className="flex-grow overflow-hidden -m-px">
-            <ScrollArea className="h-full">
-               <SankeyDiagramView currentControls={currentControls} sankeyData={sankeyData} />
-            </ScrollArea>
-          </TabsContent>
-          <TabsContent value="analytics" className="flex-grow overflow-hidden -m-px">
-             <ScrollArea className="h-full">
-              <AnalyticsView currentControls={currentControls} />
-            </ScrollArea>
-          </TabsContent>
+          <div className="flex-grow overflow-hidden">
+            <TabsContent value="sankey" className="h-full mt-0 -m-px">
+              <ScrollArea className="h-full">
+                 <SankeyDiagramView currentControls={currentControls} sankeyData={sankeyData} />
+              </ScrollArea>
+            </TabsContent>
+            <TabsContent value="analytics" className="h-full mt-0 -m-px">
+               <ScrollArea className="h-full">
+                <AnalyticsView currentControls={currentControls} />
+              </ScrollArea>
+            </TabsContent>
+          </div>
         </Tabs>
       </div>
       <BottomControlsPanel 
-        onFormChange={handleControlsChange} 
-        onRunSimulation={handleRunSimulation}
-        isSimulating={isSimulating}
+        onFormChange={handleControlsChange}
+        // onRunSimulation and isSimulating are removed as button is in Header
       />
     </AppLayout>
   );
