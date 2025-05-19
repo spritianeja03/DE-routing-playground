@@ -12,7 +12,7 @@ export interface SRFluctuation {
 }
 
 export interface ProcessorIncidentStatus {
-  [processorId: string]: boolean; // true if incident/downtime is active
+  [processorId: string]: number | null; // Timestamp of when incident ends, or null if no incident
 }
 
 export interface RoutingRule {
@@ -25,8 +25,6 @@ export interface ControlsState {
   totalPayments: number;
   tps: number;
   selectedPaymentMethods: PaymentMethod[];
-  amount: number;
-  currency: Currency;
   processorMatrix: ProcessorPaymentMethodMatrix;
   routingRulesText: string; 
   smartRoutingEnabled: boolean;
@@ -49,7 +47,7 @@ export interface ProcessorSuccessRate {
 // Types for Time Series Charts
 export interface TimeSeriesDataPoint {
   time: number; // Represents the simulation step or a timestamp
-  [processorId: string]: number; // Metric value for each processor
+  [processorId: string]: number | string; // Metric value for each processor (can be number or string like 'time')
 }
 
 export type ProcessorMetricsHistory = TimeSeriesDataPoint[];

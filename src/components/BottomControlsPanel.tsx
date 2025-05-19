@@ -1,7 +1,7 @@
 
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -15,9 +15,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PAYMENT_METHODS, PROCESSORS, DEFAULT_PROCESSOR_AVAILABILITY } from '@/lib/constants';
 import type { ControlsState, PaymentMethod, ProcessorPaymentMethodMatrix, SRFluctuation, ProcessorIncidentStatus } from '@/lib/types';
-import { Settings2, TrendingUp, Zap, VenetianMaskIcon } from 'lucide-react';
+import { Settings2, TrendingUp, Zap, VenetianMaskIcon, AlertTriangle } from 'lucide-react';
 
 const defaultProcessorMatrix: ProcessorPaymentMethodMatrix = PROCESSORS.reduce((acc, proc) => {
   acc[proc.id] = DEFAULT_PROCESSOR_AVAILABILITY[proc.id] ||
@@ -35,7 +37,7 @@ const defaultSRFluctuation: SRFluctuation = PROCESSORS.reduce((acc, proc) => {
 }, {} as SRFluctuation);
 
 const defaultProcessorIncidents: ProcessorIncidentStatus = PROCESSORS.reduce((acc, proc) => {
-  acc[proc.id] = false;
+  acc[proc.id] = null; // No incident active by default
   return acc;
 }, {} as ProcessorIncidentStatus);
 
@@ -64,7 +66,7 @@ const formSchema = z.object({
   debitRoutingEnabled: z.boolean(),
   simulateSaleEvent: z.boolean(),
   srFluctuation: z.record(z.string(), z.number().min(0).max(100)),
-  processorIncidents: z.record(z.string(), z.boolean()),
+  processorIncidents: z.record(z.string(), z.number().nullable()), // Updated schema
   overallSuccessRate: z.number().min(0).max(100).optional(),
   processorWiseSuccessRates: z.record(z.string(), z.object({
     sr: z.number().min(0).max(100),
@@ -78,7 +80,7 @@ export type FormValues = z.infer<typeof formSchema>;
 interface BottomControlsPanelProps {
   onFormChange: (data: FormValues) => void;
   initialValues?: Partial<FormValues>;
-  isSimulationActive: boolean;
+  isSimulationActive: boolean; 
 }
 
 const BOTTOM_PANEL_HEIGHT = "350px";
@@ -103,33 +105,40 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
     },
   });
 
+  const [selectedIncidentProcessor, setSelectedIncidentProcessor] = useState<string>(PROCESSORS[0].id);
+  const [incidentDuration, setIncidentDuration] = useState<number>(10); // Default 10 seconds
+
   React.useEffect(() => {
     const subscription = form.watch((values) => {
       const validValues = formSchema.safeParse(values);
       if (validValues.success) {
          onFormChange(validValues.data as FormValues);
       } else {
-        // For debugging or specific handling if needed
-        // console.warn("Form values are invalid during watch:", validValues.error.flatten());
-        onFormChange(values as FormValues); // Allow potentially incomplete values for live updates
+        onFormChange(values as FormValues); 
       }
     });
     
-    // Initialize with current form values
     const initialFormValues = form.getValues();
     const validInitial = formSchema.safeParse(initialFormValues);
     if(validInitial.success) {
         onFormChange(validInitial.data as FormValues);
     } else {
-        // console.warn("Initial form values are invalid:", validInitial.error.flatten());
-        onFormChange(initialFormValues as FormValues); // Send potentially incomplete initial state
+        onFormChange(initialFormValues as FormValues); 
     }
     
     return () => subscription.unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.watch, onFormChange]); // form.watch is stable, onFormChange is memoized in parent
+  }, [form.watch, onFormChange]); 
 
   const { control } = form;
+
+  const handleTriggerIncident = () => {
+    if (selectedIncidentProcessor && incidentDuration > 0) {
+      const endTime = Date.now() + incidentDuration * 1000;
+      form.setValue(`processorIncidents.${selectedIncidentProcessor}` as any, endTime, { shouldValidate: true });
+      // Optionally, provide user feedback like a toast
+    }
+  };
 
   return (
     <div
@@ -183,9 +192,9 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
                     control={control}
                     name="selectedPaymentMethods"
                     render={() => (
-                      <FormItem className="md:col-span-2"> {/* Spans full width on medium screens and up */}
+                      <FormItem className="md:col-span-2">
                         <FormLabel>Payment Methods</FormLabel>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                           {PAYMENT_METHODS.map((method) => (
                             <FormField
                               key={method}
@@ -303,24 +312,41 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
                     ))}
                   </CardContent>
                 </Card>
+                
                 <Card>
-                  <CardHeader className="p-2"><CardTitle className="text-base">Processor Incidents (Downtime)</CardTitle><CardDescription className="text-xs">Trigger temporary outages.</CardDescription></CardHeader>
-                  <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-1 p-2">
-                    {PROCESSORS.map(proc => (
-                      <FormField
-                        key={proc.id}
-                        control={control}
-                        name={`processorIncidents.${proc.id}`}
-                        render={({ field }) => (
-                          <FormItem className="flex items-center justify-between py-0.5">
-                            <FormLabel className="text-xs">{proc.name} Incident</FormLabel>
-                            <FormControl>
-                              <Switch checked={field.value} onCheckedChange={field.onChange} size="sm"/>
-                            </FormControl>
-                          </FormItem>
-                        )}
+                  <CardHeader className="p-2">
+                    <CardTitle className="text-base">Processor Incidents (Timed Downtime)</CardTitle>
+                    <CardDescription className="text-xs">Trigger temporary outages for a selected processor.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end p-3">
+                    <FormItem>
+                      <FormLabel htmlFor="incidentProcessor" className="text-xs">Processor</FormLabel>
+                      <Select onValueChange={setSelectedIncidentProcessor} defaultValue={selectedIncidentProcessor}>
+                        <FormControl>
+                          <SelectTrigger id="incidentProcessor">
+                            <SelectValue placeholder="Select processor" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {PROCESSORS.map(proc => (
+                            <SelectItem key={proc.id} value={proc.id}>{proc.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+                    <FormItem>
+                      <FormLabel htmlFor="incidentDuration" className="text-xs">Downtime (seconds)</FormLabel>
+                      <Input
+                        id="incidentDuration"
+                        type="number"
+                        value={incidentDuration}
+                        onChange={(e) => setIncidentDuration(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                        min="1"
                       />
-                    ))}
+                    </FormItem>
+                    <Button onClick={handleTriggerIncident} type="button" className="w-full md:w-auto">
+                      <AlertTriangle className="mr-2 h-4 w-4" /> Trigger Incident
+                    </Button>
                   </CardContent>
                 </Card>
               </TabsContent>

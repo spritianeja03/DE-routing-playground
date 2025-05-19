@@ -68,12 +68,19 @@ export default function HomePage() {
         return acc;
       }, {} as FormValues['processorWiseSuccessRates']);
 
+      const initialProcessorIncidents = PROCESSORS.reduce((acc, proc) => {
+        acc[proc.id] = null; // Reset incidents
+        return acc;
+      }, {} as FormValues['processorIncidents']);
+
+
       setCurrentControls(prevControls => {
         if (!prevControls) return null; 
         return {
           ...prevControls,
           overallSuccessRate: 0,
           processorWiseSuccessRates: initialProcessorSRs,
+          processorIncidents: initialProcessorIncidents,
         }
       });
     }
@@ -103,7 +110,7 @@ export default function HomePage() {
       eliminationRoutingEnabled,
       debitRoutingEnabled,
       srFluctuation,
-      processorIncidents,
+      processorIncidents, // Now contains end times or null
       processorWiseSuccessRates: baseProcessorSRsInput,
       simulateSaleEvent,
       tps: baseTps,
@@ -146,7 +153,11 @@ export default function HomePage() {
       const baseSR = baseSRInfo ? baseSRInfo.sr : defaultSR;
       const fluctuationEffect = (srFluctuation[proc.id] - 50) / 100; 
       let effectiveSR = (baseSR / 100) * (1 + fluctuationEffect); 
-      if (processorIncidents[proc.id]) effectiveSR *= 0.1; 
+      
+      const incidentEndTime = processorIncidents[proc.id];
+      const isIncidentActive = incidentEndTime !== null && Date.now() < incidentEndTime;
+
+      if (isIncidentActive) effectiveSR *= 0.1; 
       processorEffectiveSRs[proc.id] = Math.max(0, Math.min(1, effectiveSR));
     });
 
@@ -164,11 +175,12 @@ export default function HomePage() {
       if (eliminationRoutingEnabled) {
         const initialCount = candidateProcessors.length;
         candidateProcessors = candidateProcessors.filter(proc => {
-          const isDown = processorIncidents[proc.id];
+          const incidentEndTime = processorIncidents[proc.id];
+          const isIncidentActive = incidentEndTime !== null && Date.now() < incidentEndTime;
           const srTooLow = (processorEffectiveSRs[proc.id] * 100) < 50; 
-          return !isDown && !srTooLow;
+          return !isIncidentActive && !srTooLow;
         });
-        if(candidateProcessors.length < initialCount && candidateProcessors.length > 0) { // Only set if elimination actually did something AND there are still candidates
+        if(candidateProcessors.length < initialCount && candidateProcessors.length > 0) { 
             strategyApplied = RULE_STRATEGY_NODES.ELIMINATION_APPLIED;
         }
       }
@@ -178,7 +190,6 @@ export default function HomePage() {
       const ruleMatch = routingRulesText.match(/IF method = (\w+) THEN RouteTo (\w+)/i);
       if (ruleMatch && currentPaymentMethod.toLowerCase() === ruleMatch[1].toLowerCase()) {
         const targetProcessorId = ruleMatch[2].toLowerCase();
-        // Check if the target processor is among the currently *candidate* processors
         const customRuleProcessor = candidateProcessors.find(p => p.id === targetProcessorId);
         if (customRuleProcessor) {
           chosenProcessor = customRuleProcessor;
@@ -192,12 +203,11 @@ export default function HomePage() {
           candidateProcessors.sort((a, b) => processorEffectiveSRs[b.id] - processorEffectiveSRs[a.id]);
           chosenProcessor = candidateProcessors[0];
           strategyApplied = RULE_STRATEGY_NODES.SMART_ROUTING;
-        } else if (debitRoutingEnabled) { // Simplified: if debit routing is on, and we didn't apply a custom rule or smart routing
+        } else if (debitRoutingEnabled) { 
             chosenProcessor = candidateProcessors[Math.floor(Math.random() * candidateProcessors.length)];
             strategyApplied = RULE_STRATEGY_NODES.DEBIT_FIRST_ROUTING; 
-        } else { // Fallback to standard routing if no other specific strategy applied
+        } else { 
           chosenProcessor = candidateProcessors[Math.floor(Math.random() * candidateProcessors.length)];
-          // strategyApplied remains what it was (could be STANDARD_ROUTING or ELIMINATION_APPLIED if elimination reduced candidates)
         }
       }
 
@@ -212,9 +222,8 @@ export default function HomePage() {
           accumulatedProcessorStatsRef.current[chosenProcessor.id].failed++;
           accumulatedGlobalStatsRef.current.totalFailed++;
         }
-      } else { // No processor could be chosen (e.g., all eliminated or not configured for PM)
+      } else { 
         accumulatedGlobalStatsRef.current.totalFailed++;
-        // No specific strategy can be attributed if no processor was chosen.
       }
     }
 
@@ -355,4 +364,3 @@ export default function HomePage() {
     </>
   );
 }
-
