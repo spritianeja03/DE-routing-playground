@@ -7,8 +7,18 @@ import { PieChart as PieChartIcon } from 'lucide-react'; // Renamed to avoid con
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts"
 
 interface TransactionDistributionChartProps {
-  data: Array<{ name: string; value: number; fill: string }>;
+  data: Array<{ name: string; value: number; fill: string }>; // fill here is from CSS vars, we'll override for Pie
 }
+
+// Predefined direct HSL color strings for the pie chart
+// These correspond to --chart-1 to --chart-5 from globals.css's dark theme
+const PIE_CHART_COLORS = [
+  'hsl(25, 95%, 53%)',    // Vibrant Orange (matches --chart-1 dark)
+  'hsl(0, 90%, 60%)',      // Bright Red (matches --chart-2 dark)
+  'hsl(35, 90%, 58%)',    // Another Orange shade (matches --chart-3 dark)
+  'hsl(180, 70%, 50%)',   // Muted Cyan/Teal (matches --chart-4 dark)
+  'hsl(5, 85%, 65%)',     // Softer Red/Coral (matches --chart-5 dark)
+];
 
 export function TransactionDistributionChart({ data }: TransactionDistributionChartProps) {
   const hasData = data && data.length > 0 && data.some(item => item.value > 0);
@@ -24,18 +34,26 @@ export function TransactionDistributionChart({ data }: TransactionDistributionCh
            <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Tooltip
-                formatter={(value: number, name: string) => [`${value.toFixed(1)}%`, name]}
+                formatter={(value: number, name: string, entry: any) => {
+                  const percentage = typeof entry.payload?.value === 'number' ? entry.payload.value.toFixed(1) : 'N/A';
+                  return [`${percentage}%`, name];
+                }}
                 wrapperStyle={{
                   backgroundColor: 'hsl(var(--popover))',
                   border: '1px solid hsl(var(--border))',
                   borderRadius: 'var(--radius)',
                   padding: '8px',
                   color: 'hsl(var(--popover-foreground))',
+                  fontSize: '0.75rem', // text-xs
                   boxShadow: '0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1)'
                 }}
+                itemStyle={{ color: 'hsl(var(--popover-foreground))' }}
               />
               <Legend 
                 wrapperStyle={{ color: 'hsl(var(--foreground))', fontSize: '12px', paddingTop: '10px' }}
+                formatter={(value, entry) => (
+                  <span style={{ color: 'hsl(var(--foreground))' }}>{value}</span>
+                )}
               />
               <Pie
                 data={data}
@@ -45,10 +63,21 @@ export function TransactionDistributionChart({ data }: TransactionDistributionCh
                 cy="50%"
                 outerRadius={80}
                 labelLine={false}
-                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                label={({ name, percent }) => {
+                  if (typeof percent !== 'number' || isNaN(percent)) return null;
+                  const percentage = (percent * 100).toFixed(0);
+                  if (parseFloat(percentage) < 5) return null; // Hide label if too small
+                  return `${name}: ${percentage}%`;
+                }}
+                fontSize={12}
+                stroke="hsl(var(--background))" // Use direct background for stroke between cells
+                strokeWidth={2}
               >
                 {data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.fill} stroke="hsl(var(--background))" strokeWidth={1}/>
+                  <Cell 
+                    key={`cell-${index}`} 
+                    fill={PIE_CHART_COLORS[index % PIE_CHART_COLORS.length]} // Use direct colors
+                  />
                 ))}
               </Pie>
             </PieChart>
@@ -70,3 +99,4 @@ export function TransactionDistributionChart({ data }: TransactionDistributionCh
     </Card>
   );
 }
+
