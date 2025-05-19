@@ -9,9 +9,10 @@ import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { StatsView } from '@/components/StatsView';
 import { AnalyticsGraphsView } from '@/components/AnalyticsGraphsView';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import type { Processor, PaymentMethod, ProcessorMetricsHistory, StructuredRule, ControlsState, OverallSRHistory } from '@/lib/types';
+import type { Processor, PaymentMethod, ProcessorMetricsHistory, StructuredRule, ControlsState, OverallSRHistory, AISummaryInput, AISummaryProcessorMetric, AISummaryIncident } from '@/lib/types';
 import { PROCESSORS, PAYMENT_METHODS, RULE_STRATEGY_NODES, DEFAULT_PROCESSOR_AVAILABILITY } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
+import { summarizeSimulation } from '@/ai/flows/summarize-simulation-flow';
 
 const SIMULATION_INTERVAL_MS = 1000; // Process transactions every 1 second
 
@@ -39,6 +40,9 @@ export default function HomePage() {
   const [volumeHistory, setVolumeHistory] = useState<ProcessorMetricsHistory>([]);
   const [overallSuccessRateHistory, setOverallSuccessRateHistory] = useState<OverallSRHistory>([]);
   
+  const [simulationSummary, setSimulationSummary] = useState<string | null>(null);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState<boolean>(false);
+
   const simulationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   const accumulatedProcessorStatsRef = useRef<Record<string, { successful: number; failed: number; volumeShareRaw: number }>>(
@@ -62,6 +66,8 @@ export default function HomePage() {
     setSuccessRateHistory([]);
     setVolumeHistory([]);
     setOverallSuccessRateHistory([]);
+    setSimulationSummary(null);
+    setIsGeneratingSummary(false);
 
     accumulatedProcessorStatsRef.current = PROCESSORS.reduce((acc, proc) => {
       acc[proc.id] = { successful: 0, failed: 0, volumeShareRaw: 0 };
@@ -103,6 +109,62 @@ export default function HomePage() {
     }
   };
 
+  const generateAndSetSummary = async () => {
+    if (!currentControls || processedPaymentsCount === 0) {
+      setSimulationSummary("Run a simulation to generate a summary.");
+      return;
+    }
+    setIsGeneratingSummary(true);
+    setSimulationSummary(null); // Clear previous summary
+
+    const processorMetrics: AISummaryProcessorMetric[] = PROCESSORS.map(proc => {
+      const stats = accumulatedProcessorStatsRef.current[proc.id];
+      const totalRoutedToProc = stats.volumeShareRaw;
+      const observedSr = totalRoutedToProc > 0 ? (stats.successful / totalRoutedToProc) * 100 : 0;
+      return {
+        name: proc.name,
+        volume: totalRoutedToProc,
+        observedSr: parseFloat(observedSr.toFixed(2)),
+        baseSr: currentControls.processorWiseSuccessRates[proc.id]?.sr ?? 0,
+      };
+    });
+
+    const incidents: AISummaryIncident[] = PROCESSORS.map(proc => ({
+      processorName: proc.name,
+      isActive: currentControls.processorIncidents[proc.id] !== null && Date.now() < (currentControls.processorIncidents[proc.id] as number),
+    }));
+    
+    const overallSR = processedPaymentsCount > 0 ? (accumulatedGlobalStatsRef.current.totalSuccessful / processedPaymentsCount) * 100 : 0;
+
+    const summaryInput: AISummaryInput = {
+      totalPaymentsProcessed: processedPaymentsCount,
+      targetTotalPayments: currentControls.totalPayments,
+      overallSuccessRate: parseFloat(overallSR.toFixed(2)),
+      totalSuccessful: accumulatedGlobalStatsRef.current.totalSuccessful,
+      totalFailed: accumulatedGlobalStatsRef.current.totalFailed,
+      effectiveTps: currentControls.tps,
+      processorMetrics,
+      incidents,
+      simulationDurationSteps: simulationTimeStep,
+    };
+
+    try {
+      const result = await summarizeSimulation(summaryInput);
+      setSimulationSummary(result.summaryText);
+    } catch (error) {
+      console.error("Error generating simulation summary:", error);
+      setSimulationSummary("Failed to generate AI summary. Please try again.");
+      toast({
+        title: "AI Summary Error",
+        description: "Could not generate the simulation summary.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingSummary(false);
+    }
+  };
+
+
   const processTransactionBatch = useCallback(() => {
     if (!currentControls) {
       if (simulationIntervalRef.current) clearInterval(simulationIntervalRef.current);
@@ -136,6 +198,7 @@ export default function HomePage() {
         description: `Processed ${totalPayments} payments. Overall SR: ${finalOverallSR.toFixed(2)}%`,
         duration: 5000,
       });
+      generateAndSetSummary(); // Generate summary on completion
       return;
     }
 
@@ -287,6 +350,7 @@ export default function HomePage() {
         ...prevControls, 
         overallSuccessRate: parseFloat(overallSR.toFixed(2)) || 0,
         tps: effectiveTps, 
+        // processorWiseSuccessRates: updatedProcessorSRsUi, //This was causing the base SR to be overwritten by observed
        }
     });
 
@@ -335,9 +399,13 @@ export default function HomePage() {
 
   const handleStopSimulation = useCallback(() => {
     setSimulationState('idle');
+    // Generate summary before resetting everything for the current run
+    if (processedPaymentsCount > 0) {
+      generateAndSetSummary();
+    }
     resetSimulationState(); 
     toast({ title: "Simulation Stopped & Reset", duration: 3000 });
-  }, [toast]);
+  }, [toast, processedPaymentsCount, currentControls, simulationTimeStep]); // Added dependencies
 
   const [activeTab, setActiveTab] = useState("analytics");
 
@@ -366,6 +434,8 @@ export default function HomePage() {
                       processorStats={accumulatedProcessorStatsRef.current}
                       totalProcessedForTable={processedPaymentsCount}
                       overallSuccessRateHistory={overallSuccessRateHistory}
+                      simulationSummary={simulationSummary}
+                      isGeneratingSummary={isGeneratingSummary}
                     />
                   </div>
               </ScrollArea>
@@ -385,6 +455,7 @@ export default function HomePage() {
       </AppLayout>
       <BottomControlsPanel
         onFormChange={handleControlsChange}
+        isSimulationActive={simulationState === 'running'}
       />
     </>
   );
