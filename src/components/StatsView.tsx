@@ -41,7 +41,7 @@ export function StatsView({
   totalProcessedForTable = 0,
   overallSuccessRateHistory,
 }: StatsViewProps) {
-  const overallSR = currentControls?.overallSuccessRate ?? 0; // Use overallSR from currentControls
+  const overallSR = currentControls?.overallSuccessRate ?? 0;
   const effectiveTps = currentControls?.tps ?? 0;
 
   const processorSRData = PROCESSORS.map(proc => {
@@ -72,67 +72,62 @@ export function StatsView({
     : [];
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-      {/* Column 1: Stats Cards and Main SR Display */}
-      <div className="lg:col-span-1 space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          <Card className="shadow-md">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Processed</CardTitle>
-              <ListChecks className="h-5 w-5 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{processedPayments.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">
-                  of {currentControls?.totalPayments.toLocaleString() || 'N/A'} target
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="shadow-md">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Effective TPS</CardTitle>
-              <Gauge className="h-5 w-5 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{effectiveTps.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">transactions per second</p>
-            </CardContent>
-          </Card>
-          <Card className="shadow-md">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Successful</CardTitle>
-              <CheckCircle2 className="h-5 w-5 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalSuccessful.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">
-                {processedPayments > 0 ? `${((totalSuccessful / processedPayments) * 100).toFixed(1)}% of processed` : '0.0%'}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="shadow-md">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Failed</CardTitle>
-              <XCircle className="h-5 w-5 text-red-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalFailed.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">
-                {processedPayments > 0 ? `${((totalFailed / processedPayments) * 100).toFixed(1)}% of processed` : '0.0%'}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-        <OverallSuccessRateDisplay rate={overallSR} history={overallSuccessRateHistory} />
-        <TransactionDistributionChart data={transactionDistributionData} />
-      </div>
-
-      {/* Column 2: Processor SR Table */}
-      <div className="lg:col-span-2 space-y-6">
-        <ProcessorSuccessRatesTable data={processorSRData} />
+    <div className="space-y-6 flex flex-col">
+      {/* Stats Cards in a 2-column grid for wider screens, stack on smaller */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <Card className="shadow-md">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Processed</CardTitle>
+            <ListChecks className="h-5 w-5 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{processedPayments.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+                of {currentControls?.totalPayments.toLocaleString() || 'N/A'} target
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-md">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Effective TPS</CardTitle>
+            <Gauge className="h-5 w-5 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{effectiveTps.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">transactions per second</p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-md">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Successful</CardTitle>
+            <CheckCircle2 className="h-5 w-5 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalSuccessful.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              {processedPayments > 0 ? `${((totalSuccessful / processedPayments) * 100).toFixed(1)}% of processed` : '0.0%'}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-md">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Failed</CardTitle>
+            <XCircle className="h-5 w-5 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalFailed.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              {processedPayments > 0 ? `${((totalFailed / processedPayments) * 100).toFixed(1)}% of processed` : '0.0%'}
+            </p>
+          </CardContent>
+        </Card>
       </div>
       
-      <div className="p-6 bg-muted/30 rounded-lg text-center mt-auto lg:col-span-3">
+      <OverallSuccessRateDisplay rate={overallSR} history={overallSuccessRateHistory} />
+      <TransactionDistributionChart data={transactionDistributionData} />
+      <ProcessorSuccessRatesTable data={processorSRData} />
+      
+      <div className="p-6 bg-muted/30 rounded-lg text-center mt-auto">
         <p className="text-muted-foreground">Summary statistics based on current simulation run.</p>
       </div>
     </div>
