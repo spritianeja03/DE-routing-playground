@@ -10,20 +10,19 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { CURRENCIES, PAYMENT_METHODS, PROCESSORS, DEFAULT_PROCESSOR_AVAILABILITY } from '@/lib/constants';
+import { PAYMENT_METHODS, PROCESSORS, DEFAULT_PROCESSOR_AVAILABILITY } from '@/lib/constants';
 import type { ControlsState, PaymentMethod, ProcessorPaymentMethodMatrix, SRFluctuation, ProcessorIncidentStatus } from '@/lib/types';
 import { Settings2, TrendingUp, Zap, VenetianMaskIcon } from 'lucide-react';
 
 const defaultProcessorMatrix: ProcessorPaymentMethodMatrix = PROCESSORS.reduce((acc, proc) => {
   acc[proc.id] = DEFAULT_PROCESSOR_AVAILABILITY[proc.id] ||
     PAYMENT_METHODS.reduce((methodsAcc, method) => {
-      methodsAcc[method] = false; 
+      methodsAcc[method] = false;
       return methodsAcc;
     }, {} as Record<PaymentMethod, boolean>);
   return acc;
@@ -31,7 +30,7 @@ const defaultProcessorMatrix: ProcessorPaymentMethodMatrix = PROCESSORS.reduce((
 
 
 const defaultSRFluctuation: SRFluctuation = PROCESSORS.reduce((acc, proc) => {
-  acc[proc.id] = 50; 
+  acc[proc.id] = 50;
   return acc;
 }, {} as SRFluctuation);
 
@@ -42,13 +41,12 @@ const defaultProcessorIncidents: ProcessorIncidentStatus = PROCESSORS.reduce((ac
 
 const defaultProcessorWiseSuccessRates = PROCESSORS.reduce((acc, proc) => {
   const initialVolumeShare = Math.round(100 / PROCESSORS.length);
-  // Default SRs adjusted for new processors
   let defaultSr = 85;
   if (proc.id === 'stripe') defaultSr = 90;
   else if (proc.id === 'razorpay') defaultSr = 95;
   else if (proc.id === 'cashfree') defaultSr = 92;
   else if (proc.id === 'payu') defaultSr = 88;
-  else if (proc.id === 'fampay') defaultSr = 85; 
+  else if (proc.id === 'fampay') defaultSr = 85;
 
   acc[proc.id] = { sr: defaultSr, volumeShare: initialVolumeShare, failureRate: 100 - defaultSr };
   return acc;
@@ -59,8 +57,6 @@ const formSchema = z.object({
   totalPayments: z.number().min(0).max(1000000),
   tps: z.number().min(1).max(10000),
   selectedPaymentMethods: z.array(z.string()).min(1, "Please select at least one payment method."),
-  amount: z.number().min(0),
-  currency: z.enum(CURRENCIES),
   processorMatrix: z.record(z.string(), z.record(z.string(), z.boolean())),
   routingRulesText: z.string(),
   smartRoutingEnabled: z.boolean(),
@@ -94,10 +90,8 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
       totalPayments: initialValues?.totalPayments ?? 1000,
       tps: initialValues?.tps ?? 100,
       selectedPaymentMethods: initialValues?.selectedPaymentMethods ?? [PAYMENT_METHODS[0], PAYMENT_METHODS[1]],
-      amount: initialValues?.amount ?? 2500,
-      currency: initialValues?.currency ?? CURRENCIES[0],
       processorMatrix: initialValues?.processorMatrix ?? defaultProcessorMatrix,
-      routingRulesText: initialValues?.routingRulesText ?? "IF amount > 5000 AND method = Card THEN RouteTo stripe",
+      routingRulesText: initialValues?.routingRulesText ?? "IF method = Card THEN RouteTo stripe",
       smartRoutingEnabled: initialValues?.smartRoutingEnabled ?? false,
       eliminationRoutingEnabled: initialValues?.eliminationRoutingEnabled ?? true,
       debitRoutingEnabled: initialValues?.debitRoutingEnabled ?? false,
@@ -115,21 +109,25 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
       if (validValues.success) {
          onFormChange(validValues.data as FormValues);
       } else {
-        onFormChange(values as FormValues); 
+        // For debugging or specific handling if needed
+        // console.warn("Form values are invalid during watch:", validValues.error.flatten());
+        onFormChange(values as FormValues); // Allow potentially incomplete values for live updates
       }
     });
     
+    // Initialize with current form values
     const initialFormValues = form.getValues();
     const validInitial = formSchema.safeParse(initialFormValues);
     if(validInitial.success) {
         onFormChange(validInitial.data as FormValues);
     } else {
-        onFormChange(initialFormValues as FormValues); 
+        // console.warn("Initial form values are invalid:", validInitial.error.flatten());
+        onFormChange(initialFormValues as FormValues); // Send potentially incomplete initial state
     }
     
     return () => subscription.unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.watch, onFormChange]);
+  }, [form.watch, onFormChange]); // form.watch is stable, onFormChange is memoized in parent
 
   const { control } = form;
 
@@ -138,7 +136,7 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
       className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-lg z-20"
       style={{ height: BOTTOM_PANEL_HEIGHT }}
     >
-      <ScrollArea className="h-full">
+       <ScrollArea className="h-full">
         <Form {...form}>
           <form onSubmit={(e) => e.preventDefault()} className="p-4 space-y-2">
             <Tabs defaultValue="general" className="w-full">
@@ -150,7 +148,7 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
               </TabsList>
 
               <TabsContent value="general" className="pt-2">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={control}
                     name="totalPayments"
@@ -183,44 +181,11 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
                   />
                   <FormField
                     control={control}
-                    name="amount"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Amount (txn)</FormLabel>
-                        <FormControl>
-                          <Input type="number" placeholder="e.g., 2500" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={control}
-                    name="currency"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Currency</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select currency" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {CURRENCIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={control}
                     name="selectedPaymentMethods"
                     render={() => (
-                      <FormItem className="col-span-full">
+                      <FormItem className="md:col-span-2"> {/* Spans full width on medium screens and up */}
                         <FormLabel>Payment Methods</FormLabel>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                           {PAYMENT_METHODS.map((method) => (
                             <FormField
                               key={method}
@@ -299,7 +264,7 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
                         <FormItem className="col-span-full">
                           <FormLabel>Routing Rules</FormLabel>
                           <FormControl>
-                            <Textarea placeholder="e.g., IF amount > 5000 AND method = Card THEN RouteTo stripe" {...field} rows={2}/>
+                            <Textarea placeholder="e.g., IF method = Card THEN RouteTo stripe" {...field} rows={2}/>
                           </FormControl>
                           <FormDescription className="text-xs">Define routing rules (simplified text format).</FormDescription>
                           <FormMessage />
@@ -366,4 +331,3 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
     </div>
   );
 }
-

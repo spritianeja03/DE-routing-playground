@@ -9,7 +9,7 @@ import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { StatsView } from '@/components/StatsView';
 import { AnalyticsGraphsView } from '@/components/AnalyticsGraphsView';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import type { Processor, PaymentMethod, ProcessorMetricsHistory, SankeyData } from '@/lib/types';
+import type { Processor, PaymentMethod, ProcessorMetricsHistory } from '@/lib/types';
 import { PROCESSORS, PAYMENT_METHODS, RULE_STRATEGY_NODES } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
 
@@ -50,14 +50,13 @@ export default function HomePage() {
     accumulatedProcessorStatsRef.current = PROCESSORS.reduce((acc, proc) => {
       acc[proc.id] = { successful: 0, failed: 0, volumeShareRaw: 0 };
       return acc;
-    }, {} as Record<string, { successful: number; failed: number; volumeShareRaw: number }>);
+    }, {} as Record<string, { successful: number; failed: number; volumeShareRaw: number }>)
     accumulatedGlobalStatsRef.current = { totalSuccessful: 0, totalFailed: 0 };
 
     if (currentControls) {
       const initialProcessorSRs = PROCESSORS.reduce((acc, proc) => {
         const baseSRInfo = currentControls.processorWiseSuccessRates[proc.id];
-        // Ensure defaultSR is robust against missing baseSRInfo
-        let defaultSR = 85; // A fallback default
+        let defaultSR = 85; 
         if (proc.id === 'stripe') defaultSR = 90;
         else if (proc.id === 'razorpay') defaultSR = 95;
         else if (proc.id === 'cashfree') defaultSR = 92;
@@ -106,7 +105,6 @@ export default function HomePage() {
       srFluctuation,
       processorIncidents,
       processorWiseSuccessRates: baseProcessorSRsInput,
-      amount: transactionAmount,
       simulateSaleEvent,
       tps: baseTps,
     } = currentControls;
@@ -170,37 +168,39 @@ export default function HomePage() {
           const srTooLow = (processorEffectiveSRs[proc.id] * 100) < 50; 
           return !isDown && !srTooLow;
         });
-        if(candidateProcessors.length < initialCount) {
+        if(candidateProcessors.length < initialCount && candidateProcessors.length > 0) { // Only set if elimination actually did something AND there are still candidates
             strategyApplied = RULE_STRATEGY_NODES.ELIMINATION_APPLIED;
         }
       }
 
       let chosenProcessor: Processor | undefined = undefined;
-      const ruleMatch = routingRulesText.match(/IF amount > (\d+) AND method = (\w+) THEN RouteTo (\w+)/i);
-      if (ruleMatch && currentPaymentMethod.toLowerCase() === ruleMatch[2].toLowerCase() && transactionAmount > parseInt(ruleMatch[1])) {
-        const targetProcessorId = ruleMatch[3].toLowerCase();
+      // Simplified rule: IF method = <PaymentMethod> THEN RouteTo <ProcessorID>
+      const ruleMatch = routingRulesText.match(/IF method = (\w+) THEN RouteTo (\w+)/i);
+      if (ruleMatch && currentPaymentMethod.toLowerCase() === ruleMatch[1].toLowerCase()) {
+        const targetProcessorId = ruleMatch[2].toLowerCase();
+        // Check if the target processor is among the currently *candidate* processors
         const customRuleProcessor = candidateProcessors.find(p => p.id === targetProcessorId);
         if (customRuleProcessor) {
           chosenProcessor = customRuleProcessor;
-          strategyApplied = RULE_STRATEGY_NODES.CUSTOM_RULE_HIGH_VALUE_CARD;
+          strategyApplied = RULE_STRATEGY_NODES.CUSTOM_RULE_APPLIED;
         }
       }
+
 
       if (!chosenProcessor && candidateProcessors.length > 0) {
         if (smartRoutingEnabled) {
           candidateProcessors.sort((a, b) => processorEffectiveSRs[b.id] - processorEffectiveSRs[a.id]);
           chosenProcessor = candidateProcessors[0];
           strategyApplied = RULE_STRATEGY_NODES.SMART_ROUTING;
-        } else if (debitRoutingEnabled) {
-            // Simplified: just ensure it's a candidate, actual debit-first needs more PM info
+        } else if (debitRoutingEnabled) { // Simplified: if debit routing is on, and we didn't apply a custom rule or smart routing
             chosenProcessor = candidateProcessors[Math.floor(Math.random() * candidateProcessors.length)];
-            strategyApplied = RULE_STRATEGY_NODES.DEBIT_FIRST_ROUTING; // Mark as debit-first if selected under this logic
-        }
-         else {
+            strategyApplied = RULE_STRATEGY_NODES.DEBIT_FIRST_ROUTING; 
+        } else { // Fallback to standard routing if no other specific strategy applied
           chosenProcessor = candidateProcessors[Math.floor(Math.random() * candidateProcessors.length)];
-          // strategyApplied remains STANDARD_ROUTING or ELIMINATION_APPLIED
+          // strategyApplied remains what it was (could be STANDARD_ROUTING or ELIMINATION_APPLIED if elimination reduced candidates)
         }
       }
+
 
       if (chosenProcessor) {
         accumulatedProcessorStatsRef.current[chosenProcessor.id].volumeShareRaw++;
@@ -212,8 +212,9 @@ export default function HomePage() {
           accumulatedProcessorStatsRef.current[chosenProcessor.id].failed++;
           accumulatedGlobalStatsRef.current.totalFailed++;
         }
-      } else {
+      } else { // No processor could be chosen (e.g., all eliminated or not configured for PM)
         accumulatedGlobalStatsRef.current.totalFailed++;
+        // No specific strategy can be attributed if no processor was chosen.
       }
     }
 
@@ -354,3 +355,4 @@ export default function HomePage() {
     </>
   );
 }
+

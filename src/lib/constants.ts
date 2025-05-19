@@ -24,10 +24,12 @@ export const DEFAULT_PROCESSOR_AVAILABILITY: Record<string, Partial<Record<Payme
 
 // Define IDs for rule/strategy nodes in Sankey
 export const RULE_STRATEGY_NODES = {
-  CUSTOM_RULE_HIGH_VALUE_CARD: "rule_custom_high_value_card",
+  CUSTOM_RULE_HIGH_VALUE_CARD: "rule_custom_high_value_card", // Will be deprecated by CUSTOM_RULE_APPLIED
+  CUSTOM_RULE_APPLIED: "rule_custom_rule_applied",
   SMART_ROUTING: "strategy_smart_routing",
   ELIMINATION_APPLIED: "strategy_elimination_applied", // Used when elimination actively filters
   STANDARD_ROUTING: "strategy_standard_routing", // Default/fallback if no other strategy applies
   DEBIT_FIRST_ROUTING: "strategy_debit_first_routing", // If debit routing is a distinct step
   NO_ROUTE_FOUND: "strategy_no_route_found",
 } as const;
+
