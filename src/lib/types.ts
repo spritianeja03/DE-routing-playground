@@ -7,8 +7,6 @@ export interface ProcessorPaymentMethodMatrix {
   };
 }
 
-// SRFluctuation is removed
-
 export interface ProcessorIncidentStatus {
   [processorId: string]: number | null; // Timestamp of when incident ends, or null if no incident
 }
@@ -36,24 +34,30 @@ export interface ControlsState {
   tps: number;
   selectedPaymentMethods: PaymentMethod[];
   processorMatrix: ProcessorPaymentMethodMatrix;
-  structuredRule: StructuredRule | null; 
-  // srFluctuation: SRFluctuation; // Removed
+  structuredRule: StructuredRule | null;
   processorIncidents: ProcessorIncidentStatus;
-  overallSuccessRate: number;
-  processorWiseSuccessRates: Record<string, { sr: number; volumeShare: number; failureRate: number }>; // sr is now the input base SR
+  overallSuccessRate: number; // This is the LATEST overall SR
+  processorWiseSuccessRates: Record<string, { sr: number; volumeShare: number; failureRate: number }>; // sr is the input base SR
 }
 
 export interface ProcessorSuccessRate {
   processor: string;
-  sr: number; // In StatsView, this will reflect the input SR from sliders
-  failureRate: number; // Derived from input SR
+  sr: number; // In StatsView table, this will be OBSERVED SR
+  failureRate: number; // Derived from OBSERVED SR
   volumeShare: number; // Observed from simulation
 }
 
-// Types for Time Series Charts
+// Types for Time Series Charts (Per Processor)
 export interface TimeSeriesDataPoint {
   time: number; // Represents the simulation step or a timestamp
   [processorId: string]: number | string; // Metric value for each processor (can be number or string like 'time')
 }
-
 export type ProcessorMetricsHistory = TimeSeriesDataPoint[];
+
+
+// Types for Time Series Chart (Overall Success Rate)
+export interface OverallSRHistoryDataPoint {
+  time: number;
+  overallSR: number;
+}
+export type OverallSRHistory = OverallSRHistoryDataPoint[];

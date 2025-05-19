@@ -9,8 +9,8 @@ import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { StatsView } from '@/components/StatsView';
 import { AnalyticsGraphsView } from '@/components/AnalyticsGraphsView';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import type { Processor, PaymentMethod, ProcessorMetricsHistory, StructuredRule, ControlsState } from '@/lib/types';
-import { PROCESSORS, PAYMENT_METHODS, RULE_STRATEGY_NODES } from '@/lib/constants';
+import type { Processor, PaymentMethod, ProcessorMetricsHistory, StructuredRule, ControlsState, OverallSRHistory } from '@/lib/types';
+import { PROCESSORS, PAYMENT_METHODS, RULE_STRATEGY_NODES, DEFAULT_PROCESSOR_AVAILABILITY } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
 
 const SIMULATION_INTERVAL_MS = 1000; // Process transactions every 1 second
@@ -37,6 +37,7 @@ export default function HomePage() {
 
   const [successRateHistory, setSuccessRateHistory] = useState<ProcessorMetricsHistory>([]);
   const [volumeHistory, setVolumeHistory] = useState<ProcessorMetricsHistory>([]);
+  const [overallSuccessRateHistory, setOverallSuccessRateHistory] = useState<OverallSRHistory>([]);
   
   const simulationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -60,6 +61,7 @@ export default function HomePage() {
     setSimulationTimeStep(0);
     setSuccessRateHistory([]);
     setVolumeHistory([]);
+    setOverallSuccessRateHistory([]);
 
     accumulatedProcessorStatsRef.current = PROCESSORS.reduce((acc, proc) => {
       acc[proc.id] = { successful: 0, failed: 0, volumeShareRaw: 0 };
@@ -67,10 +69,10 @@ export default function HomePage() {
     }, {} as Record<string, { successful: number; failed: number; volumeShareRaw: number }>)
     accumulatedGlobalStatsRef.current = { totalSuccessful: 0, totalFailed: 0 };
 
-    if (currentControls) { // Use existing currentControls to reset parts of it
+    if (currentControls) { 
       const initialProcessorSRs = getDefaultProcessorWiseSuccessRates();
       const initialProcessorIncidents = PROCESSORS.reduce((acc, proc) => {
-        acc[proc.id] = null; // Reset incidents
+        acc[proc.id] = null; 
         return acc;
       }, {} as FormValues['processorIncidents']);
 
@@ -78,19 +80,19 @@ export default function HomePage() {
       setCurrentControls(prevControls => {
         if (!prevControls) return null; 
         return {
-          ...prevControls, // Keep other user settings like totalPayments, tps, etc.
+          ...prevControls, 
           overallSuccessRate: 0,
-          processorWiseSuccessRates: initialProcessorSRs, // Reset to defaults
-          processorIncidents: initialProcessorIncidents, // Reset incidents
+          processorWiseSuccessRates: initialProcessorSRs, 
+          processorIncidents: initialProcessorIncidents, 
         }
       });
-    } else { // If no currentControls, set up fresh defaults
+    } else { 
         setCurrentControls(prev => ({
-            ...(prev as FormValues), // Keep any partial if exists
+            ...(prev as FormValues), 
             totalPayments: prev?.totalPayments ?? 1000,
             tps: prev?.tps ?? 100,
             selectedPaymentMethods: prev?.selectedPaymentMethods ?? [PAYMENT_METHODS[0], PAYMENT_METHODS[1]],
-            processorMatrix: prev?.processorMatrix ?? PROCESSORS.reduce((acc, proc) => {
+             processorMatrix: prev?.processorMatrix ?? PROCESSORS.reduce((acc, proc) => {
                 acc[proc.id] = DEFAULT_PROCESSOR_AVAILABILITY[proc.id] || PAYMENT_METHODS.reduce((mAcc, m) => {mAcc[m] = false; return mAcc;}, {} as Record<PaymentMethod,boolean>); return acc;
             }, {} as FormValues['processorMatrix']),
             structuredRule: null,
@@ -120,9 +122,8 @@ export default function HomePage() {
       selectedPaymentMethods: activePMStrings,
       processorMatrix,
       structuredRule,
-      // srFluctuation, // Removed
       processorIncidents,
-      processorWiseSuccessRates: inputProcessorSRs, // These are the base SRs from sliders
+      processorWiseSuccessRates: inputProcessorSRs, 
       tps: baseTps,
     } = currentControls;
 
@@ -151,22 +152,22 @@ export default function HomePage() {
     const remainingPayments = totalPayments - processedPaymentsCount;
     const paymentsToProcessThisBatch = Math.min(transactionsThisInterval, remainingPayments);
 
-    // Calculate effective SR for probability, considering incidents
+    
     const processorEffectiveSRsForProbability: Record<string, number> = {};
     PROCESSORS.forEach(proc => {
-      const baseSR = inputProcessorSRs[proc.id]?.sr ?? 85; // Get SR from slider input
-      let effectiveSR = baseSR / 100.0; // Convert to decimal for probability
+      const baseSR = inputProcessorSRs[proc.id]?.sr ?? 85; 
+      let effectiveSR = baseSR / 100.0; 
       
       const incidentEndTime = processorIncidents[proc.id];
       const isIncidentActive = incidentEndTime !== null && Date.now() < incidentEndTime;
 
       if (isIncidentActive) {
-        effectiveSR *= 0.1; // Penalty for incident
+        effectiveSR *= 0.1; 
       }
       processorEffectiveSRsForProbability[proc.id] = Math.max(0, Math.min(1, effectiveSR));
     });
 
-    // Track successes and attempts for *this batch* for chart data
+    
     const successesThisBatch: Record<string, number> = PROCESSORS.reduce((acc,p) => ({...acc, [p.id]:0}), {});
     const attemptsThisBatch: Record<string, number> = PROCESSORS.reduce((acc,p) => ({...acc, [p.id]:0}), {});
 
@@ -182,7 +183,7 @@ export default function HomePage() {
       let strategyApplied = RULE_STRATEGY_NODES.STANDARD_ROUTING;
       let chosenProcessor: Processor | undefined = undefined;
 
-      // Evaluate structured rule
+      
       if (structuredRule) {
         const rule = structuredRule as StructuredRule;
         let conditionMet = false;
@@ -199,13 +200,13 @@ export default function HomePage() {
         }
       }
       
-      // Elimination Routing (always active)
+      
       if (!chosenProcessor) {
         const initialCount = candidateProcessors.length;
         candidateProcessors = candidateProcessors.filter(proc => {
           const incidentEndTime = processorIncidents[proc.id];
           const isIncidentActive = incidentEndTime !== null && Date.now() < incidentEndTime;
-          // Use processorEffectiveSRsForProbability for elimination check
+          
           const srTooLow = (processorEffectiveSRsForProbability[proc.id] * 100) < 50; 
           return !isIncidentActive && !srTooLow;
         });
@@ -214,8 +215,7 @@ export default function HomePage() {
         }
       }
 
-      // Standard Routing (if no custom rule applied and candidates remain)
-      // Sort by effective SR (after elimination) and pick the best (acts like smart routing)
+      
       if (!chosenProcessor && candidateProcessors.length > 0) {
           candidateProcessors.sort((a, b) => processorEffectiveSRsForProbability[b.id] - processorEffectiveSRsForProbability[a.id]);
           chosenProcessor = candidateProcessors[0]; 
@@ -248,44 +248,44 @@ export default function HomePage() {
 
     const overallSR = newProcessedCount > 0 ? (accumulatedGlobalStatsRef.current.totalSuccessful / newProcessedCount) * 100 : 0;
     
-    // For StatsView Table: based on cumulative stats
+    
     const updatedProcessorSRsUi = { ...currentControls.processorWiseSuccessRates };
     PROCESSORS.forEach(proc => {
       const stats = accumulatedProcessorStatsRef.current[proc.id];
       const totalRoutedToProc = stats.volumeShareRaw;
-      // The SR shown in the table is the CUMULATIVE OBSERVED SR
+      
       const procSR_cumulative = totalRoutedToProc > 0 ? (stats.successful / totalRoutedToProc) * 100 : 0;
       const procVolumeShare = newProcessedCount > 0 ? (totalRoutedToProc / newProcessedCount) * 100 : 0;
 
       updatedProcessorSRsUi[proc.id] = {
-        sr: parseFloat(procSR_cumulative.toFixed(2)) || 0, // Display observed SR in table
+        sr: parseFloat(procSR_cumulative.toFixed(2)) || 0, 
         volumeShare: parseFloat(procVolumeShare.toFixed(2)) || 0,
         failureRate: parseFloat((100 - procSR_cumulative).toFixed(2)) || 0,
       };
     });
 
-    // For SuccessRateOverTimeChart: based on *this batch's* observed SR
+    
     const currentSuccessRateDataPoint: Record<string, number | string> = { time: newTimeStep };
     PROCESSORS.forEach(proc => {
       currentSuccessRateDataPoint[proc.id] = attemptsThisBatch[proc.id] > 0 ? parseFloat(((successesThisBatch[proc.id] / attemptsThisBatch[proc.id]) * 100).toFixed(2)) : 0;
     });
     setSuccessRateHistory(prev => [...prev, currentSuccessRateDataPoint as ProcessorMetricsHistory[number]]);
     
-    // For VolumeOverTimeChart: based on cumulative raw volume routed to processor
+    
     const currentVolumeDataPoint: Record<string, number | string> = { time: newTimeStep };
     PROCESSORS.forEach(proc => {
       currentVolumeDataPoint[proc.id] = accumulatedProcessorStatsRef.current[proc.id].volumeShareRaw; 
     });
     setVolumeHistory(prev => [...prev, currentVolumeDataPoint as ProcessorMetricsHistory[number]]);
 
+    setOverallSuccessRateHistory(prev => [...prev, { time: newTimeStep, overallSR: parseFloat(overallSR.toFixed(2)) || 0 }]);
+
 
     setCurrentControls(prevControls => {
        if (!prevControls) return null;
        return {
-        ...prevControls, // This preserves the slider-set SRs as the base for next calc
+        ...prevControls, 
         overallSuccessRate: parseFloat(overallSR.toFixed(2)) || 0,
-        // processorWiseSuccessRates: updatedProcessorSRsUi, // This would overwrite slider SRs with observed SRs. Let's not do this.
-                                                          // Instead, StatsView will get cumulative data directly.
         tps: effectiveTps, 
        }
     });
@@ -359,13 +359,13 @@ export default function HomePage() {
               <ScrollArea className="h-full">
                  <div className="p-2 md:p-4 lg:p-6">
                     <StatsView
-                      currentControls={currentControls} // Contains INPUT SRs from sliders
+                      currentControls={currentControls} 
                       processedPayments={processedPaymentsCount}
                       totalSuccessful={accumulatedGlobalStatsRef.current.totalSuccessful}
                       totalFailed={accumulatedGlobalStatsRef.current.totalFailed}
-                      // Pass cumulative processor stats for observed metrics in the table
                       processorStats={accumulatedProcessorStatsRef.current}
                       totalProcessedForTable={processedPaymentsCount}
+                      overallSuccessRateHistory={overallSuccessRateHistory}
                     />
                   </div>
               </ScrollArea>
@@ -374,7 +374,7 @@ export default function HomePage() {
                <ScrollArea className="h-full">
                  <div className="p-2 md:p-4 lg:p-6">
                     <AnalyticsGraphsView
-                      successRateHistory={successRateHistory} // Plots OBSERVED SR per batch
+                      successRateHistory={successRateHistory} 
                       volumeHistory={volumeHistory}
                     />
                   </div>
