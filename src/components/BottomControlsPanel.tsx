@@ -17,7 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PAYMENT_METHODS, PROCESSORS, DEFAULT_PROCESSOR_AVAILABILITY } from '@/lib/constants';
+import { PAYMENT_METHODS, PROCESSORS, DEFAULT_PROCESSOR_AVAILABILITY, RULE_STRATEGY_NODES } from '@/lib/constants';
 import type { ControlsState, PaymentMethod, ProcessorPaymentMethodMatrix, SRFluctuation, ProcessorIncidentStatus } from '@/lib/types';
 import { Settings2, TrendingUp, Zap, VenetianMaskIcon, AlertTriangle } from 'lucide-react';
 
@@ -42,13 +42,15 @@ const defaultProcessorIncidents: ProcessorIncidentStatus = PROCESSORS.reduce((ac
 }, {} as ProcessorIncidentStatus);
 
 const defaultProcessorWiseSuccessRates = PROCESSORS.reduce((acc, proc) => {
-  const initialVolumeShare = Math.round(100 / PROCESSORS.length);
-  let defaultSr = 85;
+  let defaultSr = 85; // A common default
+  // Assign more specific defaults if needed, for PRD alignment
   if (proc.id === 'stripe') defaultSr = 90;
   else if (proc.id === 'razorpay') defaultSr = 95;
   else if (proc.id === 'cashfree') defaultSr = 92;
   else if (proc.id === 'payu') defaultSr = 88;
-  else if (proc.id === 'fampay') defaultSr = 85;
+  else if (proc.id === 'fampay') defaultSr = 85; // Example default for Fampay
+
+  const initialVolumeShare = Math.round(100 / PROCESSORS.length);
 
   acc[proc.id] = { sr: defaultSr, volumeShare: initialVolumeShare, failureRate: 100 - defaultSr };
   return acc;
@@ -66,7 +68,7 @@ const formSchema = z.object({
   debitRoutingEnabled: z.boolean(),
   simulateSaleEvent: z.boolean(),
   srFluctuation: z.record(z.string(), z.number().min(0).max(100)),
-  processorIncidents: z.record(z.string(), z.number().nullable()), // Updated schema
+  processorIncidents: z.record(z.string(), z.number().nullable()), 
   overallSuccessRate: z.number().min(0).max(100).optional(),
   processorWiseSuccessRates: z.record(z.string(), z.object({
     sr: z.number().min(0).max(100),
@@ -80,7 +82,7 @@ export type FormValues = z.infer<typeof formSchema>;
 interface BottomControlsPanelProps {
   onFormChange: (data: FormValues) => void;
   initialValues?: Partial<FormValues>;
-  isSimulationActive: boolean; 
+  isSimulationActive: boolean;
 }
 
 const BOTTOM_PANEL_HEIGHT = "350px";
@@ -114,21 +116,24 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
       if (validValues.success) {
          onFormChange(validValues.data as FormValues);
       } else {
+        // console.warn("Form validation error in watch:", validValues.error.flatten().fieldErrors);
         onFormChange(values as FormValues); 
       }
     });
     
+    // Initialize with current form values
     const initialFormValues = form.getValues();
     const validInitial = formSchema.safeParse(initialFormValues);
     if(validInitial.success) {
         onFormChange(validInitial.data as FormValues);
     } else {
+        // console.warn("Initial form validation error:", validInitial.error.flatten().fieldErrors);
         onFormChange(initialFormValues as FormValues); 
     }
     
     return () => subscription.unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.watch, onFormChange]); 
+  }, [form.watch, onFormChange]); // form.getValues and formSchema can be added if they change, but typically they don't
 
   const { control } = form;
 
@@ -344,7 +349,7 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
                         min="1"
                       />
                     </FormItem>
-                    <Button onClick={handleTriggerIncident} type="button" className="w-full md:w-auto">
+                    <Button onClick={handleTriggerIncident} type="button" className="w-auto">
                       <AlertTriangle className="mr-2 h-4 w-4" /> Trigger Incident
                     </Button>
                   </CardContent>
@@ -357,3 +362,4 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
     </div>
   );
 }
+
