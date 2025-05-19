@@ -9,7 +9,7 @@ import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { StatsView } from '@/components/StatsView';
 import { AnalyticsGraphsView } from '@/components/AnalyticsGraphsView';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import type { Processor, PaymentMethod, ProcessorMetricsHistory } from '@/lib/types';
+import type { Processor, PaymentMethod, ProcessorMetricsHistory, StructuredRule } from '@/lib/types';
 import { PROCESSORS, PAYMENT_METHODS, RULE_STRATEGY_NODES } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
 
@@ -100,17 +100,16 @@ export default function HomePage() {
         return;
     }
 
-
     const {
       totalPayments,
       selectedPaymentMethods: activePMStrings,
       processorMatrix,
-      routingRulesText,
+      structuredRule, // Use structuredRule instead of routingRulesText
       smartRoutingEnabled,
       eliminationRoutingEnabled,
       debitRoutingEnabled,
       srFluctuation,
-      processorIncidents, // Now contains end times or null
+      processorIncidents,
       processorWiseSuccessRates: baseProcessorSRsInput,
       simulateSaleEvent,
       tps: baseTps,
@@ -165,14 +164,35 @@ export default function HomePage() {
     for (let i = 0; i < paymentsToProcessThisBatch; i++) {
       const txnIndex = processedPaymentsCount + i;
       const currentPaymentMethod = activePaymentMethods[txnIndex % activePaymentMethods.length];
+      // For rules based on amount, we'll use a mock amount for now
+      // const mockTransactionAmount = Math.floor(Math.random() * 10000) + 50; 
 
       let candidateProcessors: Processor[] = PROCESSORS.filter(
         proc => processorMatrix[proc.id]?.[currentPaymentMethod]
       );
 
       let strategyApplied = RULE_STRATEGY_NODES.STANDARD_ROUTING;
+      let chosenProcessor: Processor | undefined = undefined;
 
-      if (eliminationRoutingEnabled) {
+      // Evaluate structured rule
+      if (structuredRule) {
+        const rule = structuredRule as StructuredRule; // Type assertion
+        let conditionMet = false;
+        if (rule.condition.field === 'paymentMethod' && rule.condition.operator === 'EQUALS') {
+          conditionMet = currentPaymentMethod === rule.condition.value;
+        }
+        // TODO: Add amount condition evaluation if needed, using mockTransactionAmount
+
+        if (conditionMet && rule.action.type === 'ROUTE_TO_PROCESSOR') {
+          const targetProcessor = candidateProcessors.find(p => p.id === rule.action.processorId);
+          if (targetProcessor) {
+            chosenProcessor = targetProcessor;
+            strategyApplied = RULE_STRATEGY_NODES.CUSTOM_RULE_APPLIED;
+          }
+        }
+      }
+      
+      if (!chosenProcessor && eliminationRoutingEnabled) {
         const initialCount = candidateProcessors.length;
         candidateProcessors = candidateProcessors.filter(proc => {
           const incidentEndTime = processorIncidents[proc.id];
@@ -181,19 +201,9 @@ export default function HomePage() {
           return !isIncidentActive && !srTooLow;
         });
         if(candidateProcessors.length < initialCount && candidateProcessors.length > 0) { 
-            strategyApplied = RULE_STRATEGY_NODES.ELIMINATION_APPLIED;
-        }
-      }
-
-      let chosenProcessor: Processor | undefined = undefined;
-      // Simplified rule: IF method = <PaymentMethod> THEN RouteTo <ProcessorID>
-      const ruleMatch = routingRulesText.match(/IF method = (\w+) THEN RouteTo (\w+)/i);
-      if (ruleMatch && currentPaymentMethod.toLowerCase() === ruleMatch[1].toLowerCase()) {
-        const targetProcessorId = ruleMatch[2].toLowerCase();
-        const customRuleProcessor = candidateProcessors.find(p => p.id === targetProcessorId);
-        if (customRuleProcessor) {
-          chosenProcessor = customRuleProcessor;
-          strategyApplied = RULE_STRATEGY_NODES.CUSTOM_RULE_APPLIED;
+            // If elimination happened and we still have candidates, this strategy was applied
+            // but choice is still pending based on smart/debit/standard
+            strategyApplied = RULE_STRATEGY_NODES.ELIMINATION_APPLIED; 
         }
       }
 
@@ -202,12 +212,14 @@ export default function HomePage() {
         if (smartRoutingEnabled) {
           candidateProcessors.sort((a, b) => processorEffectiveSRs[b.id] - processorEffectiveSRs[a.id]);
           chosenProcessor = candidateProcessors[0];
-          strategyApplied = RULE_STRATEGY_NODES.SMART_ROUTING;
+          // If elimination was also applied, keep that as primary strategy, smart is secondary
+           strategyApplied = strategyApplied === RULE_STRATEGY_NODES.ELIMINATION_APPLIED ? RULE_STRATEGY_NODES.ELIMINATION_APPLIED : RULE_STRATEGY_NODES.SMART_ROUTING;
         } else if (debitRoutingEnabled) { 
             chosenProcessor = candidateProcessors[Math.floor(Math.random() * candidateProcessors.length)];
-            strategyApplied = RULE_STRATEGY_NODES.DEBIT_FIRST_ROUTING; 
+            strategyApplied = strategyApplied === RULE_STRATEGY_NODES.ELIMINATION_APPLIED ? RULE_STRATEGY_NODES.ELIMINATION_APPLIED : RULE_STRATEGY_NODES.DEBIT_FIRST_ROUTING;
         } else { 
           chosenProcessor = candidateProcessors[Math.floor(Math.random() * candidateProcessors.length)];
+           strategyApplied = strategyApplied === RULE_STRATEGY_NODES.ELIMINATION_APPLIED ? RULE_STRATEGY_NODES.ELIMINATION_APPLIED : RULE_STRATEGY_NODES.STANDARD_ROUTING;
         }
       }
 
@@ -331,28 +343,28 @@ export default function HomePage() {
             onStopSimulation={handleStopSimulation}
             simulationState={simulationState}
           />
-          <div className="flex-grow overflow-hidden p-0">
+          <div className="flex-grow overflow-hidden p-0"> {/* Ensure no padding here */}
             <TabsContent value="stats" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
-              <div className="p-2 md:p-4 lg:p-6 h-full flex-grow">
-                <ScrollArea className="h-full">
-                  <StatsView
-                    currentControls={currentControls}
-                    processedPayments={processedPaymentsCount}
-                    totalSuccessful={accumulatedGlobalStatsRef.current.totalSuccessful}
-                    totalFailed={accumulatedGlobalStatsRef.current.totalFailed}
-                  />
-                </ScrollArea>
-              </div>
+              <ScrollArea className="h-full">
+                 <div className="p-2 md:p-4 lg:p-6"> {/* Padding inside scroll area */}
+                    <StatsView
+                      currentControls={currentControls}
+                      processedPayments={processedPaymentsCount}
+                      totalSuccessful={accumulatedGlobalStatsRef.current.totalSuccessful}
+                      totalFailed={accumulatedGlobalStatsRef.current.totalFailed}
+                    />
+                  </div>
+              </ScrollArea>
             </TabsContent>
             <TabsContent value="analytics" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
-              <div className="p-2 md:p-4 lg:p-6 h-full flex-grow">
-                <ScrollArea className="h-full">
-                  <AnalyticsGraphsView
-                    successRateHistory={successRateHistory}
-                    volumeHistory={volumeHistory}
-                  />
-                </ScrollArea>
-              </div>
+               <ScrollArea className="h-full">
+                 <div className="p-2 md:p-4 lg:p-6"> {/* Padding inside scroll area */}
+                    <AnalyticsGraphsView
+                      successRateHistory={successRateHistory}
+                      volumeHistory={volumeHistory}
+                    />
+                  </div>
+              </ScrollArea>
             </TabsContent>
           </div>
         </Tabs>
@@ -364,3 +376,4 @@ export default function HomePage() {
     </>
   );
 }
+

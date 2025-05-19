@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -14,12 +14,11 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PAYMENT_METHODS, PROCESSORS, DEFAULT_PROCESSOR_AVAILABILITY } from '@/lib/constants';
-import type { ControlsState, PaymentMethod, ProcessorPaymentMethodMatrix, SRFluctuation, ProcessorIncidentStatus } from '@/lib/types';
-import { Settings2, TrendingUp, Zap, VenetianMaskIcon, AlertTriangle } from 'lucide-react';
+import type { ControlsState, PaymentMethod, ProcessorPaymentMethodMatrix, SRFluctuation, ProcessorIncidentStatus, StructuredRule, ConditionField, ConditionOperator } from '@/lib/types';
+import { Settings2, TrendingUp, Zap, VenetianMaskIcon, AlertTriangle, Trash2 } from 'lucide-react';
 
 const defaultProcessorMatrix: ProcessorPaymentMethodMatrix = PROCESSORS.reduce((acc, proc) => {
   acc[proc.id] = DEFAULT_PROCESSOR_AVAILABILITY[proc.id] ||
@@ -42,13 +41,12 @@ const defaultProcessorIncidents: ProcessorIncidentStatus = PROCESSORS.reduce((ac
 }, {} as ProcessorIncidentStatus);
 
 const defaultProcessorWiseSuccessRates = PROCESSORS.reduce((acc, proc) => {
-  let defaultSr = 85; // A common default
-  // Assign more specific defaults if needed, for PRD alignment
+  let defaultSr = 85;
   if (proc.id === 'stripe') defaultSr = 90;
   else if (proc.id === 'razorpay') defaultSr = 95;
   else if (proc.id === 'cashfree') defaultSr = 92;
   else if (proc.id === 'payu') defaultSr = 88;
-  else if (proc.id === 'fampay') defaultSr = 85; // Example default for Fampay
+  else if (proc.id === 'fampay') defaultSr = 85;
 
   const initialVolumeShare = Math.round(100 / PROCESSORS.length);
 
@@ -62,22 +60,30 @@ const formSchema = z.object({
   tps: z.number().min(1).max(10000),
   selectedPaymentMethods: z.array(z.string()).min(1, "Please select at least one payment method."),
   processorMatrix: z.record(z.string(), z.record(z.string(), z.boolean())),
-  routingRulesText: z.string(),
+  // Structured rule fields
+  ruleConditionField: z.custom<ConditionField>().optional(),
+  ruleConditionOperator: z.custom<ConditionOperator>().optional(),
+  ruleConditionValue: z.custom<PaymentMethod>().optional(),
+  ruleActionProcessorId: z.string().optional(),
+
   smartRoutingEnabled: z.boolean(),
   eliminationRoutingEnabled: z.boolean(),
   debitRoutingEnabled: z.boolean(),
   simulateSaleEvent: z.boolean(),
   srFluctuation: z.record(z.string(), z.number().min(0).max(100)),
-  processorIncidents: z.record(z.string(), z.number().nullable()), 
+  processorIncidents: z.record(z.string(), z.number().nullable()),
   overallSuccessRate: z.number().min(0).max(100).optional(),
   processorWiseSuccessRates: z.record(z.string(), z.object({
     sr: z.number().min(0).max(100),
     volumeShare: z.number().min(0).max(100),
     failureRate: z.number().min(0).max(100),
   })),
+  // This field will be derived and passed up, not directly in form
+  // structuredRule: z.custom<StructuredRule | null>().optional(),
 });
 
-export type FormValues = z.infer<typeof formSchema>;
+export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule'> & { structuredRule: StructuredRule | null };
+
 
 interface BottomControlsPanelProps {
   onFormChange: (data: FormValues) => void;
@@ -88,14 +94,19 @@ interface BottomControlsPanelProps {
 const BOTTOM_PANEL_HEIGHT = "350px";
 
 export function BottomControlsPanel({ onFormChange, initialValues, isSimulationActive }: BottomControlsPanelProps) {
-  const form = useForm<FormValues>({
+  const form = useForm<z.infer<typeof formSchema>>({ // Use inferred schema type here
     resolver: zodResolver(formSchema),
     defaultValues: {
       totalPayments: initialValues?.totalPayments ?? 1000,
       tps: initialValues?.tps ?? 100,
       selectedPaymentMethods: initialValues?.selectedPaymentMethods ?? [PAYMENT_METHODS[0], PAYMENT_METHODS[1]],
       processorMatrix: initialValues?.processorMatrix ?? defaultProcessorMatrix,
-      routingRulesText: initialValues?.routingRulesText ?? "IF method = Card THEN RouteTo stripe",
+      
+      ruleConditionField: initialValues?.structuredRule?.condition.field ?? undefined,
+      ruleConditionOperator: initialValues?.structuredRule?.condition.operator ?? undefined,
+      ruleConditionValue: initialValues?.structuredRule?.condition.value ?? undefined,
+      ruleActionProcessorId: initialValues?.structuredRule?.action.processorId ?? undefined,
+
       smartRoutingEnabled: initialValues?.smartRoutingEnabled ?? false,
       eliminationRoutingEnabled: initialValues?.eliminationRoutingEnabled ?? true,
       debitRoutingEnabled: initialValues?.debitRoutingEnabled ?? false,
@@ -110,47 +121,78 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
   const [selectedIncidentProcessor, setSelectedIncidentProcessor] = useState<string>(PROCESSORS[0].id);
   const [incidentDuration, setIncidentDuration] = useState<number>(10); // Default 10 seconds
 
-  React.useEffect(() => {
+  useEffect(() => {
     const subscription = form.watch((values) => {
-      const validValues = formSchema.safeParse(values);
-      if (validValues.success) {
-         onFormChange(validValues.data as FormValues);
+      const parsedValues = formSchema.safeParse(values);
+      if (parsedValues.success) {
+        const formData = parsedValues.data;
+        let rule: StructuredRule | null = null;
+        if (formData.ruleConditionField && formData.ruleConditionOperator && formData.ruleConditionValue && formData.ruleActionProcessorId) {
+          rule = {
+            id: 'rule1', // Static ID for single rule
+            condition: {
+              field: formData.ruleConditionField,
+              operator: formData.ruleConditionOperator,
+              value: formData.ruleConditionValue,
+            },
+            action: {
+              type: 'ROUTE_TO_PROCESSOR',
+              processorId: formData.ruleActionProcessorId,
+            },
+          };
+        }
+        onFormChange({ ...formData, structuredRule: rule });
       } else {
-        // console.warn("Form validation error in watch:", validValues.error.flatten().fieldErrors);
-        onFormChange(values as FormValues); 
+        // Handle partial/invalid data for onFormChange if necessary, or pass as is
+         onFormChange({ ...values, structuredRule: null } as FormValues);
       }
     });
-    
+
     // Initialize with current form values
     const initialFormValues = form.getValues();
-    const validInitial = formSchema.safeParse(initialFormValues);
-    if(validInitial.success) {
-        onFormChange(validInitial.data as FormValues);
-    } else {
-        // console.warn("Initial form validation error:", validInitial.error.flatten().fieldErrors);
-        onFormChange(initialFormValues as FormValues); 
-    }
-    
+     const initialParsed = formSchema.safeParse(initialFormValues);
+      let initialRule: StructuredRule | null = null;
+      if(initialParsed.success){
+        const initialFormData = initialParsed.data;
+        if (initialFormData.ruleConditionField && initialFormData.ruleConditionOperator && initialFormData.ruleConditionValue && initialFormData.ruleActionProcessorId) {
+             initialRule = {
+                id: 'rule1',
+                condition: { field: initialFormData.ruleConditionField, operator: initialFormData.ruleConditionOperator, value: initialFormData.ruleConditionValue },
+                action: { type: 'ROUTE_TO_PROCESSOR', processorId: initialFormData.ruleActionProcessorId }
+            };
+        }
+        onFormChange({ ...initialFormData, structuredRule: initialRule });
+      } else {
+         onFormChange({ ...initialFormValues, structuredRule: null } as FormValues);
+      }
+
     return () => subscription.unsubscribe();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.watch, onFormChange, formSchema, form]); 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.watch, onFormChange, formSchema]);
 
   const { control } = form;
 
   const handleTriggerIncident = () => {
     if (selectedIncidentProcessor && incidentDuration > 0) {
       const endTime = Date.now() + incidentDuration * 1000;
-      form.setValue(`processorIncidents.${selectedIncidentProcessor}` as any, endTime, { shouldValidate: true });
-      // Optionally, provide user feedback like a toast
+      form.setValue(`processorIncidents.${selectedIncidentProcessor}` as any, endTime, { shouldValidate: true, shouldDirty: true });
     }
   };
+  
+  const handleClearRule = () => {
+    form.setValue('ruleConditionField', undefined, { shouldDirty: true });
+    form.setValue('ruleConditionOperator', undefined, { shouldDirty: true });
+    form.setValue('ruleConditionValue', undefined, { shouldDirty: true });
+    form.setValue('ruleActionProcessorId', undefined, { shouldDirty: true });
+  };
+
 
   return (
     <div
       className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-lg z-20"
       style={{ height: BOTTOM_PANEL_HEIGHT }}
     >
-       <ScrollArea className="h-full">
+      <ScrollArea className="h-full">
         <Form {...form}>
           <form onSubmit={(e) => e.preventDefault()} className="p-4 space-y-2">
             <Tabs defaultValue="general" className="w-full">
@@ -163,7 +205,7 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
 
               <TabsContent value="general" className="pt-2">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
+                   <FormField
                     control={control}
                     name="totalPayments"
                     render={({ field }) => (
@@ -270,28 +312,102 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
               </TabsContent>
 
               <TabsContent value="routing" className="pt-2">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={control}
-                      name="routingRulesText"
-                      render={({ field }) => (
-                        <FormItem className="col-span-full">
-                          <FormLabel>Routing Rules</FormLabel>
-                          <FormControl>
-                            <Textarea placeholder="e.g., IF method = Card THEN RouteTo stripe" {...field} rows={2}/>
-                          </FormControl>
-                          <FormDescription className="text-xs">Define routing rules (simplified text format).</FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex justify-between items-center">
+                      <CardTitle className="text-base">Custom Routing Rule (Single Rule)</CardTitle>
+                       <Button variant="outline" size="sm" onClick={handleClearRule} className="text-xs">
+                        <Trash2 className="mr-1 h-3 w-3" /> Clear Rule
+                      </Button>
+                    </div>
+                    <CardDescription className="text-xs">Define one custom routing rule. E.g., IF Payment Method EQUALS Card THEN Route To Stripe.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="text-sm font-medium mb-1">IF:</div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-end">
+                      <FormField
+                        control={control}
+                        name="ruleConditionField"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">Condition Field</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl><SelectTrigger><SelectValue placeholder="Select field" /></SelectTrigger></FormControl>
+                              <SelectContent>
+                                <SelectItem value="paymentMethod">Payment Method</SelectItem>
+                                {/* <SelectItem value="amount">Amount</SelectItem>  Future: Add amount logic */}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={control}
+                        name="ruleConditionOperator"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">Operator</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value} disabled={!form.watch("ruleConditionField")}>
+                              <FormControl><SelectTrigger><SelectValue placeholder="Select operator" /></SelectTrigger></FormControl>
+                              <SelectContent>
+                                <SelectItem value="EQUALS">Equals</SelectItem>
+                                {/* Add more operators if field is 'amount' */}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={control}
+                        name="ruleConditionValue"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">Value</FormLabel>
+                            {form.watch("ruleConditionField") === 'paymentMethod' ? (
+                              <Select onValueChange={field.onChange} value={field.value} disabled={!form.watch("ruleConditionOperator")}>
+                                <FormControl><SelectTrigger><SelectValue placeholder="Select payment method" /></SelectTrigger></FormControl>
+                                <SelectContent>
+                                  {PAYMENT_METHODS.map(pm => <SelectItem key={pm} value={pm}>{pm}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Input type="text" placeholder="Enter value" {...field} disabled={!form.watch("ruleConditionOperator")} />
+                            )}
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                     <div className="text-sm font-medium mb-1 mt-2">THEN:</div>
+                     <FormField
+                        control={control}
+                        name="ruleActionProcessorId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">Route to Processor</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value} disabled={!form.watch("ruleConditionValue")}>
+                              <FormControl><SelectTrigger><SelectValue placeholder="Select processor" /></SelectTrigger></FormControl>
+                              <SelectContent>
+                                {PROCESSORS.map(proc => <SelectItem key={proc.id} value={proc.id}>{proc.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                  </CardContent>
+                </Card>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                   <div className="space-y-1">
                     <FormField control={control} name="smartRoutingEnabled" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel className="text-sm">Smart Routing (SR)</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} size="sm" /></FormControl></FormItem> )} />
                     <FormField control={control} name="eliminationRoutingEnabled" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel className="text-sm">Elimination Routing</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} size="sm" /></FormControl></FormItem> )} />
-                    <FormField control={control} name="debitRoutingEnabled" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel className="text-sm">Debit-first Routing</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} size="sm" /></FormControl></FormItem> )} />
                   </div>
                   <div className="space-y-1">
-                    <FormField control={control} name="simulateSaleEvent" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel className="text-sm">Simulate Sale Event (TPS Spike)</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} size="sm" /></FormControl></FormItem> )} />
+                    <FormField control={control} name="debitRoutingEnabled" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel className="text-sm">Debit-first Routing</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} size="sm" /></FormControl></FormItem> )} />
+                     <FormField control={control} name="simulateSaleEvent" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel className="text-sm">Simulate Sale Event (TPS Spike)</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} size="sm" /></FormControl></FormItem> )} />
                   </div>
                 </div>
               </TabsContent>
@@ -362,4 +478,3 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
     </div>
   );
 }
-

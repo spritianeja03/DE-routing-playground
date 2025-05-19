@@ -1,5 +1,5 @@
 
-import type { PaymentMethod, Currency } from './constants';
+import type { PaymentMethod } from './constants';
 
 export interface ProcessorPaymentMethodMatrix {
   [processorId: string]: {
@@ -15,10 +15,22 @@ export interface ProcessorIncidentStatus {
   [processorId: string]: number | null; // Timestamp of when incident ends, or null if no incident
 }
 
-export interface RoutingRule {
-  id: string;
-  condition: string; 
-  action: string; 
+export type ConditionField = 'paymentMethod'; // Initially just payment method
+export type ConditionOperator = 'EQUALS'; // Initially just equals
+
+export interface Condition {
+  field: ConditionField;
+  operator: ConditionOperator;
+  value: PaymentMethod; // Initially tied to PaymentMethod
+}
+
+export interface StructuredRule {
+  id: string; // e.g., 'rule1'
+  condition: Condition;
+  action: {
+    type: 'ROUTE_TO_PROCESSOR';
+    processorId: string;
+  };
 }
 
 export interface ControlsState {
@@ -26,7 +38,7 @@ export interface ControlsState {
   tps: number;
   selectedPaymentMethods: PaymentMethod[];
   processorMatrix: ProcessorPaymentMethodMatrix;
-  routingRulesText: string; 
+  structuredRule: StructuredRule | null; // Replaces routingRulesText
   smartRoutingEnabled: boolean;
   eliminationRoutingEnabled: boolean;
   debitRoutingEnabled: boolean;
