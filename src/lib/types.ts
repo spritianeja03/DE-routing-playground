@@ -39,10 +39,6 @@ export interface ControlsState {
   selectedPaymentMethods: PaymentMethod[];
   processorMatrix: ProcessorPaymentMethodMatrix;
   structuredRule: StructuredRule | null; // Replaces routingRulesText
-  smartRoutingEnabled: boolean;
-  eliminationRoutingEnabled: boolean;
-  debitRoutingEnabled: boolean;
-  simulateSaleEvent: boolean;
   srFluctuation: SRFluctuation;
   processorIncidents: ProcessorIncidentStatus;
   overallSuccessRate: number;

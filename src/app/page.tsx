@@ -104,14 +104,10 @@ export default function HomePage() {
       totalPayments,
       selectedPaymentMethods: activePMStrings,
       processorMatrix,
-      structuredRule, // Use structuredRule instead of routingRulesText
-      smartRoutingEnabled,
-      eliminationRoutingEnabled,
-      debitRoutingEnabled,
+      structuredRule,
       srFluctuation,
       processorIncidents,
       processorWiseSuccessRates: baseProcessorSRsInput,
-      simulateSaleEvent,
       tps: baseTps,
     } = currentControls;
 
@@ -135,7 +131,7 @@ export default function HomePage() {
       return;
     }
 
-    const effectiveTps = simulateSaleEvent ? Math.min(5000, baseTps * 5) : baseTps;
+    const effectiveTps = baseTps; // TPS spike toggle removed
     const transactionsThisInterval = Math.max(1, Math.floor(effectiveTps * (SIMULATION_INTERVAL_MS / 1000)));
     const remainingPayments = totalPayments - processedPaymentsCount;
     const paymentsToProcessThisBatch = Math.min(transactionsThisInterval, remainingPayments);
@@ -164,8 +160,6 @@ export default function HomePage() {
     for (let i = 0; i < paymentsToProcessThisBatch; i++) {
       const txnIndex = processedPaymentsCount + i;
       const currentPaymentMethod = activePaymentMethods[txnIndex % activePaymentMethods.length];
-      // For rules based on amount, we'll use a mock amount for now
-      // const mockTransactionAmount = Math.floor(Math.random() * 10000) + 50; 
 
       let candidateProcessors: Processor[] = PROCESSORS.filter(
         proc => processorMatrix[proc.id]?.[currentPaymentMethod]
@@ -181,8 +175,7 @@ export default function HomePage() {
         if (rule.condition.field === 'paymentMethod' && rule.condition.operator === 'EQUALS') {
           conditionMet = currentPaymentMethod === rule.condition.value;
         }
-        // TODO: Add amount condition evaluation if needed, using mockTransactionAmount
-
+        
         if (conditionMet && rule.action.type === 'ROUTE_TO_PROCESSOR') {
           const targetProcessor = candidateProcessors.find(p => p.id === rule.action.processorId);
           if (targetProcessor) {
@@ -192,7 +185,8 @@ export default function HomePage() {
         }
       }
       
-      if (!chosenProcessor && eliminationRoutingEnabled) {
+      // Elimination Routing (always active)
+      if (!chosenProcessor) {
         const initialCount = candidateProcessors.length;
         candidateProcessors = candidateProcessors.filter(proc => {
           const incidentEndTime = processorIncidents[proc.id];
@@ -201,26 +195,16 @@ export default function HomePage() {
           return !isIncidentActive && !srTooLow;
         });
         if(candidateProcessors.length < initialCount && candidateProcessors.length > 0) { 
-            // If elimination happened and we still have candidates, this strategy was applied
-            // but choice is still pending based on smart/debit/standard
             strategyApplied = RULE_STRATEGY_NODES.ELIMINATION_APPLIED; 
         }
       }
 
-
+      // Standard Routing (if no custom rule applied and candidates remain)
       if (!chosenProcessor && candidateProcessors.length > 0) {
-        if (smartRoutingEnabled) {
+          // Smart routing logic removed, sort by effective SR and pick the best
           candidateProcessors.sort((a, b) => processorEffectiveSRs[b.id] - processorEffectiveSRs[a.id]);
-          chosenProcessor = candidateProcessors[0];
-          // If elimination was also applied, keep that as primary strategy, smart is secondary
-           strategyApplied = strategyApplied === RULE_STRATEGY_NODES.ELIMINATION_APPLIED ? RULE_STRATEGY_NODES.ELIMINATION_APPLIED : RULE_STRATEGY_NODES.SMART_ROUTING;
-        } else if (debitRoutingEnabled) { 
-            chosenProcessor = candidateProcessors[Math.floor(Math.random() * candidateProcessors.length)];
-            strategyApplied = strategyApplied === RULE_STRATEGY_NODES.ELIMINATION_APPLIED ? RULE_STRATEGY_NODES.ELIMINATION_APPLIED : RULE_STRATEGY_NODES.DEBIT_FIRST_ROUTING;
-        } else { 
-          chosenProcessor = candidateProcessors[Math.floor(Math.random() * candidateProcessors.length)];
-           strategyApplied = strategyApplied === RULE_STRATEGY_NODES.ELIMINATION_APPLIED ? RULE_STRATEGY_NODES.ELIMINATION_APPLIED : RULE_STRATEGY_NODES.STANDARD_ROUTING;
-        }
+          chosenProcessor = candidateProcessors[0]; // Pick the one with highest SR after elimination
+          strategyApplied = strategyApplied === RULE_STRATEGY_NODES.ELIMINATION_APPLIED ? RULE_STRATEGY_NODES.ELIMINATION_APPLIED : RULE_STRATEGY_NODES.SMART_ROUTING; // or STANDARD_ROUTING if smart is fully removed
       }
 
 
@@ -343,10 +327,10 @@ export default function HomePage() {
             onStopSimulation={handleStopSimulation}
             simulationState={simulationState}
           />
-          <div className="flex-grow overflow-hidden p-0"> {/* Ensure no padding here */}
+          <div className="flex-grow overflow-hidden p-0">
             <TabsContent value="stats" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
               <ScrollArea className="h-full">
-                 <div className="p-2 md:p-4 lg:p-6"> {/* Padding inside scroll area */}
+                 <div className="p-2 md:p-4 lg:p-6">
                     <StatsView
                       currentControls={currentControls}
                       processedPayments={processedPaymentsCount}
@@ -358,7 +342,7 @@ export default function HomePage() {
             </TabsContent>
             <TabsContent value="analytics" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
                <ScrollArea className="h-full">
-                 <div className="p-2 md:p-4 lg:p-6"> {/* Padding inside scroll area */}
+                 <div className="p-2 md:p-4 lg:p-6">
                     <AnalyticsGraphsView
                       successRateHistory={successRateHistory}
                       volumeHistory={volumeHistory}
@@ -376,4 +360,3 @@ export default function HomePage() {
     </>
   );
 }
-

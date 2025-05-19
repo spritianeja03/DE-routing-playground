@@ -66,10 +66,6 @@ const formSchema = z.object({
   ruleConditionValue: z.custom<PaymentMethod>().optional(),
   ruleActionProcessorId: z.string().optional(),
 
-  smartRoutingEnabled: z.boolean(),
-  eliminationRoutingEnabled: z.boolean(),
-  debitRoutingEnabled: z.boolean(),
-  simulateSaleEvent: z.boolean(),
   srFluctuation: z.record(z.string(), z.number().min(0).max(100)),
   processorIncidents: z.record(z.string(), z.number().nullable()),
   overallSuccessRate: z.number().min(0).max(100).optional(),
@@ -78,8 +74,6 @@ const formSchema = z.object({
     volumeShare: z.number().min(0).max(100),
     failureRate: z.number().min(0).max(100),
   })),
-  // This field will be derived and passed up, not directly in form
-  // structuredRule: z.custom<StructuredRule | null>().optional(),
 });
 
 export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule'> & { structuredRule: StructuredRule | null };
@@ -94,7 +88,7 @@ interface BottomControlsPanelProps {
 const BOTTOM_PANEL_HEIGHT = "350px";
 
 export function BottomControlsPanel({ onFormChange, initialValues, isSimulationActive }: BottomControlsPanelProps) {
-  const form = useForm<z.infer<typeof formSchema>>({ // Use inferred schema type here
+  const form = useForm<z.infer<typeof formSchema>>({ 
     resolver: zodResolver(formSchema),
     defaultValues: {
       totalPayments: initialValues?.totalPayments ?? 1000,
@@ -107,10 +101,6 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
       ruleConditionValue: initialValues?.structuredRule?.condition.value ?? undefined,
       ruleActionProcessorId: initialValues?.structuredRule?.action.processorId ?? undefined,
 
-      smartRoutingEnabled: initialValues?.smartRoutingEnabled ?? false,
-      eliminationRoutingEnabled: initialValues?.eliminationRoutingEnabled ?? true,
-      debitRoutingEnabled: initialValues?.debitRoutingEnabled ?? false,
-      simulateSaleEvent: initialValues?.simulateSaleEvent ?? false,
       srFluctuation: initialValues?.srFluctuation ?? defaultSRFluctuation,
       processorIncidents: initialValues?.processorIncidents ?? defaultProcessorIncidents,
       overallSuccessRate: initialValues?.overallSuccessRate ?? 0,
@@ -143,12 +133,10 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
         }
         onFormChange({ ...formData, structuredRule: rule });
       } else {
-        // Handle partial/invalid data for onFormChange if necessary, or pass as is
          onFormChange({ ...values, structuredRule: null } as FormValues);
       }
     });
 
-    // Initialize with current form values
     const initialFormValues = form.getValues();
      const initialParsed = formSchema.safeParse(initialFormValues);
       let initialRule: StructuredRule | null = null;
@@ -168,7 +156,7 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
 
     return () => subscription.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.watch, onFormChange, formSchema]);
+  }, [form.watch, onFormChange]); // formSchema not needed here
 
   const { control } = form;
 
@@ -335,7 +323,6 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
                               <FormControl><SelectTrigger><SelectValue placeholder="Select field" /></SelectTrigger></FormControl>
                               <SelectContent>
                                 <SelectItem value="paymentMethod">Payment Method</SelectItem>
-                                {/* <SelectItem value="amount">Amount</SelectItem>  Future: Add amount logic */}
                               </SelectContent>
                             </Select>
                             <FormMessage />
@@ -352,7 +339,6 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
                               <FormControl><SelectTrigger><SelectValue placeholder="Select operator" /></SelectTrigger></FormControl>
                               <SelectContent>
                                 <SelectItem value="EQUALS">Equals</SelectItem>
-                                {/* Add more operators if field is 'amount' */}
                               </SelectContent>
                             </Select>
                             <FormMessage />
@@ -400,15 +386,10 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
                   </CardContent>
                 </Card>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                  <div className="space-y-1">
-                    <FormField control={control} name="smartRoutingEnabled" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel className="text-sm">Smart Routing (SR)</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} size="sm" /></FormControl></FormItem> )} />
-                    <FormField control={control} name="eliminationRoutingEnabled" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel className="text-sm">Elimination Routing</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} size="sm" /></FormControl></FormItem> )} />
-                  </div>
-                  <div className="space-y-1">
-                    <FormField control={control} name="debitRoutingEnabled" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel className="text-sm">Debit-first Routing</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} size="sm" /></FormControl></FormItem> )} />
-                     <FormField control={control} name="simulateSaleEvent" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel className="text-sm">Simulate Sale Event (TPS Spike)</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} size="sm" /></FormControl></FormItem> )} />
-                  </div>
+                <div className="text-center mt-4">
+                  <p className="text-xs text-muted-foreground">
+                    Elimination routing (skipping downed processors or those with SR &lt; 50%) is always active.
+                  </p>
                 </div>
               </TabsContent>
 
