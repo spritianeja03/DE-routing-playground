@@ -15,6 +15,8 @@ interface StatsViewProps {
   processedPayments?: number;
   totalSuccessful?: number;
   totalFailed?: number;
+  processorStats?: Record<string, { successful: number; failed: number; volumeShareRaw: number }>;
+  totalProcessedForTable?: number;
 }
 
 const CHART_COLORS_HSL = {
@@ -32,30 +34,38 @@ export function StatsView({
   processedPayments = 0,
   totalSuccessful = 0,
   totalFailed = 0,
+  processorStats,
+  totalProcessedForTable = 0,
 }: StatsViewProps) {
-  const overallSR = currentControls?.overallSuccessRate ?? 0;
+  const overallSR = totalProcessedForTable > 0 ? (totalSuccessful / totalProcessedForTable) * 100 : 0;
   const effectiveTps = currentControls?.tps ?? 0;
 
-  const processorSRData = currentControls
-    ? PROCESSORS.map(proc => ({
-      processor: proc.name,
-      sr: currentControls.processorWiseSuccessRates[proc.id]?.sr ?? 0,
-      failureRate: currentControls.processorWiseSuccessRates[proc.id]?.failureRate ?? (100 - (currentControls.processorWiseSuccessRates[proc.id]?.sr ?? 0)),
-      volumeShare: currentControls.processorWiseSuccessRates[proc.id]?.volumeShare ?? 0,
-    }))
-    : PROCESSORS.map(proc => ({
-      processor: proc.name,
-      sr: 0,
-      failureRate: 100,
-      volumeShare: 0,
-    }));
+  const processorSRData = PROCESSORS.map(proc => {
+    const stats = processorStats ? processorStats[proc.id] : { successful: 0, failed: 0, volumeShareRaw: 0 };
+    const totalRoutedToProc = stats.volumeShareRaw;
+    
+    // For the table, SR is the *observed* SR based on cumulative simulation data
+    const observedSr = totalRoutedToProc > 0 ? (stats.successful / totalRoutedToProc) * 100 : 0;
+    const observedFailureRate = totalRoutedToProc > 0 ? (stats.failed / totalRoutedToProc) * 100 : (stats.volumeShareRaw > 0 ? 100 : 0) ;
+    const volumeShare = totalProcessedForTable > 0 ? (totalRoutedToProc / totalProcessedForTable) * 100 : 0;
 
-  const transactionDistributionData = currentControls
-    ? PROCESSORS.map((proc, index) => ({
-      name: proc.name,
-      value: currentControls.processorWiseSuccessRates[proc.id]?.volumeShare ?? 0,
-      fill: CHART_COLORS_HSL[chartColorKeys[index % chartColorKeys.length]],
-    })).filter(item => item.value > 0)
+    return {
+      processor: proc.name,
+      sr: observedSr, 
+      failureRate: observedFailureRate,
+      volumeShare: volumeShare,
+    };
+  });
+
+  const transactionDistributionData = currentControls && processorStats
+    ? PROCESSORS.map((proc, index) => {
+        const volShare = totalProcessedForTable > 0 ? ((processorStats[proc.id]?.volumeShareRaw ?? 0) / totalProcessedForTable) * 100 : 0;
+        return {
+          name: proc.name,
+          value: volShare,
+          fill: CHART_COLORS_HSL[chartColorKeys[index % chartColorKeys.length]],
+        }
+      }).filter(item => item.value > 0)
     : [];
 
   return (
@@ -68,7 +78,9 @@ export function StatsView({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{processedPayments.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">transactions simulated</p>
+            <p className="text-xs text-muted-foreground">
+                of {currentControls?.totalPayments.toLocaleString() || 'N/A'} target
+            </p>
           </CardContent>
         </Card>
         <Card className="shadow-md">
@@ -79,7 +91,7 @@ export function StatsView({
           <CardContent>
             <div className="text-2xl font-bold">{totalSuccessful.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
-              {processedPayments > 0 ? `${((totalSuccessful / processedPayments) * 100).toFixed(1)}% of processed` : ''}
+              {processedPayments > 0 ? `${((totalSuccessful / processedPayments) * 100).toFixed(1)}% of processed` : '0.0%'}
             </p>
           </CardContent>
         </Card>
@@ -91,7 +103,7 @@ export function StatsView({
           <CardContent>
             <div className="text-2xl font-bold">{totalFailed.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
-              {processedPayments > 0 ? `${((totalFailed / processedPayments) * 100).toFixed(1)}% of processed` : ''}
+              {processedPayments > 0 ? `${((totalFailed / processedPayments) * 100).toFixed(1)}% of processed` : '0.0%'}
             </p>
           </CardContent>
         </Card>

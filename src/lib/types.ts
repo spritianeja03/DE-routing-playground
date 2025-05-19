@@ -7,9 +7,7 @@ export interface ProcessorPaymentMethodMatrix {
   };
 }
 
-export interface SRFluctuation {
-  [processorId: string]: number; // Percentage 0-100
-}
+// SRFluctuation is removed
 
 export interface ProcessorIncidentStatus {
   [processorId: string]: number | null; // Timestamp of when incident ends, or null if no incident
@@ -38,18 +36,18 @@ export interface ControlsState {
   tps: number;
   selectedPaymentMethods: PaymentMethod[];
   processorMatrix: ProcessorPaymentMethodMatrix;
-  structuredRule: StructuredRule | null; // Replaces routingRulesText
-  srFluctuation: SRFluctuation;
+  structuredRule: StructuredRule | null; 
+  // srFluctuation: SRFluctuation; // Removed
   processorIncidents: ProcessorIncidentStatus;
   overallSuccessRate: number;
-  processorWiseSuccessRates: Record<string, { sr: number; volumeShare: number; failureRate: number }>;
+  processorWiseSuccessRates: Record<string, { sr: number; volumeShare: number; failureRate: number }>; // sr is now the input base SR
 }
 
 export interface ProcessorSuccessRate {
   processor: string;
-  sr: number;
-  failureRate: number;
-  volumeShare: number;
+  sr: number; // In StatsView, this will reflect the input SR from sliders
+  failureRate: number; // Derived from input SR
+  volumeShare: number; // Observed from simulation
 }
 
 // Types for Time Series Charts

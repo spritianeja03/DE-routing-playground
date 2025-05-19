@@ -17,7 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PAYMENT_METHODS, PROCESSORS, DEFAULT_PROCESSOR_AVAILABILITY } from '@/lib/constants';
-import type { ControlsState, PaymentMethod, ProcessorPaymentMethodMatrix, SRFluctuation, ProcessorIncidentStatus, StructuredRule, ConditionField, ConditionOperator } from '@/lib/types';
+import type { ControlsState, PaymentMethod, ProcessorPaymentMethodMatrix, ProcessorIncidentStatus, StructuredRule, ConditionField, ConditionOperator } from '@/lib/types';
 import { Settings2, TrendingUp, Zap, VenetianMaskIcon, AlertTriangle, Trash2 } from 'lucide-react';
 
 const defaultProcessorMatrix: ProcessorPaymentMethodMatrix = PROCESSORS.reduce((acc, proc) => {
@@ -29,11 +29,6 @@ const defaultProcessorMatrix: ProcessorPaymentMethodMatrix = PROCESSORS.reduce((
   return acc;
 }, {} as ProcessorPaymentMethodMatrix);
 
-
-const defaultSRFluctuation: SRFluctuation = PROCESSORS.reduce((acc, proc) => {
-  acc[proc.id] = 50;
-  return acc;
-}, {} as SRFluctuation);
 
 const defaultProcessorIncidents: ProcessorIncidentStatus = PROCESSORS.reduce((acc, proc) => {
   acc[proc.id] = null; // No incident active by default
@@ -48,9 +43,7 @@ const defaultProcessorWiseSuccessRates = PROCESSORS.reduce((acc, proc) => {
   else if (proc.id === 'payu') defaultSr = 88;
   else if (proc.id === 'fampay') defaultSr = 85;
 
-  const initialVolumeShare = Math.round(100 / PROCESSORS.length);
-
-  acc[proc.id] = { sr: defaultSr, volumeShare: initialVolumeShare, failureRate: 100 - defaultSr };
+  acc[proc.id] = { sr: defaultSr, volumeShare: 0, failureRate: 100 - defaultSr };
   return acc;
 }, {} as ControlsState['processorWiseSuccessRates']);
 
@@ -66,13 +59,13 @@ const formSchema = z.object({
   ruleConditionValue: z.custom<PaymentMethod>().optional(),
   ruleActionProcessorId: z.string().optional(),
 
-  srFluctuation: z.record(z.string(), z.number().min(0).max(100)),
+  // srFluctuation: z.record(z.string(), z.number().min(0).max(100)), // Removed
   processorIncidents: z.record(z.string(), z.number().nullable()),
   overallSuccessRate: z.number().min(0).max(100).optional(),
-  processorWiseSuccessRates: z.record(z.string(), z.object({
+  processorWiseSuccessRates: z.record(z.string(), z.object({ // sr here is the base input SR
     sr: z.number().min(0).max(100),
-    volumeShare: z.number().min(0).max(100),
-    failureRate: z.number().min(0).max(100),
+    volumeShare: z.number().min(0).max(100), // This will be output from simulation
+    failureRate: z.number().min(0).max(100), // This will be output (100-sr)
   })),
 });
 
@@ -82,12 +75,11 @@ export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule'> & { 
 interface BottomControlsPanelProps {
   onFormChange: (data: FormValues) => void;
   initialValues?: Partial<FormValues>;
-  isSimulationActive: boolean;
 }
 
 const BOTTOM_PANEL_HEIGHT = "350px";
 
-export function BottomControlsPanel({ onFormChange, initialValues, isSimulationActive }: BottomControlsPanelProps) {
+export function BottomControlsPanel({ onFormChange, initialValues }: BottomControlsPanelProps) {
   const form = useForm<z.infer<typeof formSchema>>({ 
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -101,9 +93,9 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
       ruleConditionValue: initialValues?.structuredRule?.condition.value ?? undefined,
       ruleActionProcessorId: initialValues?.structuredRule?.action.processorId ?? undefined,
 
-      srFluctuation: initialValues?.srFluctuation ?? defaultSRFluctuation,
+      // srFluctuation: initialValues?.srFluctuation ?? defaultSRFluctuation, // Removed
       processorIncidents: initialValues?.processorIncidents ?? defaultProcessorIncidents,
-      overallSuccessRate: initialValues?.overallSuccessRate ?? 0,
+      overallSuccessRate: initialValues?.overallSuccessRate ?? 0, // Output, not directly set here
       processorWiseSuccessRates: initialValues?.processorWiseSuccessRates ?? defaultProcessorWiseSuccessRates,
     },
   });
@@ -149,14 +141,21 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
                 action: { type: 'ROUTE_TO_PROCESSOR', processorId: initialFormData.ruleActionProcessorId }
             };
         }
-        onFormChange({ ...initialFormData, structuredRule: initialRule });
+        // Initialize form with default SRs for failure rate calculation as well
+        const initialSRs = { ...defaultProcessorWiseSuccessRates };
+        Object.keys(initialSRs).forEach(procId => {
+            initialSRs[procId].failureRate = 100 - initialSRs[procId].sr;
+        });
+        const formDataWithInitialSRs = {...initialFormData, processorWiseSuccessRates: initialSRs };
+
+
+        onFormChange({ ...formDataWithInitialSRs, structuredRule: initialRule });
       } else {
          onFormChange({ ...initialFormValues, structuredRule: null } as FormValues);
       }
 
     return () => subscription.unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.watch, onFormChange]); // formSchema not needed here
+  }, [form, onFormChange]); // form.watch, onFormChange, formSchema - removed formSchema for stability
 
   const { control } = form;
 
@@ -188,7 +187,7 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
                 <TabsTrigger value="general" className="text-xs md:text-sm"><Settings2 className="mr-1 h-4 w-4 md:mr-2" />General</TabsTrigger>
                 <TabsTrigger value="processors" className="text-xs md:text-sm"><VenetianMaskIcon className="mr-1 h-4 w-4 md:mr-2" />Processors</TabsTrigger>
                 <TabsTrigger value="routing" className="text-xs md:text-sm"><Zap className="mr-1 h-4 w-4 md:mr-2" />Routing</TabsTrigger>
-                <TabsTrigger value="sr-fluctuation" className="text-xs md:text-sm"><TrendingUp className="mr-1 h-4 w-4 md:mr-2" />SR & Incidents</TabsTrigger>
+                <TabsTrigger value="sr-incidents" className="text-xs md:text-sm"><TrendingUp className="mr-1 h-4 w-4 md:mr-2" />Rates & Incidents</TabsTrigger>
               </TabsList>
 
               <TabsContent value="general" className="pt-2">
@@ -388,25 +387,32 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
                 
                 <div className="text-center mt-4">
                   <p className="text-xs text-muted-foreground">
-                    Elimination routing (skipping downed processors or those with SR &lt; 50%) is always active.
+                    Elimination routing (skipping downed processors or those with base SR &lt; 50%) is always active.
                   </p>
                 </div>
               </TabsContent>
 
-              <TabsContent value="sr-fluctuation" className="pt-2 space-y-3">
+              <TabsContent value="sr-incidents" className="pt-2 space-y-3">
                 <Card>
-                  <CardHeader className="p-2"><CardTitle className="text-base">SR Fluctuation (Base SR defined per processor)</CardTitle><CardDescription className="text-xs">Adjust success rate +/-. 50 is neutral.</CardDescription></CardHeader>
+                  <CardHeader className="p-2">
+                    <CardTitle className="text-base">Processor Base Success Rates</CardTitle>
+                    <CardDescription className="text-xs">Set the base success rate (%) for each processor.</CardDescription>
+                  </CardHeader>
                   <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2 p-2">
                     {PROCESSORS.map(proc => (
                       <FormField
                         key={proc.id}
                         control={control}
-                        name={`srFluctuation.${proc.id}`}
+                        name={`processorWiseSuccessRates.${proc.id}.sr`}
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-xs">{proc.name} SR Fluct: {field.value}%</FormLabel>
+                            <FormLabel className="text-xs">{proc.name} SR: {field.value}%</FormLabel>
                             <FormControl>
-                              <Slider defaultValue={[field.value]} min={0} max={100} step={1} onValueChange={(value) => field.onChange(value[0])} />
+                              <Slider 
+                                defaultValue={[field.value]} 
+                                min={0} max={100} step={1} 
+                                onValueChange={(value) => field.onChange(value[0])} 
+                              />
                             </FormControl>
                           </FormItem>
                         )}
