@@ -17,7 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PAYMENT_METHODS, PROCESSORS, DEFAULT_PROCESSOR_AVAILABILITY, RULE_STRATEGY_NODES } from '@/lib/constants';
+import { PAYMENT_METHODS, PROCESSORS, DEFAULT_PROCESSOR_AVAILABILITY } from '@/lib/constants';
 import type { ControlsState, PaymentMethod, ProcessorPaymentMethodMatrix, SRFluctuation, ProcessorIncidentStatus } from '@/lib/types';
 import { Settings2, TrendingUp, Zap, VenetianMaskIcon, AlertTriangle } from 'lucide-react';
 
@@ -133,7 +133,7 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
     
     return () => subscription.unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.watch, onFormChange]); // form.getValues and formSchema can be added if they change, but typically they don't
+  }, [form.watch, onFormChange, formSchema, form]); 
 
   const { control } = form;
 
@@ -199,7 +199,7 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
                     render={() => (
                       <FormItem className="md:col-span-2">
                         <FormLabel>Payment Methods</FormLabel>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
                           {PAYMENT_METHODS.map((method) => (
                             <FormField
                               key={method}
@@ -349,7 +349,7 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
                         min="1"
                       />
                     </FormItem>
-                    <Button onClick={handleTriggerIncident} type="button" className="w-auto">
+                    <Button onClick={handleTriggerIncident} type="button" size="sm" className="w-auto">
                       <AlertTriangle className="mr-2 h-4 w-4" /> Trigger Incident
                     </Button>
                   </CardContent>
