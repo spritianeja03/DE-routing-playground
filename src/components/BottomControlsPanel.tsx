@@ -73,7 +73,6 @@ const formSchema = z.object({
     volumeShare: z.number().min(0).max(100),
     failureRate: z.number().min(0).max(100),
   })),
-  // New Intelligent Routing Parameters
   minAggregatesSize: z.number().min(1).max(100000),
   maxAggregatesSize: z.number().min(1).max(1000000),
   currentBlockThresholdMaxTotalCount: z.number().min(0).max(10000),
@@ -89,12 +88,11 @@ export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule'> & { 
 interface BottomControlsPanelProps {
   onFormChange: (data: FormValues) => void;
   initialValues?: Partial<FormValues>;
-  isSimulationActive: boolean;
 }
 
 const BOTTOM_PANEL_HEIGHT = "350px";
 
-export function BottomControlsPanel({ onFormChange, initialValues, isSimulationActive }: BottomControlsPanelProps) {
+export function BottomControlsPanel({ onFormChange, initialValues }: BottomControlsPanelProps) {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -112,11 +110,10 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
       overallSuccessRate: initialValues?.overallSuccessRate ?? 0,
       processorWiseSuccessRates: initialValues?.processorWiseSuccessRates ?? defaultProcessorWiseSuccessRates,
 
-      // Defaults for new Intelligent Routing Parameters
       minAggregatesSize: initialValues?.minAggregatesSize ?? 100,
       maxAggregatesSize: initialValues?.maxAggregatesSize ?? 1000,
       currentBlockThresholdMaxTotalCount: initialValues?.currentBlockThresholdMaxTotalCount ?? 10,
-      volumeSplit: initialValues?.volumeSplit ?? 100, // Default to 100% for intelligent routing
+      volumeSplit: initialValues?.volumeSplit ?? 100,
     },
   });
 
@@ -145,13 +142,11 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
         }
         onFormChange({ ...formData, structuredRule: rule } as FormValues);
       } else {
-         // if parsing fails, still call onFormChange with current values to reflect UI, but mark rule as null
          const currentFormValues = form.getValues();
          onFormChange({ ...currentFormValues, structuredRule: null, ...parsedValues.error.flatten().fieldErrors } as any);
       }
     });
 
-    // Initial call to onFormChange with default values
     const initialFormValues = form.getValues();
      const initialParsed = formSchema.safeParse(initialFormValues);
       let initialRule: StructuredRule | null = null;
@@ -166,7 +161,6 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
         }
         onFormChange({ ...initialFormData, structuredRule: initialRule } as FormValues);
       } else {
-        // This case should ideally not happen with static defaultValues
         onFormChange({ ...initialFormValues, structuredRule: null } as FormValues);
       }
 
@@ -298,8 +292,8 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
                               control={control}
                               name={`processorMatrix.${proc.id}.${method}`}
                               render={({ field }) => (
-                                <FormItem className="flex items-center justify-between py-0.5">
-                                  <FormLabel className="font-normal text-xs">{method}</FormLabel>
+                                <FormItem className="flex items-center py-0.5"> {/* Removed justify-between */}
+                                  <FormLabel className="font-normal text-xs mr-auto">{method}</FormLabel> {/* Added mr-auto */}
                                   <FormControl>
                                     <Switch checked={field.value ?? false} onCheckedChange={field.onChange} size="sm" />
                                   </FormControl>
@@ -595,3 +589,5 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
     </div>
   );
 }
+
+    
