@@ -35,23 +35,25 @@ const defaultProcessorIncidents: ProcessorIncidentStatus = PROCESSORS.reduce((ac
   return acc;
 }, {} as ProcessorIncidentStatus);
 
-const defaultProcessorWiseSuccessRates = PROCESSORS.reduce((acc, proc) => {
-  let defaultSr = 85;
-  let defaultSrDeviation = 2;
-  if (proc.id === 'stripe') { defaultSr = 92; defaultSrDeviation = 2;}
-  else if (proc.id === 'adyen') { defaultSr = 90; defaultSrDeviation = 3;}
-  else if (proc.id === 'paypal') { defaultSr = 88; defaultSrDeviation = 4;}
-  else if (proc.id === 'worldpay') { defaultSr = 86; defaultSrDeviation = 2;}
-  else if (proc.id === 'checkoutcom') { defaultSr = 91; defaultSrDeviation = 3;}
+const getDefaultProcessorWiseSuccessRates = (): ControlsState['processorWiseSuccessRates'] => {
+  return PROCESSORS.reduce((acc, proc) => {
+    let defaultSr = 85;
+    let defaultSrDeviation = 2; // Default deviation
+    if (proc.id === 'stripe') { defaultSr = 92; defaultSrDeviation = 2;}
+    else if (proc.id === 'adyen') { defaultSr = 90; defaultSrDeviation = 3;}
+    else if (proc.id === 'paypal') { defaultSr = 88; defaultSrDeviation = 4;}
+    else if (proc.id === 'worldpay') { defaultSr = 86; defaultSrDeviation = 2;}
+    else if (proc.id === 'checkoutcom') { defaultSr = 91; defaultSrDeviation = 3;}
 
-  acc[proc.id] = {
-    sr: defaultSr,
-    srDeviation: defaultSrDeviation,
-    volumeShare: 0,
-    failureRate: 100 - defaultSr
-  };
-  return acc;
-}, {} as ControlsState['processorWiseSuccessRates']);
+    acc[proc.id] = {
+      sr: defaultSr,
+      srDeviation: defaultSrDeviation,
+      volumeShare: 0,
+      failureRate: 100 - defaultSr
+    };
+    return acc;
+  }, {} as ControlsState['processorWiseSuccessRates']);
+};
 
 
 const formSchema = z.object({
@@ -88,11 +90,12 @@ export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule'> & { 
 interface BottomControlsPanelProps {
   onFormChange: (data: FormValues) => void;
   initialValues?: Partial<FormValues>;
+  isSimulationActive: boolean;
 }
 
 const BOTTOM_PANEL_HEIGHT = "350px";
 
-export function BottomControlsPanel({ onFormChange, initialValues }: BottomControlsPanelProps) {
+export function BottomControlsPanel({ onFormChange, initialValues, isSimulationActive }: BottomControlsPanelProps) {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -108,7 +111,7 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
 
       processorIncidents: initialValues?.processorIncidents ?? defaultProcessorIncidents,
       overallSuccessRate: initialValues?.overallSuccessRate ?? 0,
-      processorWiseSuccessRates: initialValues?.processorWiseSuccessRates ?? defaultProcessorWiseSuccessRates,
+      processorWiseSuccessRates: initialValues?.processorWiseSuccessRates ?? getDefaultProcessorWiseSuccessRates(),
 
       minAggregatesSize: initialValues?.minAggregatesSize ?? 100,
       maxAggregatesSize: initialValues?.maxAggregatesSize ?? 1000,
@@ -143,7 +146,24 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
         onFormChange({ ...formData, structuredRule: rule } as FormValues);
       } else {
          const currentFormValues = form.getValues();
-         onFormChange({ ...currentFormValues, structuredRule: null, ...parsedValues.error.flatten().fieldErrors } as any);
+         // When form is invalid, still pass the current values but structuredRule might be null or based on what's valid
+         // We'll keep the existing logic for rule construction but ensure onFormChange is always called.
+         let rule: StructuredRule | null = null;
+         if (currentFormValues.ruleConditionField && currentFormValues.ruleConditionOperator && currentFormValues.ruleConditionValue && currentFormValues.ruleActionProcessorId) {
+          rule = {
+            id: 'rule1',
+            condition: {
+              field: currentFormValues.ruleConditionField,
+              operator: currentFormValues.ruleConditionOperator,
+              value: currentFormValues.ruleConditionValue,
+            },
+            action: {
+              type: 'ROUTE_TO_PROCESSOR',
+              processorId: currentFormValues.ruleActionProcessorId,
+            },
+          };
+        }
+         onFormChange({ ...currentFormValues, structuredRule: rule, ...parsedValues.error.flatten().fieldErrors } as any);
       }
     });
 
@@ -292,8 +312,8 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                               control={control}
                               name={`processorMatrix.${proc.id}.${method}`}
                               render={({ field }) => (
-                                <FormItem className="flex items-center py-0.5"> {/* Removed justify-between */}
-                                  <FormLabel className="font-normal text-xs mr-auto">{method}</FormLabel> {/* Added mr-auto */}
+                                <FormItem className="flex items-center py-0.5">
+                                  <FormLabel className="font-normal text-xs mr-auto">{method}</FormLabel>
                                   <FormControl>
                                     <Switch checked={field.value ?? false} onCheckedChange={field.onChange} size="sm" />
                                   </FormControl>
@@ -401,7 +421,7 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                         <BrainCircuit className="mr-2 h-5 w-5 text-primary" />
                         <CardTitle className="text-base">Intelligent Routing Parameters</CardTitle>
                       </div>
-                    <CardDescription className="text-xs pt-1">Configure parameters for dynamic routing decisions.</CardDescription>
+                    <CardDescription className="text-xs pt-1">Configure parameters for dynamic routing decisions. Elimination routing (skipping downed or low SR processors) is always active.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -480,12 +500,6 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                     </div>
                   </CardContent>
                 </Card>
-
-                <div className="text-center mt-4">
-                  <p className="text-xs text-muted-foreground">
-                    Elimination routing (skipping downed processors or those with base SR &lt; 50%) is always active.
-                  </p>
-                </div>
               </TabsContent>
 
               <TabsContent value="sr-incidents" className="pt-2 space-y-3">
@@ -534,7 +548,7 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                             <FormControl>
                               <Slider
                                 defaultValue={[field.value]}
-                                min={0} max={20} step={1} // e.g. 0-20% deviation
+                                min={0} max={20} step={1}
                                 onValueChange={(value) => field.onChange(value[0])}
                               />
                             </FormControl>
@@ -576,7 +590,7 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                         min="1"
                       />
                     </FormItem>
-                    <Button onClick={handleTriggerIncident} type="button" size="sm" className="w-auto">
+                    <Button onClick={handleTriggerIncident} variant="primary" type="button" size="sm" className="w-auto">
                       <AlertTriangle className="mr-2 h-4 w-4" /> Trigger Incident
                     </Button>
                   </CardContent>
@@ -589,5 +603,3 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
     </div>
   );
 }
-
-    
