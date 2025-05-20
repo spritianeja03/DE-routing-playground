@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PAYMENT_METHODS, PROCESSORS, DEFAULT_PROCESSOR_AVAILABILITY } from '@/lib/constants';
 import type { ControlsState, PaymentMethod, ProcessorPaymentMethodMatrix, ProcessorIncidentStatus, StructuredRule, ConditionField, ConditionOperator } from '@/lib/types';
-import { Settings2, TrendingUp, Zap, VenetianMaskIcon, AlertTriangle, Trash2 } from 'lucide-react';
+import { Settings2, TrendingUp, Zap, VenetianMaskIcon, AlertTriangle, Trash2, Percent } from 'lucide-react';
 
 const defaultProcessorMatrix: ProcessorPaymentMethodMatrix = PROCESSORS.reduce((acc, proc) => {
   acc[proc.id] = DEFAULT_PROCESSOR_AVAILABILITY[proc.id] ||
@@ -31,19 +31,25 @@ const defaultProcessorMatrix: ProcessorPaymentMethodMatrix = PROCESSORS.reduce((
 
 
 const defaultProcessorIncidents: ProcessorIncidentStatus = PROCESSORS.reduce((acc, proc) => {
-  acc[proc.id] = null; // No incident active by default
+  acc[proc.id] = null; 
   return acc;
 }, {} as ProcessorIncidentStatus);
 
 const defaultProcessorWiseSuccessRates = PROCESSORS.reduce((acc, proc) => {
   let defaultSr = 85;
-  if (proc.id === 'stripe') defaultSr = 90;
-  else if (proc.id === 'razorpay') defaultSr = 95;
-  else if (proc.id === 'cashfree') defaultSr = 92;
-  else if (proc.id === 'payu') defaultSr = 88;
-  else if (proc.id === 'fampay') defaultSr = 85;
+  // Assign some default SRs for the new processors
+  if (proc.id === 'stripe') defaultSr = 92;
+  else if (proc.id === 'adyen') defaultSr = 90;
+  else if (proc.id === 'paypal') defaultSr = 88;
+  else if (proc.id === 'worldpay') defaultSr = 86;
+  else if (proc.id === 'checkoutcom') defaultSr = 91;
 
-  acc[proc.id] = { sr: defaultSr, volumeShare: 0, failureRate: 100 - defaultSr };
+  acc[proc.id] = { 
+    sr: defaultSr, 
+    srDeviation: 2, // Default deviation of +/- 2 percentage points
+    volumeShare: 0, 
+    failureRate: 100 - defaultSr 
+  };
   return acc;
 }, {} as ControlsState['processorWiseSuccessRates']);
 
@@ -53,19 +59,19 @@ const formSchema = z.object({
   tps: z.number().min(1).max(10000),
   selectedPaymentMethods: z.array(z.string()).min(1, "Please select at least one payment method."),
   processorMatrix: z.record(z.string(), z.record(z.string(), z.boolean())),
-  // Structured rule fields
+  
   ruleConditionField: z.custom<ConditionField>().optional(),
   ruleConditionOperator: z.custom<ConditionOperator>().optional(),
   ruleConditionValue: z.custom<PaymentMethod>().optional(),
   ruleActionProcessorId: z.string().optional(),
 
-  // srFluctuation: z.record(z.string(), z.number().min(0).max(100)), // Removed
   processorIncidents: z.record(z.string(), z.number().nullable()),
   overallSuccessRate: z.number().min(0).max(100).optional(),
-  processorWiseSuccessRates: z.record(z.string(), z.object({ // sr here is the base input SR
+  processorWiseSuccessRates: z.record(z.string(), z.object({ 
     sr: z.number().min(0).max(100),
-    volumeShare: z.number().min(0).max(100), // This will be output from simulation
-    failureRate: z.number().min(0).max(100), // This will be output (100-sr)
+    srDeviation: z.number().min(0).max(50).describe("Success rate deviation in absolute percentage points, e.g., 5 means +/- 5%."),
+    volumeShare: z.number().min(0).max(100), 
+    failureRate: z.number().min(0).max(100),
   })),
 });
 
@@ -93,15 +99,14 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
       ruleConditionValue: initialValues?.structuredRule?.condition.value ?? undefined,
       ruleActionProcessorId: initialValues?.structuredRule?.action.processorId ?? undefined,
 
-      // srFluctuation: initialValues?.srFluctuation ?? defaultSRFluctuation, // Removed
       processorIncidents: initialValues?.processorIncidents ?? defaultProcessorIncidents,
-      overallSuccessRate: initialValues?.overallSuccessRate ?? 0, // Output, not directly set here
+      overallSuccessRate: initialValues?.overallSuccessRate ?? 0, 
       processorWiseSuccessRates: initialValues?.processorWiseSuccessRates ?? defaultProcessorWiseSuccessRates,
     },
   });
 
   const [selectedIncidentProcessor, setSelectedIncidentProcessor] = useState<string>(PROCESSORS[0].id);
-  const [incidentDuration, setIncidentDuration] = useState<number>(10); // Default 10 seconds
+  const [incidentDuration, setIncidentDuration] = useState<number>(10); 
 
   useEffect(() => {
     const subscription = form.watch((values) => {
@@ -111,7 +116,7 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
         let rule: StructuredRule | null = null;
         if (formData.ruleConditionField && formData.ruleConditionOperator && formData.ruleConditionValue && formData.ruleActionProcessorId) {
           rule = {
-            id: 'rule1', // Static ID for single rule
+            id: 'rule1', 
             condition: {
               field: formData.ruleConditionField,
               operator: formData.ruleConditionOperator,
@@ -141,13 +146,12 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                 action: { type: 'ROUTE_TO_PROCESSOR', processorId: initialFormData.ruleActionProcessorId }
             };
         }
-        // Initialize form with default SRs for failure rate calculation as well
+        
         const initialSRs = { ...defaultProcessorWiseSuccessRates };
         Object.keys(initialSRs).forEach(procId => {
             initialSRs[procId].failureRate = 100 - initialSRs[procId].sr;
         });
         const formDataWithInitialSRs = {...initialFormData, processorWiseSuccessRates: initialSRs };
-
 
         onFormChange({ ...formDataWithInitialSRs, structuredRule: initialRule });
       } else {
@@ -155,7 +159,7 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
       }
 
     return () => subscription.unsubscribe();
-  }, [form, onFormChange]); // form.watch, onFormChange, formSchema - removed formSchema for stability
+  }, [form, onFormChange]); 
 
   const { control } = form;
 
@@ -396,7 +400,7 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                 <Card>
                   <CardHeader className="p-2">
                     <CardTitle className="text-base">Processor Base Success Rates</CardTitle>
-                    <CardDescription className="text-xs">Set the base success rate (%) for each processor.</CardDescription>
+                    <CardDescription className="text-xs">Set the target mean success rate (%) for each processor.</CardDescription>
                   </CardHeader>
                   <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2 p-2">
                     {PROCESSORS.map(proc => (
@@ -406,11 +410,39 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                         name={`processorWiseSuccessRates.${proc.id}.sr`}
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-xs">{proc.name} SR: {field.value}%</FormLabel>
+                            <FormLabel className="text-xs">{proc.name} Base SR: {field.value}%</FormLabel>
                             <FormControl>
                               <Slider 
                                 defaultValue={[field.value]} 
                                 min={0} max={100} step={1} 
+                                onValueChange={(value) => field.onChange(value[0])} 
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    ))}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="p-2">
+                    <CardTitle className="text-base">Success Rate Deviation</CardTitle>
+                    <CardDescription className="text-xs">Set SR deviation (+/- percentage points) for randomness.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2 p-2">
+                    {PROCESSORS.map(proc => (
+                      <FormField
+                        key={`${proc.id}-deviation`}
+                        control={control}
+                        name={`processorWiseSuccessRates.${proc.id}.srDeviation`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">{proc.name} SR Deviation: +/- {field.value}%</FormLabel>
+                            <FormControl>
+                              <Slider 
+                                defaultValue={[field.value]} 
+                                min={0} max={20} step={1} // e.g. 0-20% deviation
                                 onValueChange={(value) => field.onChange(value[0])} 
                               />
                             </FormControl>

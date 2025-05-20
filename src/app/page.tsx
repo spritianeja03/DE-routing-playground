@@ -17,17 +17,19 @@ import { PROCESSORS, PAYMENT_METHODS, RULE_STRATEGY_NODES, DEFAULT_PROCESSOR_AVA
 import { useToast } from '@/hooks/use-toast';
 import { summarizeSimulation } from '@/ai/flows/summarize-simulation-flow';
 
-const SIMULATION_INTERVAL_MS = 1000; // Process transactions every 1 second
+const SIMULATION_INTERVAL_MS = 1000; 
 
 const getDefaultProcessorWiseSuccessRates = (): ControlsState['processorWiseSuccessRates'] => {
   return PROCESSORS.reduce((acc, proc) => {
     let defaultSr = 85;
-    if (proc.id === 'stripe') defaultSr = 90;
-    else if (proc.id === 'razorpay') defaultSr = 95;
-    else if (proc.id === 'cashfree') defaultSr = 92;
-    else if (proc.id === 'payu') defaultSr = 88;
-    else if (proc.id === 'fampay') defaultSr = 85;
-    acc[proc.id] = { sr: defaultSr, volumeShare: 0, failureRate: 100 - defaultSr };
+    let defaultSrDeviation = 2; // Default deviation
+    if (proc.id === 'stripe') { defaultSr = 92; defaultSrDeviation = 2;}
+    else if (proc.id === 'adyen') { defaultSr = 90; defaultSrDeviation = 3;}
+    else if (proc.id === 'paypal') { defaultSr = 88; defaultSrDeviation = 4;}
+    else if (proc.id === 'worldpay') { defaultSr = 86; defaultSrDeviation = 2;}
+    else if (proc.id === 'checkoutcom') { defaultSr = 91; defaultSrDeviation = 3;}
+    
+    acc[proc.id] = { sr: defaultSr, srDeviation: defaultSrDeviation, volumeShare: 0, failureRate: 100 - defaultSr };
     return acc;
   }, {} as ControlsState['processorWiseSuccessRates']);
 };
@@ -47,7 +49,6 @@ export default function HomePage() {
   const [isGeneratingSummary, setIsGeneratingSummary] = useState<boolean>(false);
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState<boolean>(false);
 
-
   const simulationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   const accumulatedProcessorStatsRef = useRef<Record<string, { successful: number; failed: number; volumeShareRaw: number }>>(
@@ -64,7 +65,6 @@ export default function HomePage() {
     setCurrentControls(data);
   }, []);
 
-
   const resetSimulationState = () => {
     setProcessedPaymentsCount(0);
     setSimulationTimeStep(0);
@@ -73,8 +73,7 @@ export default function HomePage() {
     setOverallSuccessRateHistory([]);
     setSimulationSummary(null);
     setIsGeneratingSummary(false);
-    // setIsSummaryModalOpen(false); // Modal should close itself or be closed explicitly
-
+    
     accumulatedProcessorStatsRef.current = PROCESSORS.reduce((acc, proc) => {
       acc[proc.id] = { successful: 0, failed: 0, volumeShareRaw: 0 };
       return acc;
@@ -87,7 +86,6 @@ export default function HomePage() {
         acc[proc.id] = null; 
         return acc;
       }, {} as FormValues['processorIncidents']);
-
 
       setCurrentControls(prevControls => {
         if (!prevControls) return null; 
@@ -117,12 +115,11 @@ export default function HomePage() {
 
   const generateAndSetSummary = async () => {
     if (!currentControls || processedPaymentsCount === 0) {
-      // Don't open modal if no simulation was run meaningfully
       return;
     }
     setIsGeneratingSummary(true);
-    setSimulationSummary(null); // Clear previous summary before generating new one
-    setIsSummaryModalOpen(true); // Open modal immediately, it will show loading state
+    setSimulationSummary(null); 
+    setIsSummaryModalOpen(true); 
 
     const processorMetrics: AISummaryProcessorMetric[] = PROCESSORS.map(proc => {
       const stats = accumulatedProcessorStatsRef.current[proc.id];
@@ -132,7 +129,7 @@ export default function HomePage() {
         name: proc.name,
         volume: totalRoutedToProc,
         observedSr: parseFloat(observedSr.toFixed(2)),
-        baseSr: currentControls.processorWiseSuccessRates[proc.id]?.sr ?? 0,
+        baseSr: currentControls.processorWiseSuccessRates[proc.id]?.sr ?? 0, // This is the target mean SR
       };
     });
 
@@ -160,7 +157,7 @@ export default function HomePage() {
       setSimulationSummary(result.summaryText);
     } catch (error) {
       console.error("Error generating simulation summary:", error);
-      setSimulationSummary("Failed to generate AI summary. Please check the console for errors and try again."); // Provide a more informative error in the modal
+      setSimulationSummary("Failed to generate AI summary. Please check the console for errors and try again."); 
       toast({
         title: "AI Summary Error",
         description: "Could not generate the simulation summary.",
@@ -170,7 +167,6 @@ export default function HomePage() {
       setIsGeneratingSummary(false);
     }
   };
-
 
   const processTransactionBatch = useCallback(() => {
     if (!currentControls) {
@@ -192,7 +188,7 @@ export default function HomePage() {
       processorMatrix,
       structuredRule,
       processorIncidents,
-      processorWiseSuccessRates: inputProcessorSRs, 
+      processorWiseSuccessRates: inputProcessorConfigs, 
       tps: baseTps,
     } = currentControls;
 
@@ -205,7 +201,7 @@ export default function HomePage() {
         description: `Processed ${totalPayments} payments. Overall SR: ${finalOverallSR.toFixed(2)}%`,
         duration: 5000,
       });
-      generateAndSetSummary(); // Generate summary on completion
+      generateAndSetSummary(); 
       return;
     }
 
@@ -221,26 +217,24 @@ export default function HomePage() {
     const transactionsThisInterval = Math.max(1, Math.floor(effectiveTps * (SIMULATION_INTERVAL_MS / 1000)));
     const remainingPayments = totalPayments - processedPaymentsCount;
     const paymentsToProcessThisBatch = Math.min(transactionsThisInterval, remainingPayments);
-
     
-    const processorEffectiveSRsForProbability: Record<string, number> = {};
+    // Calculate mean effective SR for routing decisions
+    const processorMeanEffectiveSRs: Record<string, number> = {};
     PROCESSORS.forEach(proc => {
-      const baseSR = inputProcessorSRs[proc.id]?.sr ?? 85; 
-      let effectiveSR = baseSR / 100.0; 
+      const baseSR = inputProcessorConfigs[proc.id]?.sr ?? 85; 
+      let meanEffectiveSR = baseSR / 100.0; 
       
       const incidentEndTime = processorIncidents[proc.id];
       const isIncidentActive = incidentEndTime !== null && Date.now() < incidentEndTime;
 
       if (isIncidentActive) {
-        effectiveSR *= 0.1; 
+        meanEffectiveSR *= 0.1; 
       }
-      processorEffectiveSRsForProbability[proc.id] = Math.max(0, Math.min(1, effectiveSR));
+      processorMeanEffectiveSRs[proc.id] = Math.max(0, Math.min(1, meanEffectiveSR));
     });
-
     
     const successesThisBatch: Record<string, number> = PROCESSORS.reduce((acc,p) => ({...acc, [p.id]:0}), {});
     const attemptsThisBatch: Record<string, number> = PROCESSORS.reduce((acc,p) => ({...acc, [p.id]:0}), {});
-
 
     for (let i = 0; i < paymentsToProcessThisBatch; i++) {
       const txnIndex = processedPaymentsCount + i;
@@ -252,7 +246,6 @@ export default function HomePage() {
 
       let strategyApplied = RULE_STRATEGY_NODES.STANDARD_ROUTING;
       let chosenProcessor: Processor | undefined = undefined;
-
       
       if (structuredRule) {
         const rule = structuredRule as StructuredRule;
@@ -270,34 +263,47 @@ export default function HomePage() {
         }
       }
       
-      
       if (!chosenProcessor) {
         const initialCount = candidateProcessors.length;
         candidateProcessors = candidateProcessors.filter(proc => {
           const incidentEndTime = processorIncidents[proc.id];
           const isIncidentActive = incidentEndTime !== null && Date.now() < incidentEndTime;
-          
-          const srTooLow = (processorEffectiveSRsForProbability[proc.id] * 100) < 50; 
+          const srTooLow = (processorMeanEffectiveSRs[proc.id] * 100) < 50; 
           return !isIncidentActive && !srTooLow;
         });
         if(candidateProcessors.length < initialCount && candidateProcessors.length > 0) { 
             strategyApplied = RULE_STRATEGY_NODES.ELIMINATION_APPLIED; 
         }
       }
-
       
       if (!chosenProcessor && candidateProcessors.length > 0) {
-          candidateProcessors.sort((a, b) => processorEffectiveSRsForProbability[b.id] - processorEffectiveSRsForProbability[a.id]);
+          candidateProcessors.sort((a, b) => processorMeanEffectiveSRs[b.id] - processorMeanEffectiveSRs[a.id]);
           chosenProcessor = candidateProcessors[0]; 
           strategyApplied = strategyApplied === RULE_STRATEGY_NODES.ELIMINATION_APPLIED ? RULE_STRATEGY_NODES.ELIMINATION_APPLIED : RULE_STRATEGY_NODES.STANDARD_ROUTING; 
       }
-
 
       if (chosenProcessor) {
         accumulatedProcessorStatsRef.current[chosenProcessor.id].volumeShareRaw++;
         attemptsThisBatch[chosenProcessor.id] = (attemptsThisBatch[chosenProcessor.id] || 0) + 1;
 
-        const success = Math.random() < processorEffectiveSRsForProbability[chosenProcessor.id];
+        // Apply SR deviation for this specific transaction
+        const baseSrPercent = inputProcessorConfigs[chosenProcessor.id]?.sr ?? 85;
+        const deviationPercentagePoints = inputProcessorConfigs[chosenProcessor.id]?.srDeviation ?? 0;
+        const randomDeviationFactor = (Math.random() * 2 - 1); // -1 to 1
+        const actualDeviation = randomDeviationFactor * deviationPercentagePoints;
+        let srForThisTxn = baseSrPercent + actualDeviation;
+
+        // Apply incident penalty
+        const incidentEndTime = processorIncidents[chosenProcessor.id];
+        const isIncidentActive = incidentEndTime !== null && Date.now() < incidentEndTime;
+        if (isIncidentActive) {
+          srForThisTxn *= 0.1; // Heavy penalty for active incident
+        }
+        srForThisTxn = Math.max(0, Math.min(100, srForThisTxn)); // Clamp to 0-100%
+        
+        const successProbability = srForThisTxn / 100.0;
+        const success = Math.random() < successProbability;
+
         if (success) {
           accumulatedProcessorStatsRef.current[chosenProcessor.id].successful++;
           successesThisBatch[chosenProcessor.id] = (successesThisBatch[chosenProcessor.id] || 0) + 1;
@@ -318,30 +324,28 @@ export default function HomePage() {
 
     const overallSR = newProcessedCount > 0 ? (accumulatedGlobalStatsRef.current.totalSuccessful / newProcessedCount) * 100 : 0;
     
-    
     const updatedProcessorSRsUi = { ...currentControls.processorWiseSuccessRates };
     PROCESSORS.forEach(proc => {
       const stats = accumulatedProcessorStatsRef.current[proc.id];
       const totalRoutedToProc = stats.volumeShareRaw;
       
-      const procSR_cumulative = totalRoutedToProc > 0 ? (stats.successful / totalRoutedToProc) * 100 : 0; // This is observed
+      const procSR_cumulative_observed = totalRoutedToProc > 0 ? (stats.successful / totalRoutedToProc) * 100 : 0; 
       const procVolumeShare = newProcessedCount > 0 ? (totalRoutedToProc / newProcessedCount) * 100 : 0;
 
       updatedProcessorSRsUi[proc.id] = {
-        sr: inputProcessorSRs[proc.id]?.sr ?? 0, // Keep the base SR as input
+        sr: inputProcessorConfigs[proc.id]?.sr ?? 0, // Keep base SR
+        srDeviation: inputProcessorConfigs[proc.id]?.srDeviation ?? 0, // Keep deviation
         volumeShare: parseFloat(procVolumeShare.toFixed(2)) || 0,
-        failureRate: parseFloat((100 - procSR_cumulative).toFixed(2)) || 0, // Failure rate based on observed
+        failureRate: parseFloat((100 - procSR_cumulative_observed).toFixed(2)) || 0, 
       };
     });
-
     
     const currentSuccessRateDataPoint: Record<string, number | string> = { time: newTimeStep };
     PROCESSORS.forEach(proc => {
       currentSuccessRateDataPoint[proc.id] = attemptsThisBatch[proc.id] > 0 ? parseFloat(((successesThisBatch[proc.id] / attemptsThisBatch[proc.id]) * 100).toFixed(2)) : 0;
     });
     setSuccessRateHistory(prev => [...prev, currentSuccessRateDataPoint as ProcessorMetricsHistory[number]]);
-    
-    
+        
     const currentVolumeDataPoint: Record<string, number | string> = { time: newTimeStep };
     PROCESSORS.forEach(proc => {
       currentVolumeDataPoint[proc.id] = accumulatedProcessorStatsRef.current[proc.id].volumeShareRaw; 
@@ -350,18 +354,17 @@ export default function HomePage() {
 
     setOverallSuccessRateHistory(prev => [...prev, { time: newTimeStep, overallSR: parseFloat(overallSR.toFixed(2)) || 0 }]);
 
-
     setCurrentControls(prevControls => {
        if (!prevControls) return null;
        return {
         ...prevControls, 
         overallSuccessRate: parseFloat(overallSR.toFixed(2)) || 0,
         tps: effectiveTps, 
-        processorWiseSuccessRates: updatedProcessorSRsUi, // UI state for table display needs observed rates here.
+        processorWiseSuccessRates: updatedProcessorSRsUi, 
        }
     });
 
-  }, [currentControls, simulationState, processedPaymentsCount, toast, setCurrentControls, simulationTimeStep]);
+  }, [currentControls, simulationState, processedPaymentsCount, toast, setCurrentControls, simulationTimeStep, generateAndSetSummary]); // Added generateAndSetSummary to deps
 
   useEffect(() => {
     if (simulationState === 'running') {
@@ -409,9 +412,10 @@ export default function HomePage() {
     if (processedPaymentsCount > 0) {
       generateAndSetSummary();
     }
-    resetSimulationState(); 
-    toast({ title: "Simulation Stopped & Reset", duration: 3000 });
-  }, [toast, processedPaymentsCount]); 
+    // Do not resetSimulationState() immediately here, allow summary to generate from existing data.
+    // Resetting can happen on next "Start" if it's 'idle'
+    toast({ title: "Simulation Stopped", description: "Summary generated if applicable.", duration: 3000 });
+  }, [toast, processedPaymentsCount, generateAndSetSummary]); 
 
   const [activeTab, setActiveTab] = useState("analytics");
 
