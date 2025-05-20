@@ -42,8 +42,8 @@ const getDefaultProcessorWiseSuccessRates = (): ControlsState['processorWiseSucc
     if (proc.id === 'stripe') { defaultSr = 92; defaultSrDeviation = 2;}
     else if (proc.id === 'adyen') { defaultSr = 90; defaultSrDeviation = 3;}
     else if (proc.id === 'paypal') { defaultSr = 88; defaultSrDeviation = 4;}
-    else if (proc.id === 'worldpay') { defaultSr = 86; defaultSrDeviation = 2;}
-    else if (proc.id === 'checkoutcom') { defaultSr = 91; defaultSrDeviation = 3;}
+    else if (proc.id === 'worldpay') { defaultSr = 86; defaultSrDeviation = 6;} // Updated
+    else if (proc.id === 'checkoutcom') { defaultSr = 91; defaultSrDeviation = 5;} // Updated
 
     acc[proc.id] = {
       sr: defaultSr,
@@ -90,12 +90,11 @@ export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule'> & { 
 interface BottomControlsPanelProps {
   onFormChange: (data: FormValues) => void;
   initialValues?: Partial<FormValues>;
-  isSimulationActive: boolean;
 }
 
 const BOTTOM_PANEL_HEIGHT = "350px";
 
-export function BottomControlsPanel({ onFormChange, initialValues, isSimulationActive }: BottomControlsPanelProps) {
+export function BottomControlsPanel({ onFormChange, initialValues }: BottomControlsPanelProps) {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -603,3 +602,4 @@ export function BottomControlsPanel({ onFormChange, initialValues, isSimulationA
     </div>
   );
 }
+
