@@ -47,6 +47,7 @@ export default {
   			},
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',
+        'input-border': 'hsl(var(--input-border))',
   			ring: 'hsl(var(--ring))',
   			chart: {
   				'1': 'hsl(var(--chart-1))',
@@ -71,6 +72,20 @@ export default {
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
   		},
+      boxShadow: {
+        // Neumorphic convex shadows
+        'sm': '3px 3px 6px hsl(var(--shadow-dark-color-hsl)), -3px -3px 6px hsl(var(--shadow-light-color-hsl))',
+        'DEFAULT': '5px 5px 10px hsl(var(--shadow-dark-color-hsl)), -5px -5px 10px hsl(var(--shadow-light-color-hsl))', // 'shadow' or 'shadow-md'
+        'md': '5px 5px 10px hsl(var(--shadow-dark-color-hsl)), -5px -5px 10px hsl(var(--shadow-light-color-hsl))',
+        'lg': '8px 8px 15px hsl(var(--shadow-dark-color-hsl)), -8px -8px 15px hsl(var(--shadow-light-color-hsl))',
+        'xl': '12px 12px 24px hsl(var(--shadow-dark-color-hsl)), -12px -12px 24px hsl(var(--shadow-light-color-hsl))',
+        '2xl': '16px 16px 30px hsl(var(--shadow-dark-color-hsl)), -16px -16px 30px hsl(var(--shadow-light-color-hsl))',
+        // Neumorphic concave (inset) shadows
+        'inner-sm': 'inset 3px 3px 6px hsl(var(--shadow-dark-color-hsl)), inset -3px -3px 6px hsl(var(--shadow-light-color-hsl))',
+        'inner': 'inset 5px 5px 10px hsl(var(--shadow-dark-color-hsl)), inset -5px -5px 10px hsl(var(--shadow-light-color-hsl))',
+        'inner-md': 'inset 5px 5px 10px hsl(var(--shadow-dark-color-hsl)), inset -5px -5px 10px hsl(var(--shadow-light-color-hsl))',
+        'inner-lg': 'inset 8px 8px 15px hsl(var(--shadow-dark-color-hsl)), inset -8px -8px 15px hsl(var(--shadow-light-color-hsl))',
+      },
   		keyframes: {
   			'accordion-down': {
   				from: {

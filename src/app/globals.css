@@ -23,13 +23,13 @@
     --border: 0 0% 89.8%;
     --input: 0 0% 89.8%;
     --ring: 207 90% 54%; 
-    --radius: 0.75rem; /* Increased for more rounded look */
+    --radius: 0.75rem;
 
-    --chart-1: 25 90% 60%; /* Orange */
-    --chart-2: 0 80% 65%;   /* Red */
-    --chart-3: 35 85% 65%; /* Lighter Orange */
-    --chart-4: 200 80% 60%;/* Teal */
-    --chart-5: 300 80% 70%;/* Pink */
+    --chart-1: 25 90% 60%;
+    --chart-2: 0 80% 65%;
+    --chart-3: 35 85% 65%;
+    --chart-4: 200 80% 60%;
+    --chart-5: 300 80% 70%;
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -39,44 +39,63 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 207 90% 54%;
+
+    /* Neumorphic shadow colors (placeholder, will be defined in .dark) */
+    --shadow-light-color-hsl: 0 0% 0%; 
+    --shadow-dark-color-hsl: 0 0% 0%;
   }
 
   .dark {
-    --background: 240 10% 3.9%; /* Very dark blue/black */
-    --foreground: 0 0% 93%;    /* Light gray for text */
-    --card: 240 8% 10%;      /* Slightly lighter dark blue/gray */
-    --card-foreground: 0 0% 93%;
-    --popover: 240 8% 10%;
-    --popover-foreground: 0 0% 93%;
-    --primary: 207 90% 61%;    /* Neon Blue */
-    --primary-foreground: 0 0% 100%; /* White */
-    --secondary: 240 6% 15%;   /* Darker gray for secondary elements */
-    --secondary-foreground: 0 0% 93%;
-    --muted: 240 6% 15%;
-    --muted-foreground: 0 0% 60%; /* Lighter gray for muted text */
-    --accent: 271 95% 70%;     /* Electric Purple - slightly desaturated for sci-fi */
-    --accent-foreground: 0 0% 100%; /* White text on accent */
-    --destructive: 0 70% 50%;   /* Sci-fi red */
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5% 20%;      /* Subtle borders, slightly lighter than card */
-    --input: 240 5% 20%;
-    --ring: 207 90% 61%;       /* Primary color for rings */
-
-    /* Sci-fi Chart Colors based on reference image */
-    --chart-1: 25 95% 53%;    /* Stripe: Orange */
-    --chart-2: 0 85% 55%;      /* Adyen: Red */
-    --chart-3: 45 90% 55%;    /* Paypal: Gold/Yellow */
-    --chart-4: 180 70% 50%;   /* Worldpay: Cyan/Teal */
-    --chart-5: 350 85% 70%;   /* Checkout: Light Red/Pinkish */
+    /* Base Neumorphic Palette */
+    --background: 220 10% 12%; /* Dark grayish blue */
+    --foreground: 0 0% 85%;    /* Lighter gray for text */
     
-    --sidebar-background: 240 8% 8%; /* Slightly darker than card for depth */
-    --sidebar-foreground: 0 0% 93%;
-    --sidebar-primary: 207 90% 61%;
+    --card: 220 10% 12%;       /* Same as background for neumorphism */
+    --card-foreground: 0 0% 85%;
+    
+    --popover: 220 10% 15%;    /* Slightly lighter for popovers if needed, or same */
+    --popover-foreground: 0 0% 85%;
+    
+    --primary: 207 90% 58%;    /* Adjusted Neon Blue, slightly less intense */
+    --primary-foreground: 0 0% 100%; /* White */
+    
+    --secondary: 220 10% 18%;   /* Slightly lighter for secondary elements */
+    --secondary-foreground: 0 0% 85%;
+    
+    --muted: 220 10% 18%;
+    --muted-foreground: 0 0% 60%; 
+    
+    --accent: 271 80% 65%;     /* Adjusted Electric Purple */
+    --accent-foreground: 0 0% 100%; 
+    
+    --destructive: 0 70% 50%;   
+    --destructive-foreground: 0 0% 98%;
+    
+    --border: 220 10% 10%;      /* Darker border, or transparent if using only shadows */
+    --input: 220 10% 12%;       /* Same as background for inset inputs */
+    --input-border: 220 10% 10%; /* Border for input if not purely shadow based */
+    
+    --ring: 207 90% 58%;       
+
+    /* Neumorphic Shadow Colors (derived from --background) */
+    --shadow-light-color-hsl: 220 10% 16%; /* Lighter shade of background */
+    --shadow-dark-color-hsl: 220 10% 8%;  /* Darker shade of background */
+
+    /* Sci-fi Chart Colors (can remain distinct) */
+    --chart-1: 25 95% 53%;    
+    --chart-2: 0 85% 55%;      
+    --chart-3: 45 90% 55%;    
+    --chart-4: 180 70% 50%;   
+    --chart-5: 350 85% 70%;   
+    
+    --sidebar-background: 220 10% 10%; 
+    --sidebar-foreground: 0 0% 85%;
+    --sidebar-primary: 207 90% 58%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 271 95% 70%;
+    --sidebar-accent: 271 80% 65%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 240 5% 15%;
-    --sidebar-ring: 207 90% 61%;
+    --sidebar-border: 220 10% 8%;
+    --sidebar-ring: 207 90% 58%;
   }
 }
 
@@ -86,6 +105,6 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1,"calt" 1; /* Enable OpenType features */
+    font-feature-settings: "rlig" 1,"calt" 1;
   }
 }
