@@ -9,7 +9,7 @@ const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "rounded-lg border-transparent bg-card text-card-foreground shadow-md", // Use shadow-md for a more pronounced default neumorphic effect, border-transparent
+      "rounded-lg border bg-card text-card-foreground shadow-sm", // Standard flat card with border and subtle shadow
       className
     )}
     {...props}

@@ -22,8 +22,9 @@
     --destructive-foreground: 0 0% 98%;
     --border: 0 0% 89.8%;
     --input: 0 0% 89.8%;
+    --input-border: 0 0% 80%; /* Added for flat input border */
     --ring: 207 90% 54%; 
-    --radius: 0.75rem;
+    --radius: 0.5rem; /* Slightly less rounded for flat */
 
     --chart-1: 25 90% 60%;
     --chart-2: 0 80% 65%;
@@ -39,62 +40,54 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 207 90% 54%;
-
-    /* Neumorphic shadow colors (placeholder, will be defined in .dark) */
-    --shadow-light-color-hsl: 0 0% 0%; 
-    --shadow-dark-color-hsl: 0 0% 0%;
   }
 
   .dark {
-    /* Base Neumorphic Palette */
-    --background: 220 10% 12%; /* Dark grayish blue */
-    --foreground: 0 0% 85%;    /* Lighter gray for text */
+    /* Black Theme - Flat Design */
+    --background: 220 10% 4%;    /* Very dark blue-gray, almost black */
+    --foreground: 0 0% 95%;       /* Light gray for text */
     
-    --card: 220 10% 12%;       /* Same as background for neumorphism */
-    --card-foreground: 0 0% 85%;
+    --card: 220 10% 8%;          /* Slightly lighter dark blue-gray for cards */
+    --card-foreground: 0 0% 95%;
     
-    --popover: 220 10% 15%;    /* Slightly lighter for popovers if needed, or same */
-    --popover-foreground: 0 0% 85%;
+    --popover: 220 10% 10%;       /* Darker popover */
+    --popover-foreground: 0 0% 95%;
     
-    --primary: 207 90% 58%;    /* Adjusted Neon Blue, slightly less intense */
-    --primary-foreground: 0 0% 100%; /* White */
+    --primary: 207 90% 58%;       /* Vibrant Blue */
+    --primary-foreground: 0 0% 100%;  /* White */
     
-    --secondary: 220 10% 18%;   /* Slightly lighter for secondary elements */
-    --secondary-foreground: 0 0% 85%;
+    --secondary: 220 10% 15%;      /* A bit lighter for secondary elements */
+    --secondary-foreground: 0 0% 90%;
     
-    --muted: 220 10% 18%;
+    --muted: 220 10% 12%;         /* Muted elements */
     --muted-foreground: 0 0% 60%; 
     
-    --accent: 271 80% 65%;     /* Adjusted Electric Purple */
+    --accent: 271 80% 65%;        /* Electric Purple */
     --accent-foreground: 0 0% 100%; 
     
     --destructive: 0 70% 50%;   
     --destructive-foreground: 0 0% 98%;
     
-    --border: 220 10% 10%;      /* Darker border, or transparent if using only shadows */
-    --input: 220 10% 12%;       /* Same as background for inset inputs */
-    --input-border: 220 10% 10%; /* Border for input if not purely shadow based */
+    --border: 220 10% 18%;         /* Subtle border color */
+    --input: 220 10% 10%;         /* Input background, similar to card or slightly different */
+    --input-border: 220 10% 20%;  /* Border for input */
     
     --ring: 207 90% 58%;       
 
-    /* Neumorphic Shadow Colors (derived from --background) */
-    --shadow-light-color-hsl: 220 10% 16%; /* Lighter shade of background */
-    --shadow-dark-color-hsl: 220 10% 8%;  /* Darker shade of background */
-
-    /* Sci-fi Chart Colors (can remain distinct) */
-    --chart-1: 25 95% 53%;    
-    --chart-2: 0 85% 55%;      
-    --chart-3: 45 90% 55%;    
-    --chart-4: 180 70% 50%;   
-    --chart-5: 350 85% 70%;   
+    /* Sci-fi Chart Colors (can remain distinct or be adjusted for black theme) */
+    --chart-1: 25 95% 53%;    /* Stripe - Vibrant Orange */
+    --chart-2: 0 90% 60%;      /* Adyen - Bright Red */
+    --chart-3: 35 90% 58%;    /* Paypal - Gold/Dark Yellow */
+    --chart-4: 180 70% 50%;   /* Worldpay - Muted Cyan/Teal */
+    --chart-5: 5 85% 65%;     /* Checkout - Softer Red/Coral */
     
-    --sidebar-background: 220 10% 10%; 
-    --sidebar-foreground: 0 0% 85%;
+    --sidebar-background: 220 10% 8%; /* Dark sidebar */
+    --sidebar-foreground: 0 0% 90%;
     --sidebar-primary: 207 90% 58%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 271 80% 65%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 220 10% 8%;
+    --sidebar-border: 220 10% 15%;
     --sidebar-ring: 207 90% 58%;
   }
 }
