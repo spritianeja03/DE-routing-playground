@@ -9,8 +9,10 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 
+        default:
           "bg-background text-foreground shadow-sm hover:shadow-md active:shadow-inner-sm active:translate-y-px", // Neumorphic default
+        primary:
+          "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:shadow-md active:shadow-inner-sm active:translate-y-px", // Neumorphic primary
         destructive:
           "bg-destructive text-destructive-foreground shadow-sm hover:shadow-md active:shadow-inner-sm active:translate-y-px", // Neumorphic destructive
         outline:
