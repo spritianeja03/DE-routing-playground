@@ -11,7 +11,7 @@ import { AnalyticsGraphsView } from '@/components/AnalyticsGraphsView';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2 } from 'lucide-react';
+import { BrainCircuit, Loader2 } from 'lucide-react';
 import type { Processor, PaymentMethod, ProcessorMetricsHistory, StructuredRule, ControlsState, OverallSRHistory, AISummaryInput, AISummaryProcessorMetric, AISummaryIncident, OverallSRHistoryDataPoint, TimeSeriesDataPoint } from '@/lib/types';
 import { PROCESSORS, PAYMENT_METHODS, RULE_STRATEGY_NODES, DEFAULT_PROCESSOR_AVAILABILITY } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
@@ -122,7 +122,6 @@ export default function HomePage() {
             processorIncidents: PROCESSORS.reduce((acc, proc) => { acc[proc.id] = null; return acc; }, {} as FormValues['processorIncidents']),
             overallSuccessRate: 0,
             processorWiseSuccessRates: getDefaultProcessorWiseSuccessRates(),
-            // Initialize new intelligent routing params if prev is null
             minAggregatesSize: prev?.minAggregatesSize ?? 100,
             maxAggregatesSize: prev?.maxAggregatesSize ?? 1000,
             currentBlockThresholdMaxTotalCount: prev?.currentBlockThresholdMaxTotalCount ?? 10,
@@ -135,9 +134,9 @@ export default function HomePage() {
     if (!currentControls || processedPaymentsCount === 0) {
       return;
     }
+    setIsSummaryModalOpen(true); 
     setIsGeneratingSummary(true);
     setSimulationSummary(null); 
-    setIsSummaryModalOpen(true); 
 
     const processorMetrics: AISummaryProcessorMetric[] = PROCESSORS.map(proc => {
       const stats = accumulatedProcessorStatsRef.current[proc.id];
@@ -240,7 +239,7 @@ export default function HomePage() {
     const remainingPayments = totalPayments - processedPaymentsCount;
     const paymentsToProcessThisBatch = Math.min(transactionsThisInterval, remainingPayments);
     
-    const processorMeanEffectiveSRs: Record<string, number> = {}; // For standard routing fallback, reflects baseSR+incidents
+    const processorMeanEffectiveSRs: Record<string, number> = {}; 
     PROCESSORS.forEach(proc => {
       const baseSR = inputProcessorConfigs[proc.id]?.sr ?? 85; 
       let meanEffectiveSR = baseSR / 100.0; 
@@ -258,14 +257,12 @@ export default function HomePage() {
       const currentPaymentMethod = activePaymentMethods[txnIndex % activePaymentMethods.length];
       
       let chosenProcessor: Processor | undefined = undefined;
-      let strategyApplied = RULE_STRATEGY_NODES.STANDARD_ROUTING; // Default
+      let strategyApplied = RULE_STRATEGY_NODES.STANDARD_ROUTING;
 
-      // Initial candidates based on PM matrix
       let candidateProcessors: Processor[] = PROCESSORS.filter(
         proc => processorMatrix[proc.id]?.[currentPaymentMethod]
       );
 
-      // 1. Custom Rule Application (Highest Priority)
       if (structuredRule) {
         let conditionMet = false;
         if (structuredRule.condition.field === 'paymentMethod' && structuredRule.condition.operator === 'EQUALS') {
@@ -280,19 +277,13 @@ export default function HomePage() {
         }
       }
 
-      // 2. If no custom rule applied, proceed with other routing logic
       if (!chosenProcessor) {
-        // Hard Elimination: Incident-down or Base SR < 50%
         let level1EligibleProcessors = candidateProcessors.filter(proc => {
           const incidentEndTime = processorIncidents[proc.id];
           const isIncidentActive = incidentEndTime !== null && Date.now() < incidentEndTime;
           const isBaseSrTooLow = (inputProcessorConfigs[proc.id]?.sr ?? 0) < 50;
           return !isIncidentActive && !isBaseSrTooLow;
         });
-
-        if (level1EligibleProcessors.length < candidateProcessors.length && level1EligibleProcessors.length > 0) {
-            // strategyApplied = RULE_STRATEGY_NODES.ELIMINATION_APPLIED; // Note: this gets refined by smart/standard
-        }
         
         const useIntelligentRouting = Math.random() * 100 < volumeSplit;
 
@@ -302,22 +293,17 @@ export default function HomePage() {
 
           for (const proc of level1EligibleProcessors) {
             const history = processorTransactionHistoryRef.current[proc.id] || [];
-            let recentSr = -1; // Default: insufficient data
+            let recentSr = -1; 
             let failureCountInWindow = 0;
 
-            // Consider history only if it meets minAggregatesSize, otherwise treat as insufficient for SR calc
             if (history.length >= minAggregatesSize) {
               const relevantHistory = history.slice(-maxAggregatesSize);
               const successesInRelevantHistory = relevantHistory.filter(r => r === 1).length;
               recentSr = (successesInRelevantHistory / relevantHistory.length) * 100;
               failureCountInWindow = relevantHistory.length - successesInRelevantHistory;
-            } else if (history.length > 0) { // Some history, but less than minAggregatesSize
-                const successesInHistory = history.filter(r => r === 1).length;
-                // Could use this partial SR, or still treat as -1. Let's use it cautiously.
-                // recentSr = (successesInHistory / history.length) * 100; 
-                failureCountInWindow = history.length - successesInHistory; 
+            } else if (history.length > 0) { 
+                failureCountInWindow = history.filter(r => r === 0).length; 
             }
-
 
             const isDynamicallyBlocked = (failureCountInWindow >= currentBlockThresholdMaxTotalCount && currentBlockThresholdMaxTotalCount > 0);
             processorPerformances.push({ processor: proc, recentSr, isDynamicallyBlocked });
@@ -326,29 +312,23 @@ export default function HomePage() {
           const intelligentlyRoutableProcessors = processorPerformances.filter(p => !p.isDynamicallyBlocked);
 
           if (intelligentlyRoutableProcessors.length > 0) {
-            intelligentlyRoutableProcessors.sort((a, b) => { // Higher recentSR is better
-              if (a.recentSr === -1 && b.recentSr === -1) return 0; // Keep original order if both no data
-              if (a.recentSr === -1) return 1; // No data for a, b is better
-              if (b.recentSr === -1) return -1; // No data for b, a is better
-              return b.recentSr - a.recentSr; // Sort by SR descending
+            intelligentlyRoutableProcessors.sort((a, b) => { 
+              if (a.recentSr === -1 && b.recentSr === -1) return 0; 
+              if (a.recentSr === -1) return 1; 
+              if (b.recentSr === -1) return -1; 
+              return b.recentSr - a.recentSr; 
             });
             chosenProcessor = intelligentlyRoutableProcessors[0].processor;
-            // If chosen processor had recentSr === -1, it means all had insufficient data.
-            // The strategy is still "SMART_ROUTING" because this path was taken.
           }
         }
 
-        // Fallback to Standard Routing (if no custom rule, and intelligent routing not used or yielded no choice)
         if (!chosenProcessor && level1EligibleProcessors.length > 0) {
           strategyApplied = RULE_STRATEGY_NODES.STANDARD_ROUTING;
-          // Sort by pre-calculated mean effective SR (base SR + incident penalty)
           level1EligibleProcessors.sort((a, b) => processorMeanEffectiveSRs[b.id] - processorMeanEffectiveSRs[a.id]);
           chosenProcessor = level1EligibleProcessors[0];
         }
       }
 
-
-      // Transaction Outcome
       if (chosenProcessor) {
         accumulatedProcessorStatsRef.current[chosenProcessor.id].volumeShareRaw++;
         attemptsThisBatch[chosenProcessor.id] = (attemptsThisBatch[chosenProcessor.id] || 0) + 1;
@@ -367,10 +347,9 @@ export default function HomePage() {
         
         const success = Math.random() < (srForThisTxn / 100.0);
 
-        // Update transaction history for the chosen processor
         processorTransactionHistoryRef.current[chosenProcessor.id].push(success ? 1 : 0);
         if (processorTransactionHistoryRef.current[chosenProcessor.id].length > maxAggregatesSize) {
-          processorTransactionHistoryRef.current[chosenProcessor.id].shift(); // Keep history capped
+          processorTransactionHistoryRef.current[chosenProcessor.id].shift();
         }
 
         if (success) {
@@ -461,7 +440,7 @@ export default function HomePage() {
       return;
     }
     if (currentControls.selectedPaymentMethods.length === 0) {
-      toast({ title: "Error", description: "No payment methods selected.", variant: "destructive" });
+      toast({ title: "Error", description: "No payment methods selected. Please select at least one.", variant: "destructive" });
       return;
     }
     if (simulationState === 'idle') {
@@ -536,22 +515,30 @@ export default function HomePage() {
       <Dialog open={isSummaryModalOpen} onOpenChange={setIsSummaryModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Hyperswitch AI Summary</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <BrainCircuit className="h-6 w-6 text-primary" />
+              Hyperswitch AI Summary
+            </DialogTitle>
           </DialogHeader>
-          <div className="py-4">
+          <div className="py-4 space-y-3">
             {isGeneratingSummary ? (
-              <div className="flex flex-col items-center justify-center space-y-2">
+              <div className="flex flex-col items-center justify-center space-y-2 min-h-[100px]">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <p className="text-sm text-muted-foreground">Generating summary...</p>
               </div>
             ) : simulationSummary ? (
-              <p className="text-sm whitespace-pre-line">{simulationSummary}</p>
+              <div className="p-3 bg-muted/30 rounded-md shadow-inner-sm max-h-[300px] overflow-y-auto">
+                <p className="text-sm whitespace-pre-line leading-relaxed">{simulationSummary}</p>
+              </div>
             ) : (
-              <p className="text-sm text-destructive">Failed to generate summary. Please try again.</p>
+               <div className="flex flex-col items-center justify-center space-y-2 min-h-[100px]">
+                <p className="text-sm text-destructive">Failed to generate summary.</p>
+                <p className="text-xs text-muted-foreground">Please try stopping and starting the simulation again.</p>
+              </div>
             )}
           </div>
           <DialogFooter>
-            <Button type="button" onClick={() => setIsSummaryModalOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsSummaryModalOpen(false)}>
               Close
             </Button>
           </DialogFooter>
@@ -560,5 +547,3 @@ export default function HomePage() {
     </>
   );
 }
-
-    
