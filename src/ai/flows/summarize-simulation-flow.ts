@@ -19,7 +19,7 @@ export async function summarizeSimulation(input: AISummaryInput): Promise<AISumm
   return summarizeSimulationFlow(input);
 }
 
-const summarizePrompt = ai.definePrompt({
+const prompt = ai.definePrompt({
   name: 'summarizeSimulationPrompt',
   input: {schema: SummarizeSimulationInputSchema},
   output: {schema: SummarizeSimulationOutputSchema},
@@ -64,10 +64,19 @@ const summarizeSimulationFlow = ai.defineFlow(
     outputSchema: SummarizeSimulationOutputSchema,
   },
   async (input: AISummaryInput) => {
-    const {output} = await summarizePrompt(input);
-    if (!output) {
-      throw new Error('AI failed to generate a summary.');
+    try {
+      const {output} = await prompt(input); // Corrected from summarizePrompt to prompt
+      if (!output) {
+        console.error('AI prompt returned no output for summarizeSimulationFlow.');
+        throw new Error('AI failed to generate a summary (no output).');
+      }
+      return output;
+    } catch (error) {
+      console.error('Error calling AI model in summarizeSimulationFlow:', error);
+      // Re-throw the error so it propagates to the client-side catch block
+      // and Next.js knows the server action failed.
+      throw new Error(`AI summary generation encountered an error: ${error instanceof Error ? error.message : String(error)}`);
     }
-    return output;
   }
 );
+
