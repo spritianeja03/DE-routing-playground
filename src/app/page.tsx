@@ -9,6 +9,9 @@ import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { StatsView } from '@/components/StatsView';
 import { AnalyticsGraphsView } from '@/components/AnalyticsGraphsView';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Loader2 } from 'lucide-react';
 import type { Processor, PaymentMethod, ProcessorMetricsHistory, StructuredRule, ControlsState, OverallSRHistory, AISummaryInput, AISummaryProcessorMetric, AISummaryIncident } from '@/lib/types';
 import { PROCESSORS, PAYMENT_METHODS, RULE_STRATEGY_NODES, DEFAULT_PROCESSOR_AVAILABILITY } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
@@ -42,6 +45,8 @@ export default function HomePage() {
   
   const [simulationSummary, setSimulationSummary] = useState<string | null>(null);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState<boolean>(false);
+  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState<boolean>(false);
+
 
   const simulationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -68,6 +73,7 @@ export default function HomePage() {
     setOverallSuccessRateHistory([]);
     setSimulationSummary(null);
     setIsGeneratingSummary(false);
+    // setIsSummaryModalOpen(false); // Modal should close itself or be closed explicitly
 
     accumulatedProcessorStatsRef.current = PROCESSORS.reduce((acc, proc) => {
       acc[proc.id] = { successful: 0, failed: 0, volumeShareRaw: 0 };
@@ -111,11 +117,12 @@ export default function HomePage() {
 
   const generateAndSetSummary = async () => {
     if (!currentControls || processedPaymentsCount === 0) {
-      setSimulationSummary("Run a simulation to generate a summary.");
+      // Don't open modal if no simulation was run meaningfully
       return;
     }
     setIsGeneratingSummary(true);
-    setSimulationSummary(null); // Clear previous summary
+    setSimulationSummary(null); // Clear previous summary before generating new one
+    setIsSummaryModalOpen(true); // Open modal immediately, it will show loading state
 
     const processorMetrics: AISummaryProcessorMetric[] = PROCESSORS.map(proc => {
       const stats = accumulatedProcessorStatsRef.current[proc.id];
@@ -153,7 +160,7 @@ export default function HomePage() {
       setSimulationSummary(result.summaryText);
     } catch (error) {
       console.error("Error generating simulation summary:", error);
-      setSimulationSummary("Failed to generate AI summary. Please try again.");
+      setSimulationSummary("Failed to generate AI summary. Please check the console for errors and try again."); // Provide a more informative error in the modal
       toast({
         title: "AI Summary Error",
         description: "Could not generate the simulation summary.",
@@ -317,13 +324,13 @@ export default function HomePage() {
       const stats = accumulatedProcessorStatsRef.current[proc.id];
       const totalRoutedToProc = stats.volumeShareRaw;
       
-      const procSR_cumulative = totalRoutedToProc > 0 ? (stats.successful / totalRoutedToProc) * 100 : 0;
+      const procSR_cumulative = totalRoutedToProc > 0 ? (stats.successful / totalRoutedToProc) * 100 : 0; // This is observed
       const procVolumeShare = newProcessedCount > 0 ? (totalRoutedToProc / newProcessedCount) * 100 : 0;
 
       updatedProcessorSRsUi[proc.id] = {
-        sr: parseFloat(procSR_cumulative.toFixed(2)) || 0, 
+        sr: inputProcessorSRs[proc.id]?.sr ?? 0, // Keep the base SR as input
         volumeShare: parseFloat(procVolumeShare.toFixed(2)) || 0,
-        failureRate: parseFloat((100 - procSR_cumulative).toFixed(2)) || 0,
+        failureRate: parseFloat((100 - procSR_cumulative).toFixed(2)) || 0, // Failure rate based on observed
       };
     });
 
@@ -350,7 +357,7 @@ export default function HomePage() {
         ...prevControls, 
         overallSuccessRate: parseFloat(overallSR.toFixed(2)) || 0,
         tps: effectiveTps, 
-        // processorWiseSuccessRates: updatedProcessorSRsUi, //This was causing the base SR to be overwritten by observed
+        processorWiseSuccessRates: updatedProcessorSRsUi, // UI state for table display needs observed rates here.
        }
     });
 
@@ -399,13 +406,12 @@ export default function HomePage() {
 
   const handleStopSimulation = useCallback(() => {
     setSimulationState('idle');
-    // Generate summary before resetting everything for the current run
     if (processedPaymentsCount > 0) {
       generateAndSetSummary();
     }
     resetSimulationState(); 
     toast({ title: "Simulation Stopped & Reset", duration: 3000 });
-  }, [toast, processedPaymentsCount, currentControls, simulationTimeStep]); // Added dependencies
+  }, [toast, processedPaymentsCount]); 
 
   const [activeTab, setActiveTab] = useState("analytics");
 
@@ -431,11 +437,7 @@ export default function HomePage() {
                       processedPayments={processedPaymentsCount}
                       totalSuccessful={accumulatedGlobalStatsRef.current.totalSuccessful}
                       totalFailed={accumulatedGlobalStatsRef.current.totalFailed}
-                      processorStats={accumulatedProcessorStatsRef.current}
-                      totalProcessedForTable={processedPaymentsCount}
                       overallSuccessRateHistory={overallSuccessRateHistory}
-                      simulationSummary={simulationSummary}
-                      isGeneratingSummary={isGeneratingSummary}
                     />
                   </div>
               </ScrollArea>
@@ -455,8 +457,31 @@ export default function HomePage() {
       </AppLayout>
       <BottomControlsPanel
         onFormChange={handleControlsChange}
-        isSimulationActive={simulationState === 'running'}
       />
+      <Dialog open={isSummaryModalOpen} onOpenChange={setIsSummaryModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Hyperswitch AI Summary</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            {isGeneratingSummary ? (
+              <div className="flex flex-col items-center justify-center space-y-2">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">Generating summary...</p>
+              </div>
+            ) : simulationSummary ? (
+              <p className="text-sm whitespace-pre-line">{simulationSummary}</p>
+            ) : (
+              <p className="text-sm text-destructive">Failed to generate summary. Please try again.</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" onClick={() => setIsSummaryModalOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
