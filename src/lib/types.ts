@@ -9,20 +9,20 @@ export interface ProcessorPaymentMethodMatrix {
 }
 
 export interface ProcessorIncidentStatus {
-  [processorId:string]: number | null; 
+  [processorId:string]: number | null;
 }
 
-export type ConditionField = 'paymentMethod'; 
-export type ConditionOperator = 'EQUALS'; 
+export type ConditionField = 'paymentMethod';
+export type ConditionOperator = 'EQUALS';
 
 export interface Condition {
   field: ConditionField;
   operator: ConditionOperator;
-  value: PaymentMethod; 
+  value: PaymentMethod;
 }
 
 export interface StructuredRule {
-  id: string; 
+  id: string;
   condition: Condition;
   action: {
     type: 'ROUTE_TO_PROCESSOR';
@@ -30,20 +30,28 @@ export interface StructuredRule {
   };
 }
 
+// For ControlsState and FormValues in BottomControlsPanel
 export interface ControlsState {
   totalPayments: number;
   tps: number;
   selectedPaymentMethods: PaymentMethod[];
   processorMatrix: ProcessorPaymentMethodMatrix;
   structuredRule: StructuredRule | null;
-  overallSuccessRate: number; 
-  processorWiseSuccessRates: Record<string, { 
+  processorIncidents: ProcessorIncidentStatus;
+  overallSuccessRate: number;
+  processorWiseSuccessRates: Record<string, {
     sr: number; // Base input SR
     srDeviation: number; // SR deviation in percentage points (e.g., 5 for +/- 5%)
     volumeShare: number; // Observed from simulation
     failureRate: number; // Observed from simulation (100 - observed SR)
   }>;
+  // New Intelligent Routing Parameters
+  minAggregatesSize: number;
+  maxAggregatesSize: number;
+  currentBlockThresholdMaxTotalCount: number;
+  volumeSplit: number;
 }
+
 
 export interface ProcessorSuccessRate {
   processor: string;
@@ -54,8 +62,8 @@ export interface ProcessorSuccessRate {
 
 // Types for Time Series Charts (Per Processor)
 export interface TimeSeriesDataPoint {
-  time: number; 
-  [processorId: string]: number | string; 
+  time: number;
+  [processorId: string]: number | string;
 }
 export type ProcessorMetricsHistory = TimeSeriesDataPoint[];
 

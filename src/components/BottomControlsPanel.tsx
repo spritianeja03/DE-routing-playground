@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PAYMENT_METHODS, PROCESSORS, DEFAULT_PROCESSOR_AVAILABILITY } from '@/lib/constants';
 import type { ControlsState, PaymentMethod, ProcessorPaymentMethodMatrix, ProcessorIncidentStatus, StructuredRule, ConditionField, ConditionOperator } from '@/lib/types';
-import { Settings2, TrendingUp, Zap, VenetianMaskIcon, AlertTriangle, Trash2, Percent } from 'lucide-react';
+import { Settings2, TrendingUp, Zap, VenetianMaskIcon, AlertTriangle, Trash2, Percent, BrainCircuit } from 'lucide-react';
 
 const defaultProcessorMatrix: ProcessorPaymentMethodMatrix = PROCESSORS.reduce((acc, proc) => {
   acc[proc.id] = DEFAULT_PROCESSOR_AVAILABILITY[proc.id] ||
@@ -31,24 +31,24 @@ const defaultProcessorMatrix: ProcessorPaymentMethodMatrix = PROCESSORS.reduce((
 
 
 const defaultProcessorIncidents: ProcessorIncidentStatus = PROCESSORS.reduce((acc, proc) => {
-  acc[proc.id] = null; 
+  acc[proc.id] = null;
   return acc;
 }, {} as ProcessorIncidentStatus);
 
 const defaultProcessorWiseSuccessRates = PROCESSORS.reduce((acc, proc) => {
   let defaultSr = 85;
-  // Assign some default SRs for the new processors
-  if (proc.id === 'stripe') defaultSr = 92;
-  else if (proc.id === 'adyen') defaultSr = 90;
-  else if (proc.id === 'paypal') defaultSr = 88;
-  else if (proc.id === 'worldpay') defaultSr = 86;
-  else if (proc.id === 'checkoutcom') defaultSr = 91;
+  let defaultSrDeviation = 2;
+  if (proc.id === 'stripe') { defaultSr = 92; defaultSrDeviation = 2;}
+  else if (proc.id === 'adyen') { defaultSr = 90; defaultSrDeviation = 3;}
+  else if (proc.id === 'paypal') { defaultSr = 88; defaultSrDeviation = 4;}
+  else if (proc.id === 'worldpay') { defaultSr = 86; defaultSrDeviation = 2;}
+  else if (proc.id === 'checkoutcom') { defaultSr = 91; defaultSrDeviation = 3;}
 
-  acc[proc.id] = { 
-    sr: defaultSr, 
-    srDeviation: 2, // Default deviation of +/- 2 percentage points
-    volumeShare: 0, 
-    failureRate: 100 - defaultSr 
+  acc[proc.id] = {
+    sr: defaultSr,
+    srDeviation: defaultSrDeviation,
+    volumeShare: 0,
+    failureRate: 100 - defaultSr
   };
   return acc;
 }, {} as ControlsState['processorWiseSuccessRates']);
@@ -59,7 +59,7 @@ const formSchema = z.object({
   tps: z.number().min(1).max(10000),
   selectedPaymentMethods: z.array(z.string()).min(1, "Please select at least one payment method."),
   processorMatrix: z.record(z.string(), z.record(z.string(), z.boolean())),
-  
+
   ruleConditionField: z.custom<ConditionField>().optional(),
   ruleConditionOperator: z.custom<ConditionOperator>().optional(),
   ruleConditionValue: z.custom<PaymentMethod>().optional(),
@@ -67,46 +67,61 @@ const formSchema = z.object({
 
   processorIncidents: z.record(z.string(), z.number().nullable()),
   overallSuccessRate: z.number().min(0).max(100).optional(),
-  processorWiseSuccessRates: z.record(z.string(), z.object({ 
+  processorWiseSuccessRates: z.record(z.string(), z.object({
     sr: z.number().min(0).max(100),
     srDeviation: z.number().min(0).max(50).describe("Success rate deviation in absolute percentage points, e.g., 5 means +/- 5%."),
-    volumeShare: z.number().min(0).max(100), 
+    volumeShare: z.number().min(0).max(100),
     failureRate: z.number().min(0).max(100),
   })),
+  // New Intelligent Routing Parameters
+  minAggregatesSize: z.number().min(1).max(100000),
+  maxAggregatesSize: z.number().min(1).max(1000000),
+  currentBlockThresholdMaxTotalCount: z.number().min(0).max(10000),
+  volumeSplit: z.number().min(0).max(100),
+}).refine(data => data.maxAggregatesSize >= data.minAggregatesSize, {
+  message: "Max aggregates size must be >= min aggregates size.",
+  path: ["maxAggregatesSize"],
 });
 
-export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule'> & { structuredRule: StructuredRule | null };
+export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule'> & { structuredRule: StructuredRule | null } & ControlsState;
 
 
 interface BottomControlsPanelProps {
   onFormChange: (data: FormValues) => void;
   initialValues?: Partial<FormValues>;
+  isSimulationActive: boolean;
 }
 
 const BOTTOM_PANEL_HEIGHT = "350px";
 
-export function BottomControlsPanel({ onFormChange, initialValues }: BottomControlsPanelProps) {
-  const form = useForm<z.infer<typeof formSchema>>({ 
+export function BottomControlsPanel({ onFormChange, initialValues, isSimulationActive }: BottomControlsPanelProps) {
+  const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       totalPayments: initialValues?.totalPayments ?? 1000,
       tps: initialValues?.tps ?? 100,
       selectedPaymentMethods: initialValues?.selectedPaymentMethods ?? [PAYMENT_METHODS[0], PAYMENT_METHODS[1]],
       processorMatrix: initialValues?.processorMatrix ?? defaultProcessorMatrix,
-      
+
       ruleConditionField: initialValues?.structuredRule?.condition.field ?? undefined,
       ruleConditionOperator: initialValues?.structuredRule?.condition.operator ?? undefined,
       ruleConditionValue: initialValues?.structuredRule?.condition.value ?? undefined,
       ruleActionProcessorId: initialValues?.structuredRule?.action.processorId ?? undefined,
 
       processorIncidents: initialValues?.processorIncidents ?? defaultProcessorIncidents,
-      overallSuccessRate: initialValues?.overallSuccessRate ?? 0, 
+      overallSuccessRate: initialValues?.overallSuccessRate ?? 0,
       processorWiseSuccessRates: initialValues?.processorWiseSuccessRates ?? defaultProcessorWiseSuccessRates,
+
+      // Defaults for new Intelligent Routing Parameters
+      minAggregatesSize: initialValues?.minAggregatesSize ?? 100,
+      maxAggregatesSize: initialValues?.maxAggregatesSize ?? 1000,
+      currentBlockThresholdMaxTotalCount: initialValues?.currentBlockThresholdMaxTotalCount ?? 10,
+      volumeSplit: initialValues?.volumeSplit ?? 100, // Default to 100% for intelligent routing
     },
   });
 
   const [selectedIncidentProcessor, setSelectedIncidentProcessor] = useState<string>(PROCESSORS[0].id);
-  const [incidentDuration, setIncidentDuration] = useState<number>(10); 
+  const [incidentDuration, setIncidentDuration] = useState<number>(10);
 
   useEffect(() => {
     const subscription = form.watch((values) => {
@@ -116,7 +131,7 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
         let rule: StructuredRule | null = null;
         if (formData.ruleConditionField && formData.ruleConditionOperator && formData.ruleConditionValue && formData.ruleActionProcessorId) {
           rule = {
-            id: 'rule1', 
+            id: 'rule1',
             condition: {
               field: formData.ruleConditionField,
               operator: formData.ruleConditionOperator,
@@ -128,12 +143,15 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
             },
           };
         }
-        onFormChange({ ...formData, structuredRule: rule });
+        onFormChange({ ...formData, structuredRule: rule } as FormValues);
       } else {
-         onFormChange({ ...values, structuredRule: null } as FormValues);
+         // if parsing fails, still call onFormChange with current values to reflect UI, but mark rule as null
+         const currentFormValues = form.getValues();
+         onFormChange({ ...currentFormValues, structuredRule: null, ...parsedValues.error.flatten().fieldErrors } as any);
       }
     });
 
+    // Initial call to onFormChange with default values
     const initialFormValues = form.getValues();
      const initialParsed = formSchema.safeParse(initialFormValues);
       let initialRule: StructuredRule | null = null;
@@ -146,35 +164,29 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                 action: { type: 'ROUTE_TO_PROCESSOR', processorId: initialFormData.ruleActionProcessorId }
             };
         }
-        
-        const initialSRs = { ...defaultProcessorWiseSuccessRates };
-        Object.keys(initialSRs).forEach(procId => {
-            initialSRs[procId].failureRate = 100 - initialSRs[procId].sr;
-        });
-        const formDataWithInitialSRs = {...initialFormData, processorWiseSuccessRates: initialSRs };
-
-        onFormChange({ ...formDataWithInitialSRs, structuredRule: initialRule });
+        onFormChange({ ...initialFormData, structuredRule: initialRule } as FormValues);
       } else {
-         onFormChange({ ...initialFormValues, structuredRule: null } as FormValues);
+        // This case should ideally not happen with static defaultValues
+        onFormChange({ ...initialFormValues, structuredRule: null } as FormValues);
       }
 
     return () => subscription.unsubscribe();
-  }, [form, onFormChange]); 
+  }, [form, onFormChange]);
 
-  const { control } = form;
+  const { control, setValue } = form;
 
   const handleTriggerIncident = () => {
     if (selectedIncidentProcessor && incidentDuration > 0) {
       const endTime = Date.now() + incidentDuration * 1000;
-      form.setValue(`processorIncidents.${selectedIncidentProcessor}` as any, endTime, { shouldValidate: true, shouldDirty: true });
+      setValue(`processorIncidents.${selectedIncidentProcessor}` as any, endTime, { shouldValidate: true, shouldDirty: true });
     }
   };
-  
+
   const handleClearRule = () => {
-    form.setValue('ruleConditionField', undefined, { shouldDirty: true });
-    form.setValue('ruleConditionOperator', undefined, { shouldDirty: true });
-    form.setValue('ruleConditionValue', undefined, { shouldDirty: true });
-    form.setValue('ruleActionProcessorId', undefined, { shouldDirty: true });
+    setValue('ruleConditionField', undefined, { shouldDirty: true });
+    setValue('ruleConditionOperator', undefined, { shouldDirty: true });
+    setValue('ruleConditionValue', undefined, { shouldDirty: true });
+    setValue('ruleActionProcessorId', undefined, { shouldDirty: true });
   };
 
 
@@ -302,7 +314,7 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                 </Card>
               </TabsContent>
 
-              <TabsContent value="routing" className="pt-2">
+              <TabsContent value="routing" className="pt-2 space-y-4">
                 <Card>
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-center">
@@ -388,7 +400,93 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                       />
                   </CardContent>
                 </Card>
-                
+
+                <Card>
+                  <CardHeader className="pb-3">
+                     <div className="flex items-center">
+                        <BrainCircuit className="mr-2 h-5 w-5 text-primary" />
+                        <CardTitle className="text-base">Intelligent Routing Parameters</CardTitle>
+                      </div>
+                    <CardDescription className="text-xs pt-1">Configure parameters for dynamic routing decisions.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={control}
+                        name="minAggregatesSize"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">Min Aggregates Size</FormLabel>
+                            <FormControl>
+                              <Input type="number" placeholder="e.g., 100" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
+                            </FormControl>
+                            <FormDescription className="text-xs">Min data points for performance eval.</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={control}
+                        name="maxAggregatesSize"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">Max Aggregates Size</FormLabel>
+                            <FormControl>
+                              <Input type="number" placeholder="e.g., 1000" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
+                            </FormControl>
+                             <FormDescription className="text-xs">Max data points for performance eval.</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={control}
+                        name="currentBlockThresholdMaxTotalCount"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">Max Failures to Block</FormLabel>
+                            <FormControl>
+                              <Input type="number" placeholder="e.g., 10" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
+                            </FormControl>
+                            <FormDescription className="text-xs">Failures in window before temp. blocking.</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={control}
+                        name="volumeSplit"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">Volume Split for Intelligent Routing: {field.value}%</FormLabel>
+                            <div className="flex items-center gap-2">
+                                <Slider
+                                    defaultValue={[field.value]}
+                                    min={0} max={100} step={1}
+                                    onValueChange={(value) => field.onChange(value[0])}
+                                    className="flex-grow"
+                                />
+                                <Input
+                                    type="number"
+                                    className="w-20 text-xs p-1 h-8"
+                                    value={field.value}
+                                    onChange={e => {
+                                        const val = parseInt(e.target.value);
+                                        if (!isNaN(val) && val >= 0 && val <= 100) field.onChange(val);
+                                        else if (e.target.value === "") field.onChange(0);
+                                    }}
+                                    min="0" max="100"
+                                />
+                            </div>
+                            <FormDescription className="text-xs">% of traffic using intelligent routing.</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
                 <div className="text-center mt-4">
                   <p className="text-xs text-muted-foreground">
                     Elimination routing (skipping downed processors or those with base SR &lt; 50%) is always active.
@@ -412,10 +510,10 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                           <FormItem>
                             <FormLabel className="text-xs">{proc.name} Base SR: {field.value}%</FormLabel>
                             <FormControl>
-                              <Slider 
-                                defaultValue={[field.value]} 
-                                min={0} max={100} step={1} 
-                                onValueChange={(value) => field.onChange(value[0])} 
+                              <Slider
+                                defaultValue={[field.value]}
+                                min={0} max={100} step={1}
+                                onValueChange={(value) => field.onChange(value[0])}
                               />
                             </FormControl>
                           </FormItem>
@@ -440,10 +538,10 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                           <FormItem>
                             <FormLabel className="text-xs">{proc.name} SR Deviation: +/- {field.value}%</FormLabel>
                             <FormControl>
-                              <Slider 
-                                defaultValue={[field.value]} 
+                              <Slider
+                                defaultValue={[field.value]}
                                 min={0} max={20} step={1} // e.g. 0-20% deviation
-                                onValueChange={(value) => field.onChange(value[0])} 
+                                onValueChange={(value) => field.onChange(value[0])}
                               />
                             </FormControl>
                           </FormItem>
@@ -452,7 +550,7 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                     ))}
                   </CardContent>
                 </Card>
-                
+
                 <Card>
                   <CardHeader className="p-2">
                     <CardTitle className="text-base">Processor Incidents (Timed Downtime)</CardTitle>
