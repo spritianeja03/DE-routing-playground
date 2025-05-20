@@ -62,12 +62,12 @@
     --input: 240 5% 20%;
     --ring: 207 90% 61%;       /* Primary color for rings */
 
-    /* Sci-fi Chart Colors based on reference */
-    --chart-1: 25 95% 53%;    /* Vibrant Orange */
-    --chart-2: 0 90% 60%;      /* Bright Red */
-    --chart-3: 35 90% 58%;    /* Another Orange shade */
-    --chart-4: 180 70% 50%;   /* Muted Cyan/Teal for contrast */
-    --chart-5: 5 85% 65%;     /* Softer Red/Coral */
+    /* Sci-fi Chart Colors based on reference image */
+    --chart-1: 25 95% 53%;    /* Stripe: Orange */
+    --chart-2: 0 85% 55%;      /* Adyen: Red */
+    --chart-3: 45 90% 55%;    /* Paypal: Gold/Yellow */
+    --chart-4: 180 70% 50%;   /* Worldpay: Cyan/Teal */
+    --chart-5: 350 85% 70%;   /* Checkout: Light Red/Pinkish */
     
     --sidebar-background: 240 8% 8%; /* Slightly darker than card for depth */
     --sidebar-foreground: 0 0% 93%;
