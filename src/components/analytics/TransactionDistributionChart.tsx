@@ -4,10 +4,10 @@
 import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { PieChart as PieChartIcon } from 'lucide-react'; // Renamed to avoid conflict
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts"
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 interface TransactionDistributionChartProps {
-  data: Array<{ name: string; value: number; fill: string }>; // fill here is from CSS vars, we'll override for Pie
+  data: Array<{ name: string; value: number; fill?: string }>; // Made fill optional
 }
 
 // Predefined direct HSL color strings for the pie chart
@@ -35,8 +35,11 @@ export function TransactionDistributionChart({ data }: TransactionDistributionCh
             <PieChart>
               <Tooltip
                 formatter={(value: number, name: string, entry: any) => {
-                  const percentage = typeof entry.payload?.value === 'number' ? entry.payload.value.toFixed(1) : 'N/A';
-                  return [`${percentage}%`, name];
+                  // value is the raw value of the segment
+                  // entry.percent is the percentage (0 to 1)
+                  const rawValueStr = value.toLocaleString();
+                  const percentageStr = entry.percent !== undefined ? (entry.percent * 100).toFixed(1) + '%' : 'N/A';
+                  return [`${rawValueStr} (${percentageStr})`, name];
                 }}
                 wrapperStyle={{
                   backgroundColor: 'hsl(var(--popover))',
@@ -99,4 +102,3 @@ export function TransactionDistributionChart({ data }: TransactionDistributionCh
     </Card>
   );
 }
-

@@ -1,6 +1,9 @@
 
-import type { PaymentMethod } from './constants';
+import type { PaymentMethod as PM } from './constants'; // Removed Processor import
 import { z } from 'zod';
+
+export type PaymentMethod = PM;
+// export type Processor = P; // Processor type removed, use MerchantConnector or string IDs
 
 export interface ProcessorPaymentMethodMatrix {
   [processorId: string]: {
@@ -33,7 +36,7 @@ export interface StructuredRule {
 // For ControlsState and FormValues in BottomControlsPanel
 export interface ControlsState {
   totalPayments: number;
-  tps: number;
+  // tps: number; // TPS Removed
   selectedPaymentMethods: PaymentMethod[];
   processorMatrix: ProcessorPaymentMethodMatrix;
   structuredRule: StructuredRule | null;
@@ -108,3 +111,15 @@ export const SummarizeSimulationOutputSchema = z.object({
   summaryText: z.string().describe('A concise, human-readable summary of the simulation run, highlighting key outcomes and notable events like incidents or significant performance of certain processors.'),
 });
 export type AISummaryOutput = z.infer<typeof SummarizeSimulationOutputSchema>;
+
+// Interface for Merchant Connector data fetched from API
+export interface MerchantConnector {
+  connector_name: string; // Typically used as an identifier if no specific ID field is primary
+  connector_label: string; // User-friendly display name
+  merchant_connector_id: string; // Often the most stable unique identifier for the merchant's specific connector instance
+  // Include other relevant fields from the API response as needed, e.g.:
+  // connector_type?: 'payment_processor' | 'fraud_provider' | 'reward_manager' | etc.;
+  // status?: 'active' | 'inactive';
+  // payment_methods_enabled?: Array<Record<string, any>>; // If API provides this detail
+  [key: string]: any; // Allow other dynamic properties
+}

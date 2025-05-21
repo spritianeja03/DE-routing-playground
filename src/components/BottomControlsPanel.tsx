@@ -1,8 +1,7 @@
-
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import React, { useEffect, useState, useMemo } from 'react'; // Added useMemo
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Input } from '@/components/ui/input';
@@ -16,64 +15,25 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PAYMENT_METHODS, PROCESSORS, DEFAULT_PROCESSOR_AVAILABILITY } from '@/lib/constants';
-import type { ControlsState, PaymentMethod, ProcessorPaymentMethodMatrix, ProcessorIncidentStatus, StructuredRule, ConditionField, ConditionOperator } from '@/lib/types';
-import { Settings2, TrendingUp, Zap, VenetianMaskIcon, AlertTriangle, Trash2, Percent, BrainCircuit } from 'lucide-react';
-
-const defaultProcessorMatrix: ProcessorPaymentMethodMatrix = PROCESSORS.reduce((acc, proc) => {
-  acc[proc.id] = DEFAULT_PROCESSOR_AVAILABILITY[proc.id] ||
-    PAYMENT_METHODS.reduce((methodsAcc, method) => {
-      methodsAcc[method] = false;
-      return methodsAcc;
-    }, {} as Record<PaymentMethod, boolean>);
-  return acc;
-}, {} as ProcessorPaymentMethodMatrix);
-
-
-const defaultProcessorIncidents: ProcessorIncidentStatus = PROCESSORS.reduce((acc, proc) => {
-  acc[proc.id] = null;
-  return acc;
-}, {} as ProcessorIncidentStatus);
-
-const getDefaultProcessorWiseSuccessRates = (): ControlsState['processorWiseSuccessRates'] => {
-  return PROCESSORS.reduce((acc, proc) => {
-    let defaultSr = 85;
-    let defaultSrDeviation = 2; // Default deviation
-    if (proc.id === 'stripe') { defaultSr = 92; defaultSrDeviation = 2;}
-    else if (proc.id === 'adyen') { defaultSr = 90; defaultSrDeviation = 3;}
-    else if (proc.id === 'paypal') { defaultSr = 88; defaultSrDeviation = 4;}
-    else if (proc.id === 'worldpay') { defaultSr = 86; defaultSrDeviation = 6;} // Updated
-    else if (proc.id === 'checkoutcom') { defaultSr = 91; defaultSrDeviation = 5;} // Updated
-
-    acc[proc.id] = {
-      sr: defaultSr,
-      srDeviation: defaultSrDeviation,
-      volumeShare: 0,
-      failureRate: 100 - defaultSr
-    };
-    return acc;
-  }, {} as ControlsState['processorWiseSuccessRates']);
-};
-
+import { PAYMENT_METHODS } from '@/lib/constants'; 
+import type { ControlsState, PaymentMethod, ProcessorPaymentMethodMatrix, ProcessorIncidentStatus, StructuredRule, ConditionField, ConditionOperator, MerchantConnector } from '@/lib/types';
+import { Settings2, TrendingUp, Zap, VenetianMaskIcon, AlertTriangle, Trash2 } from 'lucide-react'; // Removed Percent, BrainCircuit as they are not used here
 
 const formSchema = z.object({
   totalPayments: z.number().min(0).max(1000000),
-  tps: z.number().min(1).max(10000),
+  // tps: z.number().min(1).max(10000), // TPS Removed
   selectedPaymentMethods: z.array(z.string()).min(1, "Please select at least one payment method."),
   processorMatrix: z.record(z.string(), z.record(z.string(), z.boolean())),
-
   ruleConditionField: z.custom<ConditionField>().optional(),
   ruleConditionOperator: z.custom<ConditionOperator>().optional(),
   ruleConditionValue: z.custom<PaymentMethod>().optional(),
   ruleActionProcessorId: z.string().optional(),
-
   processorIncidents: z.record(z.string(), z.number().nullable()),
-  overallSuccessRate: z.number().min(0).max(100).optional(),
   processorWiseSuccessRates: z.record(z.string(), z.object({
     sr: z.number().min(0).max(100),
-    srDeviation: z.number().min(0).max(50).describe("Success rate deviation in absolute percentage points, e.g., 5 means +/- 5%."),
-    volumeShare: z.number().min(0).max(100),
-    failureRate: z.number().min(0).max(100),
+    srDeviation: z.number().min(0).max(50),
+    volumeShare: z.number().min(0).max(100), // This is for display in table, not directly set here
+    failureRate: z.number().min(0).max(100), // This is for display in table, not directly set here
   })),
   minAggregatesSize: z.number().min(1).max(100000),
   maxAggregatesSize: z.number().min(1).max(1000000),
@@ -84,46 +44,100 @@ const formSchema = z.object({
   path: ["maxAggregatesSize"],
 });
 
-export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule'> & { structuredRule: StructuredRule | null } & ControlsState;
-
+// Note: overallSuccessRate is part of ControlsState but not directly part of this form's schema
+// It's usually calculated and displayed, not configured here.
+export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule' | 'overallSuccessRate'> & { 
+  structuredRule: StructuredRule | null;
+  overallSuccessRate?: number; // Make it optional as it's not set by this form
+};
 
 interface BottomControlsPanelProps {
   onFormChange: (data: FormValues) => void;
   initialValues?: Partial<FormValues>;
+  merchantConnectors: MerchantConnector[];
 }
 
 const BOTTOM_PANEL_HEIGHT = "350px";
 
-export function BottomControlsPanel({ onFormChange, initialValues }: BottomControlsPanelProps) {
+export function BottomControlsPanel({ onFormChange, initialValues, merchantConnectors }: BottomControlsPanelProps) {
+  
+  const dynamicDefaults = useMemo(() => {
+    const matrix: ProcessorPaymentMethodMatrix = {};
+    const incidents: ProcessorIncidentStatus = {};
+    const rates: ControlsState['processorWiseSuccessRates'] = {};
+
+    (merchantConnectors || []).forEach(connector => {
+      const key = connector.merchant_connector_id || connector.connector_name;
+      matrix[key] = PAYMENT_METHODS.reduce((acc, method) => {
+        acc[method] = false; 
+        return acc;
+      }, {} as Record<PaymentMethod, boolean>);
+      incidents[key] = null;
+      rates[key] = { sr: 85, srDeviation: 5, volumeShare: 0, failureRate: 15 };
+    });
+    return { matrix, incidents, rates };
+  }, [merchantConnectors]);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      totalPayments: initialValues?.totalPayments ?? 1000,
-      tps: initialValues?.tps ?? 100,
-      selectedPaymentMethods: initialValues?.selectedPaymentMethods ?? [PAYMENT_METHODS[0], PAYMENT_METHODS[1]],
-      processorMatrix: initialValues?.processorMatrix ?? defaultProcessorMatrix,
-
-      ruleConditionField: initialValues?.structuredRule?.condition.field ?? undefined,
-      ruleConditionOperator: initialValues?.structuredRule?.condition.operator ?? undefined,
-      ruleConditionValue: initialValues?.structuredRule?.condition.value ?? undefined,
-      ruleActionProcessorId: initialValues?.structuredRule?.action.processorId ?? undefined,
-
-      processorIncidents: initialValues?.processorIncidents ?? defaultProcessorIncidents,
-      overallSuccessRate: initialValues?.overallSuccessRate ?? 0,
-      processorWiseSuccessRates: initialValues?.processorWiseSuccessRates ?? getDefaultProcessorWiseSuccessRates(),
-
-      minAggregatesSize: initialValues?.minAggregatesSize ?? 100,
-      maxAggregatesSize: initialValues?.maxAggregatesSize ?? 1000,
-      currentBlockThresholdMaxTotalCount: initialValues?.currentBlockThresholdMaxTotalCount ?? 10,
-      volumeSplit: initialValues?.volumeSplit ?? 100,
+      totalPayments: 1000,
+      // tps: 100, // TPS Removed
+      selectedPaymentMethods: [...PAYMENT_METHODS],
+      processorMatrix: dynamicDefaults.matrix,
+      processorIncidents: dynamicDefaults.incidents,
+      processorWiseSuccessRates: dynamicDefaults.rates,
+      minAggregatesSize: 100,
+      maxAggregatesSize: 1000,
+      currentBlockThresholdMaxTotalCount: 10,
+      volumeSplit: 100,
+      ruleConditionField: undefined,
+      ruleConditionOperator: undefined,
+      ruleConditionValue: undefined,
+      ruleActionProcessorId: undefined,
+      ...initialValues, // Apply initialValues last to override defaults
     },
   });
-
-  const [selectedIncidentProcessor, setSelectedIncidentProcessor] = useState<string>(PROCESSORS[0].id);
+  
+  const [selectedIncidentProcessor, setSelectedIncidentProcessor] = useState<string>('');
   const [incidentDuration, setIncidentDuration] = useState<number>(10);
 
   useEffect(() => {
-    const subscription = form.watch((values) => {
+    if (merchantConnectors && merchantConnectors.length > 0) {
+      const currentFormValues = form.getValues();
+      const newDefaults = {
+        processorMatrix: dynamicDefaults.matrix,
+        processorIncidents: dynamicDefaults.incidents,
+        processorWiseSuccessRates: dynamicDefaults.rates,
+      };
+      
+      // Merge existing form values with new defaults for processor-specific fields
+      // This preserves user changes to non-processor-specific fields
+      form.reset({
+        ...currentFormValues,
+        ...newDefaults,
+        // If initialValues were provided, they should ideally be re-evaluated against new connectors
+        // For simplicity, we're resetting processor parts to new dynamic defaults.
+      });
+
+      const firstConnectorId = merchantConnectors[0].merchant_connector_id || merchantConnectors[0].connector_name;
+      if (firstConnectorId && (!selectedIncidentProcessor || !merchantConnectors.some(c => (c.merchant_connector_id || c.connector_name) === selectedIncidentProcessor))) {
+        setSelectedIncidentProcessor(firstConnectorId);
+      }
+    } else {
+      form.reset({
+        ...form.getValues(),
+        processorMatrix: {},
+        processorIncidents: {},
+        processorWiseSuccessRates: {},
+        ruleActionProcessorId: undefined,
+      });
+      setSelectedIncidentProcessor('');
+    }
+  }, [merchantConnectors, dynamicDefaults, form, selectedIncidentProcessor]);
+
+  useEffect(() => {
+    const subscription = form.watch((values, { name, type }) => {
       const parsedValues = formSchema.safeParse(values);
       if (parsedValues.success) {
         const formData = parsedValues.data;
@@ -131,57 +145,38 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
         if (formData.ruleConditionField && formData.ruleConditionOperator && formData.ruleConditionValue && formData.ruleActionProcessorId) {
           rule = {
             id: 'rule1',
-            condition: {
-              field: formData.ruleConditionField,
-              operator: formData.ruleConditionOperator,
-              value: formData.ruleConditionValue,
-            },
-            action: {
-              type: 'ROUTE_TO_PROCESSOR',
-              processorId: formData.ruleActionProcessorId,
-            },
+            condition: { field: formData.ruleConditionField, operator: formData.ruleConditionOperator, value: formData.ruleConditionValue },
+            action: { type: 'ROUTE_TO_PROCESSOR', processorId: formData.ruleActionProcessorId },
           };
         }
-        onFormChange({ ...formData, structuredRule: rule } as FormValues);
-      } else {
-         const currentFormValues = form.getValues();
-         // When form is invalid, still pass the current values but structuredRule might be null or based on what's valid
-         // We'll keep the existing logic for rule construction but ensure onFormChange is always called.
-         let rule: StructuredRule | null = null;
-         if (currentFormValues.ruleConditionField && currentFormValues.ruleConditionOperator && currentFormValues.ruleConditionValue && currentFormValues.ruleActionProcessorId) {
-          rule = {
-            id: 'rule1',
-            condition: {
-              field: currentFormValues.ruleConditionField,
-              operator: currentFormValues.ruleConditionOperator,
-              value: currentFormValues.ruleConditionValue,
-            },
-            action: {
-              type: 'ROUTE_TO_PROCESSOR',
-              processorId: currentFormValues.ruleActionProcessorId,
-            },
-          };
-        }
-         onFormChange({ ...currentFormValues, structuredRule: rule, ...parsedValues.error.flatten().fieldErrors } as any);
+        // Pass only FormValues compatible fields, overallSuccessRate is not part of this form's direct output
+        const { overallSuccessRate, ...outputValues } = formData as any; 
+        onFormChange({ ...outputValues, structuredRule: rule } as FormValues);
       }
+      // Not calling onFormChange on error to prevent invalid state propagation
     });
 
+    // Initial call to onFormChange with default/initial values
     const initialFormValues = form.getValues();
-     const initialParsed = formSchema.safeParse(initialFormValues);
-      let initialRule: StructuredRule | null = null;
-      if(initialParsed.success){
+    const initialParsed = formSchema.safeParse(initialFormValues);
+    if (initialParsed.success) {
         const initialFormData = initialParsed.data;
+        let initialRule: StructuredRule | null = null;
         if (initialFormData.ruleConditionField && initialFormData.ruleConditionOperator && initialFormData.ruleConditionValue && initialFormData.ruleActionProcessorId) {
-             initialRule = {
+            initialRule = {
                 id: 'rule1',
                 condition: { field: initialFormData.ruleConditionField, operator: initialFormData.ruleConditionOperator, value: initialFormData.ruleConditionValue },
                 action: { type: 'ROUTE_TO_PROCESSOR', processorId: initialFormData.ruleActionProcessorId }
             };
         }
-        onFormChange({ ...initialFormData, structuredRule: initialRule } as FormValues);
-      } else {
-        onFormChange({ ...initialFormValues, structuredRule: null } as FormValues);
-      }
+        const { overallSuccessRate, ...outputValues } = initialFormData as any;
+        onFormChange({ ...outputValues, structuredRule: initialRule } as FormValues);
+    } else {
+        // Handle case where default values might not be fully valid initially (e.g. if merchantConnectors is empty)
+        const { overallSuccessRate, ...outputValues } = initialFormValues as any;
+        onFormChange({ ...outputValues, structuredRule: null } as FormValues);
+    }
+
 
     return () => subscription.unsubscribe();
   }, [form, onFormChange]);
@@ -191,17 +186,16 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
   const handleTriggerIncident = () => {
     if (selectedIncidentProcessor && incidentDuration > 0) {
       const endTime = Date.now() + incidentDuration * 1000;
-      setValue(`processorIncidents.${selectedIncidentProcessor}` as any, endTime, { shouldValidate: true, shouldDirty: true });
+      setValue(`processorIncidents.${selectedIncidentProcessor}`, endTime, { shouldValidate: true, shouldDirty: true });
     }
   };
 
   const handleClearRule = () => {
-    setValue('ruleConditionField', undefined, { shouldDirty: true });
-    setValue('ruleConditionOperator', undefined, { shouldDirty: true });
-    setValue('ruleConditionValue', undefined, { shouldDirty: true });
-    setValue('ruleActionProcessorId', undefined, { shouldDirty: true });
+    setValue('ruleConditionField', undefined);
+    setValue('ruleConditionOperator', undefined);
+    setValue('ruleConditionValue', undefined);
+    setValue('ruleActionProcessorId', undefined);
   };
-
 
   return (
     <div
@@ -234,23 +228,24 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                       </FormItem>
                     )}
                   />
-                  <FormField
+                  {/* TPS Field Removed */}
+                  {/* <FormField
                     control={control}
                     name="tps"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>TPS ({field.value})</FormLabel>
                         <FormControl>
-                          <Slider
-                            defaultValue={[field.value]}
-                            min={1} max={10000} step={50}
-                            onValueChange={(value) => field.onChange(value[0])}
-                          />
-                        </FormControl>
+                        <Slider
+                          defaultValue={[field.value]}
+                          min={1} max={10000} step={50}
+                          onValueChange={(value: number[]) => { field.onChange(value[0]); }}
+                        />
+                      </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
-                  />
+                  /> */}
                   <FormField
                     control={control}
                     name="selectedPaymentMethods"
@@ -302,17 +297,20 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                   <CardHeader><CardTitle className="text-base">Processor ↔ PM Matrix</CardTitle></CardHeader>
                   <CardContent className="space-y-1 p-2">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                      {PROCESSORS.map(proc => (
-                        <div key={proc.id} className="border p-2 rounded-md">
-                          <h4 className="font-medium mb-1 text-sm">{proc.name}</h4>
-                          {PAYMENT_METHODS.map(method => (
-                            <FormField
-                              key={`${proc.id}-${method}`}
-                              control={control}
-                              name={`processorMatrix.${proc.id}.${method}`}
-                              render={({ field }) => (
-                                <FormItem className="flex items-center py-0.5">
-                                  <FormLabel className="font-normal text-xs mr-auto">{method}</FormLabel>
+                      {(merchantConnectors || []).map(connector => {
+                        const connectorId = connector.merchant_connector_id || connector.connector_name;
+                        const connectorDisplayName = connector.connector_label || connector.connector_name;
+                        return (
+                          <div key={connectorId} className="border p-2 rounded-md">
+                            <h4 className="font-medium mb-1 text-sm truncate" title={connectorDisplayName}>{connectorDisplayName}</h4>
+                            {PAYMENT_METHODS.map(method => (
+                              <FormField
+                                key={`${connectorId}-${method}`}
+                                control={control}
+                                name={`processorMatrix.${connectorId}.${method}`}
+                                render={({ field }) => (
+                                  <FormItem className="flex items-center py-0.5">
+                                    <FormLabel className="font-normal text-xs mr-auto">{method}</FormLabel>
                                   <FormControl>
                                     <Switch checked={field.value ?? false} onCheckedChange={field.onChange} size="sm" />
                                   </FormControl>
@@ -321,7 +319,8 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                             />
                           ))}
                         </div>
-                      ))}
+                      );
+                      })}
                     </div>
                   </CardContent>
                 </Card>
@@ -404,7 +403,11 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                             <Select onValueChange={field.onChange} value={field.value} disabled={!form.watch("ruleConditionValue")}>
                               <FormControl><SelectTrigger><SelectValue placeholder="Select processor" /></SelectTrigger></FormControl>
                               <SelectContent>
-                                {PROCESSORS.map(proc => <SelectItem key={proc.id} value={proc.id}>{proc.name}</SelectItem>)}
+                                {(merchantConnectors || []).map(connector => {
+                                  const connectorId = connector.merchant_connector_id || connector.connector_name;
+                                  const connectorDisplayName = connector.connector_label || connector.connector_name;
+                                  return <SelectItem key={connectorId} value={connectorId}>{connectorDisplayName}</SelectItem>;
+                                })}
                               </SelectContent>
                             </Select>
                             <FormMessage />
@@ -417,7 +420,8 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                 <Card>
                   <CardHeader className="pb-3">
                      <div className="flex items-center">
-                        <BrainCircuit className="mr-2 h-5 w-5 text-primary" />
+                        {/* Using Settings2 as BrainCircuit was removed from imports to save space, can be re-added */}
+                        <Settings2 className="mr-2 h-5 w-5 text-primary" /> 
                         <CardTitle className="text-base">Intelligent Routing Parameters</CardTitle>
                       </div>
                     <CardDescription className="text-xs pt-1">Configure parameters for dynamic routing decisions. Elimination routing (skipping downed or low SR processors) is always active.</CardDescription>
@@ -473,11 +477,11 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                           <FormItem>
                             <FormLabel className="text-xs">Volume Split for Intelligent Routing: {field.value}%</FormLabel>
                             <div className="flex items-center gap-2">
-                                <Slider
-                                    defaultValue={[field.value]}
-                                    min={0} max={100} step={1}
-                                    onValueChange={(value) => field.onChange(value[0])}
-                                    className="flex-grow"
+                              <Slider
+                                defaultValue={[field.value]}
+                                min={0} max={100} step={1}
+                                onValueChange={(value: number[]) => { field.onChange(value[0]); }}
+                                className="flex-grow"
                                 />
                                 <Input
                                     type="number"
@@ -508,25 +512,29 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                     <CardDescription className="text-xs">Set the target mean success rate (%) for each processor.</CardDescription>
                   </CardHeader>
                   <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2 p-2">
-                    {PROCESSORS.map(proc => (
-                      <FormField
-                        key={proc.id}
-                        control={control}
-                        name={`processorWiseSuccessRates.${proc.id}.sr`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs">{proc.name} Base SR: {field.value}%</FormLabel>
+                    {(merchantConnectors || []).map(connector => {
+                      const connectorId = connector.merchant_connector_id || connector.connector_name;
+                      const connectorDisplayName = connector.connector_label || connector.connector_name;
+                      return (
+                        <FormField
+                          key={connectorId}
+                          control={control}
+                          name={`processorWiseSuccessRates.${connectorId}.sr`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs truncate" title={connectorDisplayName}>{connectorDisplayName} Base SR: {field.value}%</FormLabel>
                             <FormControl>
                               <Slider
                                 defaultValue={[field.value]}
                                 min={0} max={100} step={1}
-                                onValueChange={(value) => field.onChange(value[0])}
+                                onValueChange={(value: number[]) => { field.onChange(value[0]); }}
                               />
                             </FormControl>
                           </FormItem>
                         )}
                       />
-                    ))}
+                    );
+                    })}
                   </CardContent>
                 </Card>
 
@@ -536,25 +544,29 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                     <CardDescription className="text-xs">Set SR deviation (+/- percentage points) for randomness.</CardDescription>
                   </CardHeader>
                   <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2 p-2">
-                    {PROCESSORS.map(proc => (
-                      <FormField
-                        key={`${proc.id}-deviation`}
-                        control={control}
-                        name={`processorWiseSuccessRates.${proc.id}.srDeviation`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs">{proc.name} SR Deviation: +/- {field.value}%</FormLabel>
+                    {(merchantConnectors || []).map(connector => {
+                      const connectorId = connector.merchant_connector_id || connector.connector_name;
+                      const connectorDisplayName = connector.connector_label || connector.connector_name;
+                      return (
+                        <FormField
+                          key={`${connectorId}-deviation`}
+                          control={control}
+                          name={`processorWiseSuccessRates.${connectorId}.srDeviation`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs truncate" title={connectorDisplayName}>{connectorDisplayName} SR Deviation: +/- {field.value}%</FormLabel>
                             <FormControl>
                               <Slider
                                 defaultValue={[field.value]}
                                 min={0} max={20} step={1}
-                                onValueChange={(value) => field.onChange(value[0])}
+                                onValueChange={(value: number[]) => { field.onChange(value[0]); }}
                               />
                             </FormControl>
                           </FormItem>
                         )}
                       />
-                    ))}
+                    );
+                    })}
                   </CardContent>
                 </Card>
 
@@ -566,16 +578,22 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
                   <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end p-3">
                     <FormItem>
                       <FormLabel htmlFor="incidentProcessor" className="text-xs">Processor</FormLabel>
-                      <Select onValueChange={setSelectedIncidentProcessor} defaultValue={selectedIncidentProcessor}>
+                      <Select 
+                        onValueChange={setSelectedIncidentProcessor} 
+                        value={selectedIncidentProcessor} 
+                        disabled={!merchantConnectors || merchantConnectors.length === 0}
+                      >
                         <FormControl>
                           <SelectTrigger id="incidentProcessor">
                             <SelectValue placeholder="Select processor" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {PROCESSORS.map(proc => (
-                            <SelectItem key={proc.id} value={proc.id}>{proc.name}</SelectItem>
-                          ))}
+                          {(merchantConnectors || []).map(connector => {
+                             const connectorId = connector.merchant_connector_id || connector.connector_name;
+                             const connectorDisplayName = connector.connector_label || connector.connector_name;
+                            return <SelectItem key={connectorId} value={connectorId}>{connectorDisplayName}</SelectItem>;
+                          })}
                         </SelectContent>
                       </Select>
                     </FormItem>
@@ -602,4 +620,3 @@ export function BottomControlsPanel({ onFormChange, initialValues }: BottomContr
     </div>
   );
 }
-
