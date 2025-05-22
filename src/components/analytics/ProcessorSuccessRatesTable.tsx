@@ -18,8 +18,8 @@ export function ProcessorSuccessRatesTable({ data }: ProcessorSuccessRatesTableP
   return (
     <Card className="shadow-lg">
       <CardHeader>
-        <CardTitle className="flex items-center"><BarChart3 className="mr-2 h-6 w-6 text-primary" /> Processor-wise SRs</CardTitle>
-        <CardDescription>Success rate, failure rate, and volume share per processor.</CardDescription>
+        <CardTitle className="flex items-center"><BarChart3 className="mr-2 h-6 w-6 text-primary" /> Processor-wise Stats</CardTitle>
+        <CardDescription>Success rate, successful payments, and total payments per processor.</CardDescription>
       </CardHeader>
       <CardContent>
         <Table>
@@ -27,8 +27,8 @@ export function ProcessorSuccessRatesTable({ data }: ProcessorSuccessRatesTableP
             <TableRow>
               <TableHead>Processor</TableHead>
               <TableHead className="text-right">SR (%)</TableHead>
-              <TableHead className="text-right">Failure (%)</TableHead>
-              <TableHead className="text-right">Volume Share (%)</TableHead>
+              <TableHead className="text-right">Successful Payments</TableHead>
+              <TableHead className="text-right">Total Payments</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -36,8 +36,8 @@ export function ProcessorSuccessRatesTable({ data }: ProcessorSuccessRatesTableP
               <TableRow key={item.processor}>
                 <TableCell className="font-medium">{item.processor}</TableCell>
                 <TableCell className="text-right text-green-400">{item.sr.toFixed(1)}</TableCell>
-                <TableCell className="text-right text-red-400">{item.failureRate.toFixed(1)}</TableCell>
-                <TableCell className="text-right">{item.volumeShare.toFixed(1)}</TableCell>
+                <TableCell className="text-right">{item.successfulPaymentCount.toLocaleString()}</TableCell>
+                <TableCell className="text-right">{item.totalPaymentCount.toLocaleString()}</TableCell>
               </TableRow>
             ))}
           </TableBody>

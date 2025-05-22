@@ -25,7 +25,7 @@ export default function HomePage() {
   const [currentControls, setCurrentControls] = useState<FormValues | null>(null);
   const [simulationState, setSimulationState] = useState<'idle' | 'running' | 'paused'>('idle');
   const [processedPaymentsCount, setProcessedPaymentsCount] = useState<number>(0);
-  const [simulationTimeStep, setSimulationTimeStep] = useState<number>(0);
+  // const [simulationTimeStep, setSimulationTimeStep] = useState<number>(0); // Replaced by Date.now() for history
 
   const [successRateHistory, setSuccessRateHistory] = useState<ProcessorMetricsHistory>([]);
   const [volumeHistory, setVolumeHistory] = useState<ProcessorMetricsHistory>([]);
@@ -53,6 +53,13 @@ export default function HomePage() {
   const processorTransactionHistoryRef = useRef<Record<string, Array<0 | 1>>>({});
 
   const { toast } = useToast();
+
+  // Effect to open modal on initial load if credentials are not set
+  useEffect(() => {
+    if (!apiKey && !profileId && !merchantId) {
+      setIsApiCredentialsModalOpen(true);
+    }
+  }, []); // Empty dependency array ensures this runs only once on mount
 
   const handleControlsChange = useCallback((data: FormValues) => {
     setCurrentControls(data);
@@ -89,7 +96,9 @@ export default function HomePage() {
       (connectorsData || []).forEach((connector) => {
         const key = connector.merchant_connector_id || connector.connector_name;
         if (key) {
-          initialToggleStates[key] = true; 
+          // Set toggle state based on the 'disabled' field from API
+          // Connector is ON if 'disabled' is not explicitly true (i.e., false or undefined). Otherwise, OFF.
+          initialToggleStates[key] = !(connector.disabled === true); 
           initialProcessorWiseSuccessRates[key] = { sr: 0, srDeviation: 0, volumeShare: 0, failureRate: 100 };
           initialProcessorIncidents[key] = null;
           initialProcessorMatrix[key] = PAYMENT_METHODS.reduce((acc, method) => {
@@ -102,9 +111,19 @@ export default function HomePage() {
       
       setCurrentControls(prev => {
         const base = prev ? {...prev} : {
-            totalPayments: 1000, /* tps: 100, */ selectedPaymentMethods: [...PAYMENT_METHODS], // TPS Removed
-            structuredRule: null, minAggregatesSize: 100, maxAggregatesSize: 1000,
-            currentBlockThresholdMaxTotalCount: 10, volumeSplit: 100,
+            totalPayments: 1000, 
+            selectedPaymentMethods: [...PAYMENT_METHODS],
+            structuredRule: null, 
+            minAggregatesSize: 100, 
+            maxAggregatesSize: 1000,
+            defaultSuccessRate: 90, // Added default
+            currentBlockThresholdDurationInMins: 5, // Added default
+            currentBlockThresholdMaxTotalCount: 10, 
+            // volumeSplit: 100, // Removed
+            // Ensure all required fields for FormValues (excluding those coming from dynamic defaults) are present
+            processorMatrix: {}, // Add default empty object
+            processorIncidents: {}, // Add default empty object
+            processorWiseSuccessRates: {}, // Add default empty object
         } as FormValues; 
 
         return {
@@ -133,9 +152,76 @@ export default function HomePage() {
     }
   };
   
-  const handleConnectorToggleChange = (connectorId: string, newState: boolean) => {
+  const handleConnectorToggleChange = async (connectorId: string, newState: boolean) => {
+    console.log(`handleConnectorToggleChange called for connectorId: ${connectorId}, newState: ${newState}`);
+    console.log(`Current merchantId: '${merchantId}', apiKey present: ${!!apiKey}`);
+
+    const originalState = connectorToggleStates[connectorId];
+    // Optimistic update
     setConnectorToggleStates(prev => ({ ...prev, [connectorId]: newState }));
-    console.log(`Connector ${connectorId} toggled to ${newState}`);
+
+    if (!merchantId || !apiKey) {
+      console.error("Missing merchantId or apiKey. Aborting API call.");
+      toast({
+        title: "API Credentials Missing",
+        description: "Cannot update connector status without Merchant ID and API Key.",
+        variant: "destructive",
+      });
+      setConnectorToggleStates(prev => ({ ...prev, [connectorId]: originalState })); // Revert
+      return;
+    }
+
+    console.log(`Proceeding with API call for connectorId: ${connectorId}`);
+    // Find the specific connector to ensure we use its merchant_connector_id if available,
+    // and potentially its connector_type if it's dynamic (though example hardcodes it).
+    // The 'connectorId' passed should ideally be the merchant_connector_id.
+    // For now, we assume 'connectorId' is the correct one for the URL.
+    // The API endpoint uses the merchant_connector_id (e.g., mca_...).
+    const connectorToUpdate = merchantConnectors.find(
+      (c) => (c.merchant_connector_id || c.connector_name) === connectorId
+    );
+
+    const connectorTypeForAPI = connectorToUpdate?.connector_type || "payment_processor"; // Default if not found
+
+    try {
+      const response = await fetch(`https://sandbox.hyperswitch.io/account/${merchantId}/connectors/${connectorId}`, {
+        method: 'POST', // As per curl --data, typically implies POST for updates to a specific resource ID in some APIs
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'api-key': apiKey,
+        },
+        body: JSON.stringify({
+          connector_type: connectorTypeForAPI, 
+          disabled: !newState, // If toggle is ON (true), API disabled is false. If OFF (false), API disabled is true.
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Failed to update connector status." }));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      // const updatedConnectorData = await response.json(); // Contains the updated connector
+      toast({
+        title: "Connector Status Updated",
+        description: `Connector ${connectorId} has been ${newState ? 'enabled' : 'disabled'}.`,
+      });
+      // Optionally, re-fetch all connectors or update the specific one in merchantConnectors state
+      // For now, the optimistic update of connectorToggleStates is primary.
+      // If the API returns the full updated connector, we could update it in the merchantConnectors array.
+      // fetchMerchantConnectors(merchantId, apiKey); // Or re-fetch to ensure full consistency
+
+    } catch (error: any) {
+      console.error("Error updating connector status:", error);
+      toast({
+        title: "Update Failed",
+        description: error.message || "Could not update connector status.",
+        variant: "destructive",
+      });
+      // Revert optimistic update
+      setConnectorToggleStates(prev => ({ ...prev, [connectorId]: originalState }));
+    }
   };
   
   const handleApiCredentialsSubmit = () => {
@@ -154,13 +240,26 @@ export default function HomePage() {
       });
       return;
     }
+    // Validate credentials
+    if (!apiKey || !profileId || !merchantId) {
+      toast({
+        title: "API Credentials Required",
+        description: "Please enter API Key, Profile ID, and Merchant ID.",
+        variant: "destructive",
+      });
+      // Keep modal open if validation fails
+      setIsApiCredentialsModalOpen(true); 
+      return;
+    }
+    // Credentials are valid, close modal and fetch connectors
     setIsApiCredentialsModalOpen(false);
     fetchMerchantConnectors(merchantId, apiKey); 
+    // Do NOT start simulation here.
   };
 
   const resetSimulationState = () => {
     setProcessedPaymentsCount(0);
-    setSimulationTimeStep(0);
+    // setSimulationTimeStep(0); // Removed
     setSuccessRateHistory([]);
     setVolumeHistory([]);
     setOverallSuccessRateHistory([]);
@@ -176,11 +275,19 @@ export default function HomePage() {
     setCurrentControls(prev => {
       if (!prev) { 
         return {
-          totalPayments: 1000, /* tps: 100, */ selectedPaymentMethods: [...PAYMENT_METHODS], // TPS Removed
-          processorMatrix: {}, processorIncidents: {}, overallSuccessRate: 0,
-          processorWiseSuccessRates: {}, structuredRule: null,
-          minAggregatesSize: 100, maxAggregatesSize: 1000,
-          currentBlockThresholdMaxTotalCount: 10, volumeSplit: 100,
+          totalPayments: 1000, 
+          selectedPaymentMethods: [...PAYMENT_METHODS],
+          processorMatrix: {}, 
+          processorIncidents: {}, 
+          overallSuccessRate: 0,
+          processorWiseSuccessRates: {}, 
+          structuredRule: null,
+          minAggregatesSize: 100, 
+          maxAggregatesSize: 1000,
+          defaultSuccessRate: 90, // Added default
+          currentBlockThresholdDurationInMins: 5, // Added default
+          currentBlockThresholdMaxTotalCount: 10, 
+          // volumeSplit: 100, // Removed
         };
       }
       const newPwsr: ControlsState['processorWiseSuccessRates'] = {};
@@ -293,31 +400,43 @@ export default function HomePage() {
     let paymentsProcessedThisBatch = 0;
 
     // The loop condition will now primarily be controlled by the outer logic ensuring totalPayments is not exceeded.
-    // This loop will run once per processTransactionBatch call if paymentsToProcessInBatch is 1.
+      // This loop will run once per processTransactionBatch call if paymentsToProcessInBatch is 1.
     for (let i = 0; i < paymentsToProcessInBatch && (processedPaymentsCount + paymentsProcessedThisBatch) < currentControls.totalPayments; i++) {
       if (isStoppingRef.current || signal.aborted) {
         console.log("Stopping batch processing due to stop signal or abort.");
         break; 
       }
       
+      // const paymentMethod = currentControls.selectedPaymentMethods.length > 0 // Removed PM selection
+      //   ? currentControls.selectedPaymentMethods[Math.floor(Math.random() * currentControls.selectedPaymentMethods.length)]
+      //   : PAYMENT_METHODS[0];
+      // Hardcode to "card" as it's the only option now
+      const paymentMethodForAPI = "card";
+
+
+      // Routing logic based on structuredRule needs to be re-evaluated or simplified
+      // if selectedPaymentMethods is removed. For now, custom rule logic is effectively disabled
+      // if it relied on specific payment method selection beyond "card".
+      // If the rule condition is 'paymentMethod' and value is 'Card', it might still apply.
+      // However, the UI for setting this rule might also need adjustment if PM selection is gone.
+      // For now, the API call will use "card".
+
       const paymentData = {
         amount: 6540,
         currency: "USD",
-        // amount_to_capture: 6540, // Included in curl, can be added if needed
         confirm: true,
-        profile_id: profileId, // Using state variable
+        profile_id: profileId, 
         capture_method: "automatic",
-        // capture_on: "2022-09-10T10:11:12Z", // Past date, commented out. Can be re-enabled.
         authentication_type: "no_three_ds",
         customer: {
-            id: `customer_${Date.now()}_${Math.floor(Math.random() * 10000)}`, // More robust unique ID
+            id: `customer_${Date.now()}_${Math.floor(Math.random() * 10000)}`, 
             name: "John Doe",
             email: "customer@example.com",
             phone: "9999999999",
             phone_country_code: "+1"
         },
-        payment_method: "card",
-        payment_method_type: "credit",
+        payment_method: paymentMethodForAPI, // Use hardcoded "card"
+        payment_method_type: "credit", // Assuming credit for card
         payment_method_data: { 
             card: {
                 card_number: "4242424242424242",
@@ -470,8 +589,9 @@ export default function HomePage() {
         // The rest of the updates should only happen if we are not stopping
         // and currentControls is available (it should be if simulation is running)
         if (!isStoppingRef.current && currentControls) {
-            const newSuccessRateDataPoint: TimeSeriesDataPoint = { time: simulationTimeStep };
-            const newVolumeDataPoint: TimeSeriesDataPoint = { time: simulationTimeStep };
+            const currentTime = Date.now(); // Use current timestamp
+            const newSuccessRateDataPoint: TimeSeriesDataPoint = { time: currentTime };
+            const newVolumeDataPoint: TimeSeriesDataPoint = { time: currentTime };
         
             merchantConnectors.forEach(connector => {
               const key = connector.merchant_connector_id || connector.connector_name;
@@ -493,7 +613,7 @@ export default function HomePage() {
 
             const totalProcessedOverall = accumulatedGlobalStatsRef.current.totalSuccessful + accumulatedGlobalStatsRef.current.totalFailed;
             const currentOverallSR = totalProcessedOverall > 0 ? (accumulatedGlobalStatsRef.current.totalSuccessful / totalProcessedOverall) * 100 : 0;
-            setOverallSuccessRateHistory(prev => [...prev, { time: simulationTimeStep, overallSR: currentOverallSR }]);
+            setOverallSuccessRateHistory(prev => [...prev, { time: currentTime, overallSR: currentOverallSR }]);
             
             setCurrentControls(prevControls => {
                 if (!prevControls) return prevControls;
@@ -536,13 +656,13 @@ export default function HomePage() {
                     overallSuccessRate: currentOverallSR,
                 };
             });
-            setSimulationTimeStep(prev => prev + 1);
+            // setSimulationTimeStep(prev => prev + 1); // Removed
         }
     }
   }, [
     currentControls, simulationState, apiKey, profileId, merchantConnectors, connectorToggleStates,
-    processedPaymentsCount, simulationTimeStep, 
-    setProcessedPaymentsCount, setSimulationTimeStep, setSuccessRateHistory, setVolumeHistory, 
+    processedPaymentsCount, // simulationTimeStep removed
+    setProcessedPaymentsCount, /*setSimulationTimeStep removed*/ setSuccessRateHistory, setVolumeHistory, 
     setOverallSuccessRateHistory, setSimulationState, setCurrentControls, 
     toast
   ]);
@@ -589,10 +709,16 @@ export default function HomePage() {
     
     console.log("Credentials present. Proceeding with simulation start...");
     
+    // Fetch connectors ONLY if they haven't been fetched yet or if forceStart is true
     if (forceStart || merchantConnectors.length === 0) {
-      await fetchMerchantConnectors(merchantId, apiKey);
+      const connectors = await fetchMerchantConnectors(merchantId, apiKey);
+      if (connectors.length === 0 && !forceStart) { // If fetch failed and not forcing, don't proceed
+        toast({ title: "Error", description: "Failed to fetch merchant connectors. Cannot start simulation.", variant: "destructive" });
+        return;
+      }
     }
     
+    // Check if currentControls needs initialization AFTER potentially fetching connectors
     if (!currentControls && merchantConnectors.length > 0) {
         const initialProcessorWiseSuccessRates: ControlsState['processorWiseSuccessRates'] = {};
         const initialProcessorIncidents: ControlsState['processorIncidents'] = {};
@@ -606,12 +732,18 @@ export default function HomePage() {
             }, {} as Record<PaymentMethod, boolean>);
         });
         setCurrentControls({
-            totalPayments: 1000, /* tps: 100, */ selectedPaymentMethods: [...PAYMENT_METHODS], // TPS Removed
-            processorMatrix: initialProcessorMatrix, structuredRule: null,
-            processorIncidents: initialProcessorIncidents, overallSuccessRate: 0,
+            totalPayments: 1000, /* tps: 100, */ selectedPaymentMethods: [...PAYMENT_METHODS], // Re-added selectedPaymentMethods
+            processorMatrix: initialProcessorMatrix, 
+            structuredRule: null,
+            processorIncidents: initialProcessorIncidents, 
+            overallSuccessRate: 0,
             processorWiseSuccessRates: initialProcessorWiseSuccessRates,
-            minAggregatesSize: 100, maxAggregatesSize: 1000,
-            currentBlockThresholdMaxTotalCount: 10, volumeSplit: 100,
+            minAggregatesSize: 100, 
+            maxAggregatesSize: 1000,
+            defaultSuccessRate: 90, // Added default
+            currentBlockThresholdDurationInMins: 5, // Added default
+            currentBlockThresholdMaxTotalCount: 10, 
+            // volumeSplit: 100, // Removed
         });
     } else if (!currentControls) {
          toast({ title: "Error", description: "Control data not available and connectors not fetched.", variant: "destructive" });
@@ -656,7 +788,12 @@ export default function HomePage() {
     }
   }, [simulationState, processedPaymentsCount, toast, setSimulationState]); // generateAndSetSummary removed from dependencies
 
-  const [activeTab, setActiveTab] = useState("stats");
+  const [activeTab, _setActiveTab] = useState("stats");
+
+  const setActiveTab = (newTab: string) => {
+    console.log("setActiveTab called with:", newTab);
+    _setActiveTab(newTab);
+  };
 
   return (
     <>
@@ -672,6 +809,7 @@ export default function HomePage() {
           />
           <div className="flex-grow overflow-hidden p-0">
             <TabsContent value="stats" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
+              {/* {console.log("Rendering Stats TabsContent, activeTab:", activeTab)} */}
               <ScrollArea className="h-full">
                  <div className="p-2 md:p-4 lg:p-6">
                     <StatsView
@@ -686,6 +824,7 @@ export default function HomePage() {
               </ScrollArea>
             </TabsContent>
             <TabsContent value="analytics" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
+               {/* {console.log("Rendering Analytics TabsContent, activeTab:", activeTab)} */}
                <ScrollArea className="h-full">
                  <div className="p-2 md:p-4 lg:p-6">
                     <AnalyticsGraphsView
@@ -696,20 +835,26 @@ export default function HomePage() {
                   </div>
               </ScrollArea>
             </TabsContent>
-            <TabsContent value="processors" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
+            {/* <TabsContent value="processors" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
+              {console.log("Rendering Processors TabsContent, activeTab:", activeTab)}
               <ProcessorsTabView
                 merchantConnectors={merchantConnectors}
-                connectorToggleStates={connectorToggleStates}
-                onConnectorToggleChange={handleConnectorToggleChange}
+                // connectorToggleStates={connectorToggleStates} // Removed
+                // onConnectorToggleChange={handleConnectorToggleChange} // Removed
                 isLoadingConnectors={isLoadingMerchantConnectors}
               />
-            </TabsContent>
+            </TabsContent> */}
           </div>
         </Tabs>
       </AppLayout>
       <BottomControlsPanel
         onFormChange={handleControlsChange}
         merchantConnectors={merchantConnectors}
+        connectorToggleStates={connectorToggleStates}
+        onConnectorToggleChange={handleConnectorToggleChange}
+        apiKey={apiKey} // Re-add apiKey prop
+        profileId={profileId} // Re-add profileId prop
+        merchantId={merchantId} // Add merchantId prop
       />
       {/* <Dialog open={isSummaryModalOpen} onOpenChange={setIsSummaryModalOpen}>...</Dialog> */} {/* AI Summary Dialog potentially removed or kept non-functional */}
       
@@ -757,7 +902,7 @@ export default function HomePage() {
               Cancel
             </Button>
             <Button type="button" onClick={handleApiCredentialsSubmit}>
-              Save & Start
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>

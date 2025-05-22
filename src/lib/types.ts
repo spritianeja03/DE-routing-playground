@@ -37,7 +37,7 @@ export interface StructuredRule {
 export interface ControlsState {
   totalPayments: number;
   // tps: number; // TPS Removed
-  selectedPaymentMethods: PaymentMethod[];
+  selectedPaymentMethods: PaymentMethod[]; // Re-added to reflect "Card" as selected
   processorMatrix: ProcessorPaymentMethodMatrix;
   structuredRule: StructuredRule | null;
   processorIncidents: ProcessorIncidentStatus;
@@ -59,8 +59,8 @@ export interface ControlsState {
 export interface ProcessorSuccessRate {
   processor: string;
   sr: number; // Observed SR
-  failureRate: number; // Derived from OBSERVED SR
-  volumeShare: number; // Observed from simulation
+  successfulPaymentCount: number;
+  totalPaymentCount: number;
 }
 
 // Types for Time Series Charts (Per Processor)
@@ -117,9 +117,9 @@ export interface MerchantConnector {
   connector_name: string; // Typically used as an identifier if no specific ID field is primary
   connector_label: string; // User-friendly display name
   merchant_connector_id: string; // Often the most stable unique identifier for the merchant's specific connector instance
-  // Include other relevant fields from the API response as needed, e.g.:
-  // connector_type?: 'payment_processor' | 'fraud_provider' | 'reward_manager' | etc.;
-  // status?: 'active' | 'inactive';
+  disabled?: boolean; // Explicitly add the disabled field
+  connector_type?: string; // Using string for flexibility, can be a union of known types
+  // status?: 'active' | 'inactive'; // 'disabled' field might replace or complement a 'status' field
   // payment_methods_enabled?: Array<Record<string, any>>; // If API provides this detail
   [key: string]: any; // Allow other dynamic properties
 }

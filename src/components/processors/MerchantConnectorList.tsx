@@ -1,21 +1,24 @@
 "use client";
 
-import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card"; // Removed unused CardHeader, CardTitle, CardDescription
+import { Card, CardContent } from "@/components/ui/card"; 
 import type { MerchantConnector } from "@/lib/types"; // Import from global types
 
 interface MerchantConnectorListProps {
   connectors: MerchantConnector[];
-  toggleStates: Record<string, boolean>;
-  onToggleChange: (connectorId: string, newState: boolean) => void;
+  // toggleStates: Record<string, boolean>; // Removed
+  // onToggleChange: (connectorId: string, newState: boolean) => void; // Removed
 }
 
 export function MerchantConnectorList({
   connectors,
-  toggleStates,
-  onToggleChange,
+  // toggleStates, // Removed
+  // onToggleChange, // Removed
 }: MerchantConnectorListProps) {
+  // console.log("MerchantConnectorList received props - connectors:", connectors, "toggleStates:", toggleStates); // Modified log
+  console.log("MerchantConnectorList received props - connectors:", connectors);
+
+
   if (!connectors || connectors.length === 0) {
     return (
       <div className="py-4">
@@ -31,25 +34,24 @@ export function MerchantConnectorList({
       {connectors.map((connector) => {
         const key = connector.merchant_connector_id || connector.connector_name;
         const displayName = connector.connector_label || connector.connector_name;
-        const isToggled = toggleStates[key] ?? false; // Default to false if not in map
+        // const isToggled = toggleStates[key] ?? false; // Removed
+        
+        // console.log(`Rendering MerchantConnectorList item for key: ${key}, displayName: ${displayName}, isToggled: ${isToggled}`); // Modified log
+        console.log(`Rendering MerchantConnectorList item for key: ${key}, displayName: ${displayName}`);
+
 
         return (
           <Card key={key} className="shadow-sm">
             <CardContent className="p-4 flex items-center justify-between">
               <div className="flex flex-col">
-                <Label htmlFor={`toggle-${key}`} className="font-medium">
+                <Label className="font-medium"> {/* Removed htmlFor */}
                   {displayName}
                 </Label>
                 <span className="text-xs text-muted-foreground">
                   ID: {connector.merchant_connector_id} (Name: {connector.connector_name})
                 </span>
               </div>
-              <Switch
-                id={`toggle-${key}`}
-                checked={isToggled}
-                onCheckedChange={(newState) => onToggleChange(key, newState)}
-                aria-label={`Toggle ${displayName}`}
-              />
+              {/* Switch component removed */}
             </CardContent>
           </Card>
         );

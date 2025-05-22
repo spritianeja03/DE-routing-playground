@@ -46,23 +46,51 @@ export function StatsView({
     if (!currentControls?.processorWiseSuccessRates) {
       return [];
     }
+
+    // If processorWiseSuccessRates exists, but processedPayments is 0,
+    // map processors to show 0 SR and 0 counts.
+    if (processedPayments === 0) {
+      return Object.keys(currentControls.processorWiseSuccessRates)
+        .map(processorId => {
+          const stats = currentControls.processorWiseSuccessRates![processorId];
+          const connectorInfo = merchantConnectors.find(mc => (mc.merchant_connector_id || mc.connector_name) === processorId);
+          const processorName = connectorInfo ? (connectorInfo.connector_label || connectorInfo.connector_name) : processorId;
+          return {
+            processor: processorName,
+            sr: 0, // Default SR to 0 if no payments processed
+            successfulPaymentCount: 0,
+            totalPaymentCount: 0,
+            volumeShareForSort: stats.volumeShare ?? 0,
+          };
+        })
+        .sort((a, b) => b.volumeShareForSort - a.volumeShareForSort)
+        .map(({ volumeShareForSort, ...rest }) => rest);
+    }
+
+    // If there are processed payments and processor-wise rates
     return Object.keys(currentControls.processorWiseSuccessRates)
       .map(processorId => {
         const stats = currentControls.processorWiseSuccessRates![processorId];
         const connectorInfo = merchantConnectors.find(mc => (mc.merchant_connector_id || mc.connector_name) === processorId);
         const processorName = connectorInfo ? (connectorInfo.connector_label || connectorInfo.connector_name) : processorId;
-        const volumeSharePercentage = processedPayments > 0 
-          ? (stats.volumeShare / processedPayments) * 100 
-          : 0;
+        
+        // SR is 0 if this processor had no volume, otherwise 100 - failureRate.
+        const observedSr = (stats.volumeShare > 0) ? (100 - stats.failureRate) : 0;
+        
+        const totalPaymentCountForProcessor = Math.round((stats.volumeShare / 100) * processedPayments);
+        const successfulPaymentCountForProcessor = Math.round(totalPaymentCountForProcessor * (observedSr / 100));
+        
         return {
           processor: processorName,
-          sr: stats.sr, 
-          failureRate: stats.failureRate, 
-          volumeShare: volumeSharePercentage, 
+          sr: observedSr, 
+          successfulPaymentCount: successfulPaymentCountForProcessor,
+          totalPaymentCount: totalPaymentCountForProcessor,
+          volumeShareForSort: stats.volumeShare, // Keep for sorting
         };
       })
-      .sort((a, b) => b.volumeShare - a.volumeShare); 
-  }, [currentControls?.processorWiseSuccessRates, processedPayments, merchantConnectors]);
+      .sort((a, b) => b.volumeShareForSort - a.volumeShareForSort)
+      .map(({ volumeShareForSort, ...rest }) => rest); // Remove temporary sort key
+  }, [currentControls?.processorWiseSuccessRates, merchantConnectors, processedPayments]);
 
   const transactionDistributionData = useMemo(() => {
     if (!currentControls?.processorWiseSuccessRates) {
@@ -99,16 +127,17 @@ export function StatsView({
             </p>
           </CardContent>
         </Card>
-        <Card className="shadow-md">
+        {/* Effective TPS Card Removed */}
+        {/* <Card className="shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Effective TPS</CardTitle>
             <Gauge className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">N/A</div> {/* TPS Removed */}
+            <div className="text-2xl font-bold">N/A</div>
             <p className="text-xs text-muted-foreground">transactions per second (Rate limited by interval)</p>
           </CardContent>
-        </Card>
+        </Card> */}
         <Card className="shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Successful</CardTitle>

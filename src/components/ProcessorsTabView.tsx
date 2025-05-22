@@ -7,17 +7,19 @@ import type { MerchantConnector } from "@/lib/types"; // Import from global type
 
 interface ProcessorsTabViewProps {
   merchantConnectors: MerchantConnector[];
-  connectorToggleStates: Record<string, boolean>;
-  onConnectorToggleChange: (connectorId: string, newState: boolean) => void; // Renamed for clarity from onToggleChange
+  // connectorToggleStates: Record<string, boolean>; // Removed
+  // onConnectorToggleChange: (connectorId: string, newState: boolean) => void; // Removed
   isLoadingConnectors?: boolean; // Optional: to show a loading state
 }
 
 export function ProcessorsTabView({
   merchantConnectors,
-  connectorToggleStates,
-  onConnectorToggleChange,
+  // connectorToggleStates, // Removed
+  // onConnectorToggleChange, // Removed
   isLoadingConnectors = false,
 }: ProcessorsTabViewProps) {
+  // console.log("ProcessorsTabView rendering. isLoadingConnectors:", isLoadingConnectors, "Number of merchantConnectors:", merchantConnectors?.length, "connectorToggleStates:", connectorToggleStates); // Modified log
+  console.log("ProcessorsTabView rendering. isLoadingConnectors:", isLoadingConnectors, "Number of merchantConnectors:", merchantConnectors?.length);
   return (
     <ScrollArea className="h-full">
       <div className="p-2 md:p-4 lg:p-6">
@@ -37,8 +39,8 @@ export function ProcessorsTabView({
             ) : (
               <MerchantConnectorList
                 connectors={merchantConnectors}
-                toggleStates={connectorToggleStates}
-                onToggleChange={onConnectorToggleChange}
+                // toggleStates={connectorToggleStates} // Removed
+                // onToggleChange={onConnectorToggleChange} // Removed
               />
             )}
           </CardContent>
