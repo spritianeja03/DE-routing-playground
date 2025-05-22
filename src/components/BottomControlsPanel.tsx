@@ -20,6 +20,38 @@ import type { ControlsState, PaymentMethod, ProcessorPaymentMethodMatrix, Proces
 import { Settings2, TrendingUp, Zap, VenetianMaskIcon, AlertTriangle, Trash2 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 
+const LOCALSTORAGE_SUCCESS_CARD_KEY = 'hyperswitch_successCardDetails';
+const LOCALSTORAGE_FAILURE_CARD_KEY = 'hyperswitch_failureCardDetails';
+
+const loadInitialCardDetails = (): Partial<FormValues> => {
+  const loaded: Partial<FormValues> = {};
+  if (typeof window !== 'undefined') {
+    try {
+      const storedSuccess = localStorage.getItem(LOCALSTORAGE_SUCCESS_CARD_KEY);
+      if (storedSuccess) {
+        const parsed = JSON.parse(storedSuccess);
+        loaded.successCardNumber = parsed.cardNumber;
+        loaded.successCardExpMonth = parsed.expMonth;
+        loaded.successCardExpYear = parsed.expYear;
+        loaded.successCardHolderName = parsed.holderName;
+        loaded.successCardCvc = parsed.cvc;
+      }
+      const storedFailure = localStorage.getItem(LOCALSTORAGE_FAILURE_CARD_KEY);
+      if (storedFailure) {
+        const parsed = JSON.parse(storedFailure);
+        loaded.failureCardNumber = parsed.cardNumber;
+        loaded.failureCardExpMonth = parsed.expMonth;
+        loaded.failureCardExpYear = parsed.expYear;
+        loaded.failureCardHolderName = parsed.holderName;
+        loaded.failureCardCvc = parsed.cvc;
+      }
+    } catch (e) {
+      console.error("Error loading card details from localStorage", e);
+    }
+  }
+  return loaded;
+};
+
 const formSchema = z.object({
   totalPayments: z.number().min(0).max(1000000),
   selectedPaymentMethods: z.array(z.string()).min(1, "Please select at least one payment method."),
@@ -43,6 +75,18 @@ const formSchema = z.object({
   isSuccessBasedRoutingEnabled: z.boolean().optional(),
   isEliminationRoutingEnabled: z.boolean().optional(),
   isContractBasedRoutingEnabled: z.boolean().optional(),
+  // Test Payment Data Fields
+  successCardNumber: z.string().optional(),
+  successCardExpMonth: z.string().optional(),
+  successCardExpYear: z.string().optional(),
+  successCardHolderName: z.string().optional(),
+  successCardCvc: z.string().optional(),
+  failureCardNumber: z.string().optional(),
+  failureCardExpMonth: z.string().optional(),
+  failureCardExpYear: z.string().optional(),
+  failureCardHolderName: z.string().optional(),
+  failureCardCvc: z.string().optional(),
+  failurePercentage: z.number().min(0).max(100).optional(),
 }).refine(data => {
   if (data.minAggregatesSize !== undefined && data.maxAggregatesSize !== undefined) {
     return data.maxAggregatesSize >= data.minAggregatesSize;
@@ -121,7 +165,20 @@ export function BottomControlsPanel({
       ruleConditionOperator: undefined,
       ruleConditionValue: undefined,
       ruleActionProcessorId: undefined,
-      ...initialValues, 
+      // Test Payment Data Defaults
+      successCardNumber: "4242424242424242",
+      successCardExpMonth: "10",
+      successCardExpYear: "25",
+      successCardHolderName: "Joseph Doe",
+      successCardCvc: "123",
+      failureCardNumber: "4000000000000000", // Example failure card
+      failureCardExpMonth: "12",
+      failureCardExpYear: "26",
+      failureCardHolderName: "Jane Roe",
+      failureCardCvc: "999",
+      failurePercentage: 50,
+      ...initialValues, // Props override static defaults
+      ...loadInitialCardDetails(), // localStorage overrides props and static defaults for the fields it contains
     },
   });
   
@@ -144,7 +201,7 @@ export function BottomControlsPanel({
         return; 
       }
 
-      let apiUrl = `https://sandbox.hyperswitch.io/account/${merchantId}/business_profile/${profileId}/dynamic_routing/success_based/toggle`;
+      let apiUrl = `https://integ-api.hyperswitch.io/account/${merchantId}/business_profile/${profileId}/dynamic_routing/success_based/toggle`;
       if (enable) {
         apiUrl += `?enable=dynamic_connector_selection`;
       } else {
@@ -255,6 +312,31 @@ export function BottomControlsPanel({
         }
         const { overallSuccessRate, ...outputValues } = formData as any; 
         onFormChange({ ...outputValues, structuredRule: rule } as FormValues);
+
+        // Save card details to localStorage
+        if (typeof window !== 'undefined') {
+          try {
+            const successCardDetailsToSave = {
+              cardNumber: formData.successCardNumber,
+              expMonth: formData.successCardExpMonth,
+              expYear: formData.successCardExpYear,
+              holderName: formData.successCardHolderName,
+              cvc: formData.successCardCvc,
+            };
+            localStorage.setItem(LOCALSTORAGE_SUCCESS_CARD_KEY, JSON.stringify(successCardDetailsToSave));
+
+            const failureCardDetailsToSave = {
+              cardNumber: formData.failureCardNumber,
+              expMonth: formData.failureCardExpMonth,
+              expYear: formData.failureCardExpYear,
+              holderName: formData.failureCardHolderName,
+              cvc: formData.failureCardCvc,
+            };
+            localStorage.setItem(LOCALSTORAGE_FAILURE_CARD_KEY, JSON.stringify(failureCardDetailsToSave));
+          } catch (e) {
+            console.error("Error saving card details to localStorage", e);
+          }
+        }
       }
     });
 
@@ -309,7 +391,7 @@ export function BottomControlsPanel({
                 <TabsTrigger value="general" className="text-xs md:text-sm"><Settings2 className="mr-1 h-4 w-4 md:mr-2" />General</TabsTrigger>
                 <TabsTrigger value="processors" className="text-xs md:text-sm"><VenetianMaskIcon className="mr-1 h-4 w-4 md:mr-2" />Processors</TabsTrigger>
                 <TabsTrigger value="routing" className="text-xs md:text-sm"><Zap className="mr-1 h-4 w-4 md:mr-2" />Routing</TabsTrigger>
-                <TabsTrigger value="sr-incidents" className="text-xs md:text-sm"><TrendingUp className="mr-1 h-4 w-4 md:mr-2" />Rates & Incidents</TabsTrigger>
+                <TabsTrigger value="sr-incidents" className="text-xs md:text-sm"><TrendingUp className="mr-1 h-4 w-4 md:mr-2" />Test Payment Data</TabsTrigger>
               </TabsList>
 
               <TabsContent value="general" className="pt-2">
@@ -375,95 +457,6 @@ export function BottomControlsPanel({
               <TabsContent value="routing" className="pt-2 space-y-4">
                 <Card>
                   <CardHeader className="pb-3">
-                    <div className="flex justify-between items-center">
-                      <CardTitle className="text-base">Custom Routing Rule (Single Rule)</CardTitle>
-                       <Button variant="outline" size="sm" onClick={handleClearRule} className="text-xs">
-                        <Trash2 className="mr-1 h-3 w-3" /> Clear Rule
-                      </Button>
-                    </div>
-                    <CardDescription className="text-xs">Define one custom routing rule. E.g., IF Payment Method EQUALS Card THEN Route To Stripe.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="text-sm font-medium mb-1">IF:</div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-end">
-                      <FormField
-                        control={control}
-                        name="ruleConditionField"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs">Condition Field</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <FormControl><SelectTrigger><SelectValue placeholder="Select field" /></SelectTrigger></FormControl>
-                              <SelectContent>
-                                <SelectItem value="paymentMethod">Payment Method</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={control}
-                        name="ruleConditionOperator"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs">Operator</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value} disabled={!form.watch("ruleConditionField")}>
-                              <FormControl><SelectTrigger><SelectValue placeholder="Select operator" /></SelectTrigger></FormControl>
-                              <SelectContent>
-                                <SelectItem value="EQUALS">Equals</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={control}
-                        name="ruleConditionValue"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs">Value</FormLabel>
-                            {form.watch("ruleConditionField") === 'paymentMethod' ? (
-                              <Select onValueChange={field.onChange} value={field.value} disabled={!form.watch("ruleConditionOperator")}>
-                                <FormControl><SelectTrigger><SelectValue placeholder="Select payment method" /></SelectTrigger></FormControl>
-                                <SelectContent>
-                                  {PAYMENT_METHODS.map(pm => <SelectItem key={pm} value={pm}>{pm}</SelectItem>)}
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              <Input type="text" placeholder="Enter value" {...field} disabled={!form.watch("ruleConditionOperator")} />
-                            )}
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                     <div className="text-sm font-medium mb-1 mt-2">THEN:</div>
-                     <FormField
-                        control={control}
-                        name="ruleActionProcessorId"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs">Route to Processor</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value} disabled={!form.watch("ruleConditionValue")}>
-                              <FormControl><SelectTrigger><SelectValue placeholder="Select processor" /></SelectTrigger></FormControl>
-                              <SelectContent>
-                                {(merchantConnectors || []).map(connector => {
-                                  const connectorId = connector.merchant_connector_id || connector.connector_name;
-                                  const connectorDisplayName = connector.connector_label || connector.connector_name;
-                                  return <SelectItem key={connectorId} value={connectorId}>{connectorDisplayName}</SelectItem>;
-                                })}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-3">
                      <div className="flex items-center">
                         <Settings2 className="mr-2 h-5 w-5 text-primary" /> 
                         <CardTitle className="text-base">Intelligent Routing Parameters</CardTitle>
@@ -507,6 +500,7 @@ export function BottomControlsPanel({
                     {(form.watch("isSuccessBasedRoutingEnabled") || form.watch("isEliminationRoutingEnabled") || form.watch("isContractBasedRoutingEnabled")) && (
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t mt-2">
+                        {/* minAggregatesSize, maxAggregatesSize, Current Block Threshold group, defaultSuccessRate fields remain here */}
                         <FormField
                           control={control}
                           name="minAggregatesSize"
@@ -592,10 +586,81 @@ export function BottomControlsPanel({
                         />
                       </div>
                       <div className="flex justify-end mt-4">
-                        <Button type="button" onClick={() => {
-                          // Placeholder for actual update logic
-                          alert("Update Config button clicked! (Placeholder action)");
-                        }}>
+                        <Button 
+                          type="button" 
+                          onClick={async () => {
+                            if (!form.getValues("isSuccessBasedRoutingEnabled")) {
+                              toast({ title: "Info", description: "Success Based Routing is not enabled.", variant: "default" });
+                              return;
+                            }
+                            if (!successBasedAlgorithmId) {
+                              toast({ title: "Error", description: "Algorithm ID not found. Please toggle Success Based Routing ON first.", variant: "destructive" });
+                              return;
+                            }
+                            if (!apiKey || !profileId || !merchantId) {
+                              toast({ title: "Error", description: "API credentials or Merchant/Profile ID missing.", variant: "destructive" });
+                              return;
+                            }
+
+                            const formValues = form.getValues();
+                            const configPayload = {
+                              params: [ // Using static params from cURL for now
+                                "Currency", "CardBin", "Country", "PaymentMethod", 
+                                "PaymentMethodType", "AuthenticationType", "CardNetwork"
+                              ],
+                              config: {
+                                min_aggregates_size: formValues.minAggregatesSize,
+                                default_success_rate: formValues.defaultSuccessRate, // Assuming API expects 0-100
+                                max_aggregates_size: formValues.maxAggregatesSize,
+                                current_block_threshold: {
+                                  duration_in_mins: formValues.currentBlockThresholdDurationInMins,
+                                  max_total_count: formValues.currentBlockThresholdMaxTotalCount
+                                }
+                              }
+                            };
+
+                            // Remove undefined optional fields from config to match Option<T> behavior if API expects missing fields to be absent
+                            if (configPayload.config.min_aggregates_size === undefined) delete configPayload.config.min_aggregates_size;
+                            if (configPayload.config.default_success_rate === undefined) delete configPayload.config.default_success_rate;
+                            if (configPayload.config.max_aggregates_size === undefined) delete configPayload.config.max_aggregates_size;
+                            if (configPayload.config.current_block_threshold.duration_in_mins === undefined) delete configPayload.config.current_block_threshold.duration_in_mins;
+                            if (configPayload.config.current_block_threshold.max_total_count === undefined) delete configPayload.config.current_block_threshold.max_total_count;
+                            // If current_block_threshold itself could be optional and all its fields are undefined, it could be removed too.
+                            // For now, assuming current_block_threshold object is always sent if any of its fields are set.
+
+                            const apiUrl = `https://integ-api.hyperswitch.io/account/${merchantId}/business_profile/${profileId}/dynamic_routing/success_based/config/${successBasedAlgorithmId}`;
+                            
+                            // console.log("Attempting to PATCH Success Based Config:");
+                            // console.log("URL:", apiUrl);
+                            // console.log("Payload:", JSON.stringify(configPayload, null, 2));
+                            // console.log("API Key used:", apiKey);
+
+                            try {
+                              const response = await fetch(apiUrl, {
+                                method: 'PATCH',
+                                headers: {
+                                  'api-key': apiKey,
+                                  'Content-Type': 'application/json',
+                                  'Accept': 'application/json',
+                                },
+                                body: JSON.stringify(configPayload),
+                              });
+
+                              if (!response.ok) {
+                                const errorData = await response.json().catch(() => ({ message: "Failed to update config." }));
+                                throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                              }
+                              
+                              // const responseData = await response.json(); // Or handle success with no content if API returns 204
+                              toast({ title: "Success", description: "Success Based Routing configuration updated." });
+                              // console.log("Config update response:", responseData);
+
+                            } catch (error: any) {
+                              console.error("Error updating config:", error);
+                              toast({ title: "Update Failed", description: error.message, variant: "destructive" });
+                            }
+                          }}
+                        >
                           Update Config
                         </Button>
                       </div>
@@ -606,112 +671,168 @@ export function BottomControlsPanel({
               </TabsContent>
 
               <TabsContent value="sr-incidents" className="pt-2 space-y-3">
-                <Card>
-                  <CardHeader className="p-2">
-                    <CardTitle className="text-base">Processor Base Success Rates</CardTitle>
-                    <CardDescription className="text-xs">Set the target mean success rate (%) for each processor.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2 p-2">
-                    {(merchantConnectors || []).map(connector => {
-                      const connectorId = connector.merchant_connector_id || connector.connector_name;
-                      const connectorDisplayName = connector.connector_label || connector.connector_name;
-                      return (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Section 1: Success Test Card Details */}
+                  <Card className="md:col-span-1">
+                    <CardHeader>
+                      <CardTitle className="text-base">Success Test Card</CardTitle>
+                      <CardDescription className="text-xs">Enter details for a successful transaction.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <FormField
+                        control={control}
+                        name="successCardNumber"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">Card Number</FormLabel>
+                            <FormControl><Input placeholder="e.g., 4242..." {...field} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <div className="grid grid-cols-2 gap-2">
                         <FormField
-                          key={connectorId}
                           control={control}
-                          name={`processorWiseSuccessRates.${connectorId}.sr`}
+                          name="successCardExpMonth"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel className="text-xs truncate" title={connectorDisplayName}>{connectorDisplayName} Base SR: {field.value}%</FormLabel>
+                              <FormLabel className="text-xs">Exp. Month</FormLabel>
+                              <FormControl><Input placeholder="MM" {...field} /></FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={control}
+                          name="successCardExpYear"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Exp. Year</FormLabel>
+                              <FormControl><Input placeholder="YY" {...field} /></FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      <FormField
+                        control={control}
+                        name="successCardHolderName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">Card Holder Name</FormLabel>
+                            <FormControl><Input placeholder="e.g., Joseph Doe" {...field} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={control}
+                        name="successCardCvc"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">CVC</FormLabel>
+                            <FormControl><Input placeholder="e.g., 123" {...field} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </CardContent>
+                  </Card>
+
+                  {/* Section 2: Failure Test Card Details */}
+                  <Card className="md:col-span-1">
+                    <CardHeader>
+                      <CardTitle className="text-base">Failure Test Card</CardTitle>
+                      <CardDescription className="text-xs">Enter details for a failed transaction.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <FormField
+                        control={control}
+                        name="failureCardNumber"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">Card Number</FormLabel>
+                            <FormControl><Input placeholder="e.g., 4000..." {...field} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <FormField
+                          control={control}
+                          name="failureCardExpMonth"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Exp. Month</FormLabel>
+                              <FormControl><Input placeholder="MM" {...field} /></FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={control}
+                          name="failureCardExpYear"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Exp. Year</FormLabel>
+                              <FormControl><Input placeholder="YY" {...field} /></FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      <FormField
+                        control={control}
+                        name="failureCardHolderName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">Card Holder Name</FormLabel>
+                            <FormControl><Input placeholder="e.g., Jane Roe" {...field} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={control}
+                        name="failureCardCvc"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">CVC</FormLabel>
+                            <FormControl><Input placeholder="e.g., 999" {...field} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </CardContent>
+                  </Card>
+
+                  {/* Section 3: Failure Percentage Slider */}
+                  <Card className="md:col-span-1">
+                    <CardHeader>
+                      <CardTitle className="text-base">Failure Percentage</CardTitle>
+                      <CardDescription className="text-xs">Set the likelihood of a transaction failing.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-4">
+                      <FormField
+                        control={control}
+                        name="failurePercentage"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">Failure Rate: {field.value}%</FormLabel>
                             <FormControl>
                               <Slider
-                                defaultValue={[field.value]}
+                                defaultValue={[field.value || 50]}
                                 min={0} max={100} step={1}
                                 onValueChange={(value: number[]) => { field.onChange(value[0]); }}
                               />
                             </FormControl>
+                            <FormMessage />
                           </FormItem>
                         )}
                       />
-                    );
-                    })}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="p-2">
-                    <CardTitle className="text-base">Success Rate Deviation</CardTitle>
-                    <CardDescription className="text-xs">Set SR deviation (+/- percentage points) for randomness.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2 p-2">
-                    {(merchantConnectors || []).map(connector => {
-                      const connectorId = connector.merchant_connector_id || connector.connector_name;
-                      const connectorDisplayName = connector.connector_label || connector.connector_name;
-                      return (
-                        <FormField
-                          key={`${connectorId}-deviation`}
-                          control={control}
-                          name={`processorWiseSuccessRates.${connectorId}.srDeviation`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-xs truncate" title={connectorDisplayName}>{connectorDisplayName} SR Deviation: +/- {field.value}%</FormLabel>
-                            <FormControl>
-                              <Slider
-                                defaultValue={[field.value]}
-                                min={0} max={20} step={1}
-                                onValueChange={(value: number[]) => { field.onChange(value[0]); }}
-                              />
-                            </FormControl>
-                          </FormItem>
-                        )}
-                      />
-                    );
-                    })}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="p-2">
-                    <CardTitle className="text-base">Processor Incidents (Timed Downtime)</CardTitle>
-                    <CardDescription className="text-xs">Trigger temporary outages for a selected processor.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end p-3">
-                    <FormItem>
-                      <FormLabel htmlFor="incidentProcessor" className="text-xs">Processor</FormLabel>
-                      <Select 
-                        onValueChange={setSelectedIncidentProcessor} 
-                        value={selectedIncidentProcessor} 
-                        disabled={!merchantConnectors || merchantConnectors.length === 0}
-                      >
-                        <FormControl>
-                          <SelectTrigger id="incidentProcessor">
-                            <SelectValue placeholder="Select processor" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {(merchantConnectors || []).map(connector => {
-                             const connectorId = connector.merchant_connector_id || connector.connector_name;
-                             const connectorDisplayName = connector.connector_label || connector.connector_name;
-                            return <SelectItem key={connectorId} value={connectorId}>{connectorDisplayName}</SelectItem>;
-                          })}
-                        </SelectContent>
-                      </Select>
-                    </FormItem>
-                    <FormItem>
-                      <FormLabel htmlFor="incidentDuration" className="text-xs">Downtime (seconds)</FormLabel>
-                      <Input
-                        id="incidentDuration"
-                        type="number"
-                        value={incidentDuration}
-                        onChange={(e) => setIncidentDuration(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                        min="1"
-                      />
-                    </FormItem>
-                    <Button onClick={handleTriggerIncident} variant="primary" type="button" size="sm" className="w-auto">
-                      <AlertTriangle className="mr-2 h-4 w-4" /> Trigger Incident
-                    </Button>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                </div>
               </TabsContent>
             </Tabs>
           </form>

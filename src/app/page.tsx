@@ -62,7 +62,16 @@ export default function HomePage() {
   }, []); // Empty dependency array ensures this runs only once on mount
 
   const handleControlsChange = useCallback((data: FormValues) => {
-    setCurrentControls(data);
+    setCurrentControls(prev => {
+      // data from BottomControlsPanel does not include overallSuccessRate
+      // Preserve existing overallSuccessRate if prev state exists
+      const existingOverallSuccessRate = prev ? prev.overallSuccessRate : 0;
+      return {
+        ...(prev || {}), // Spread previous state to keep other potentially managed fields
+        ...data,         // Apply new data from form
+        overallSuccessRate: data.overallSuccessRate !== undefined ? data.overallSuccessRate : existingOverallSuccessRate, // Prioritize data's OSR if present, else keep existing
+      };
+    });
   }, []);
 
   const fetchMerchantConnectors = async (currentMerchantId: string, currentApiKey: string): Promise<MerchantConnector[]> => {
@@ -73,7 +82,7 @@ export default function HomePage() {
     }
     setIsLoadingMerchantConnectors(true);
     try {
-      const response = await fetch(`https://sandbox.hyperswitch.io/account/${currentMerchantId}/connectors`, {
+      const response = await fetch(`https://integ-api.hyperswitch.io/account/${currentMerchantId}/connectors`, {
         method: 'GET', 
         headers: {
           'Content-Type': 'application/json',
@@ -184,7 +193,7 @@ export default function HomePage() {
     const connectorTypeForAPI = connectorToUpdate?.connector_type || "payment_processor"; // Default if not found
 
     try {
-      const response = await fetch(`https://sandbox.hyperswitch.io/account/${merchantId}/connectors/${connectorId}`, {
+      const response = await fetch(`https://integ-api.hyperswitch.io/account/${merchantId}/connectors/${connectorId}`, {
         method: 'POST', // As per curl --data, typically implies POST for updates to a specific resource ID in some APIs
         headers: {
           'Content-Type': 'application/json',
@@ -421,6 +430,29 @@ export default function HomePage() {
       // However, the UI for setting this rule might also need adjustment if PM selection is gone.
       // For now, the API call will use "card".
 
+      // Determine whether to use success or failure card details
+      let cardDetailsToUse;
+      const randomNumber = Math.random() * 100; // Random number between 0 and 100
+      if (currentControls.failurePercentage !== undefined && randomNumber < currentControls.failurePercentage) {
+        // Use failure card details
+        cardDetailsToUse = {
+          card_number: currentControls.failureCardNumber || "4000000000000000", // Default if undefined
+          card_exp_month: currentControls.failureCardExpMonth || "12",
+          card_exp_year: currentControls.failureCardExpYear || "26",
+          card_holder_name: currentControls.failureCardHolderName || "Jane Roe",
+          card_cvc: currentControls.failureCardCvc || "999",
+        };
+      } else {
+        // Use success card details
+        cardDetailsToUse = {
+          card_number: currentControls.successCardNumber || "4242424242424242", // Default if undefined
+          card_exp_month: currentControls.successCardExpMonth || "10",
+          card_exp_year: currentControls.successCardExpYear || "25",
+          card_holder_name: currentControls.successCardHolderName || "Joseph Doe",
+          card_cvc: currentControls.successCardCvc || "123",
+        };
+      }
+
       const paymentData = {
         amount: 6540,
         currency: "USD",
@@ -429,7 +461,7 @@ export default function HomePage() {
         capture_method: "automatic",
         authentication_type: "no_three_ds",
         customer: {
-            id: `customer_${Date.now()}_${Math.floor(Math.random() * 10000)}`, 
+            id: `cus_KeACu4PaTX2V1SJU2Twg`, 
             name: "John Doe",
             email: "customer@example.com",
             phone: "9999999999",
@@ -438,13 +470,7 @@ export default function HomePage() {
         payment_method: paymentMethodForAPI, // Use hardcoded "card"
         payment_method_type: "credit", // Assuming credit for card
         payment_method_data: { 
-            card: {
-                card_number: "4242424242424242",
-                card_exp_month: "10",
-                card_exp_year: "25",
-                card_holder_name: "Joseph Doe",
-                card_cvc: "123"
-            },
+            card: cardDetailsToUse,
             billing: {
                 address: {
                     line1: "1467",
@@ -470,7 +496,7 @@ export default function HomePage() {
       let routedProcessorId: string | null = null; // Will try to get this from API response
 
       try {
-        const response = await fetch('https://sandbox.hyperswitch.io/payments', {
+        const response = await fetch('https://integ-api.hyperswitch.io/payments', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
