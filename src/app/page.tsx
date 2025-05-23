@@ -82,11 +82,18 @@ export default function HomePage() {
     }
     setIsLoadingMerchantConnectors(true);
     try {
-      const response = await fetch(`https://integ-api.hyperswitch.io/account/${currentMerchantId}/connectors`, {
+      // Ensure profileId from state is used, as currentProfileId is not a parameter
+      if (!profileId) {
+        toast({ title: "Error", description: "Profile ID is missing. Cannot fetch connectors.", variant: "destructive" });
+        setIsLoadingMerchantConnectors(false);
+        return [];
+      }
+      const response = await fetch(`https://integ-api.hyperswitch.io/account/${currentMerchantId}/profile/connectors`, {
         method: 'GET', 
         headers: {
-          'Content-Type': 'application/json',
+          // 'Content-Type': 'application/json', // Not explicitly in new curl, can be omitted for GET
           'api-key': currentApiKey,
+          'x-profile-id': profileId, // Use profileId from state
         },
       });
       if (!response.ok) {
@@ -856,7 +863,8 @@ export default function HomePage() {
                     <AnalyticsGraphsView
                       successRateHistory={successRateHistory} 
                       volumeHistory={volumeHistory}
-                      merchantConnectors={merchantConnectors} // Pass merchantConnectors
+                      merchantConnectors={merchantConnectors}
+                      connectorToggleStates={connectorToggleStates}
                     />
                   </div>
               </ScrollArea>

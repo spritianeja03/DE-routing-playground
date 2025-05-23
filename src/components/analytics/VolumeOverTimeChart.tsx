@@ -8,7 +8,8 @@ import type { ProcessorMetricsHistory, MerchantConnector } from '@/lib/types'; /
 
 interface VolumeOverTimeChartProps {
   data: ProcessorMetricsHistory;
-  merchantConnectors: MerchantConnector[]; // Added merchantConnectors prop
+  merchantConnectors: MerchantConnector[];
+  connectorToggleStates: Record<string, boolean>;
 }
 
 const chartColorKeys = ['--chart-1', '--chart-2', '--chart-3', '--chart-4', '--chart-5'] as const;
@@ -41,7 +42,7 @@ const CustomTooltip = ({ active, payload, label, merchantConnectors }: any) => {
 };
 
 
-export function VolumeOverTimeChart({ data, merchantConnectors }: VolumeOverTimeChartProps) {
+export function VolumeOverTimeChart({ data, merchantConnectors, connectorToggleStates }: VolumeOverTimeChartProps) {
   if (!data || data.length === 0) {
     return (
       <Card className="shadow-md">
@@ -90,8 +91,9 @@ export function VolumeOverTimeChart({ data, merchantConnectors }: VolumeOverTime
               }}
             />
             <Legend wrapperStyle={{ color: 'hsl(var(--foreground))', paddingTop: '10px' }} />
-            {/* Dynamically render areas based on keys in the first data point (excluding 'time') */}
-            {data && data.length > 0 && Object.keys(data[0]).filter(key => key !== 'time').map((processorId, index) => {
+            {data && data.length > 0 && Object.keys(data[0])
+              .filter(key => key !== 'time' && connectorToggleStates[key] === true)
+              .map((processorId, index) => {
               const connector = merchantConnectors.find(mc => (mc.merchant_connector_id || mc.connector_name) === processorId);
               const displayName = connector ? (connector.connector_label || connector.connector_name) : processorId;
               return (

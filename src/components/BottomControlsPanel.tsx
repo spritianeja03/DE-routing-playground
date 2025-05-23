@@ -73,8 +73,6 @@ const formSchema = z.object({
   currentBlockThresholdDurationInMins: z.number().min(0).optional(),
   currentBlockThresholdMaxTotalCount: z.number().min(0).max(10000).optional(),
   isSuccessBasedRoutingEnabled: z.boolean().optional(),
-  isEliminationRoutingEnabled: z.boolean().optional(),
-  isContractBasedRoutingEnabled: z.boolean().optional(),
   // Test Payment Data Fields
   successCardNumber: z.string().optional(),
   successCardExpMonth: z.string().optional(),
@@ -127,6 +125,8 @@ export function BottomControlsPanel({
 }: BottomControlsPanelProps) {
   const { toast } = useToast();
   const [successBasedAlgorithmId, setSuccessBasedAlgorithmId] = useState<string | null>(null);
+  // const [activeRoutingAlgorithm, setActiveRoutingAlgorithm] = useState<any | null>(null); // Removed
+  // const [isLoadingActiveRouting, setIsLoadingActiveRouting] = useState<boolean>(false); // Removed
   
   const dynamicDefaults = useMemo(() => {
     const matrix: ProcessorPaymentMethodMatrix = {};
@@ -158,9 +158,7 @@ export function BottomControlsPanel({
       defaultSuccessRate: 90,
       currentBlockThresholdDurationInMins: 5,
       currentBlockThresholdMaxTotalCount: 10,
-      isSuccessBasedRoutingEnabled: false, 
-      isEliminationRoutingEnabled: false, 
-      isContractBasedRoutingEnabled: false, 
+      isSuccessBasedRoutingEnabled: false,
       ruleConditionField: undefined,
       ruleConditionOperator: undefined,
       ruleConditionValue: undefined,
@@ -189,6 +187,7 @@ export function BottomControlsPanel({
     previousIsSuccessBasedRoutingEnabledRef.current = form.getValues("isSuccessBasedRoutingEnabled");
   }, [form]);
 
+  // Removed useEffect for fetchActiveRouting
 
   useEffect(() => {
     const callToggleApi = async (enable: boolean) => {
@@ -455,6 +454,7 @@ export function BottomControlsPanel({
               </TabsContent>
 
               <TabsContent value="routing" className="pt-2 space-y-4">
+                {/* Removed Card for Currently Active Routing Algorithm */}
                 <Card>
                   <CardHeader className="pb-3">
                      <div className="flex items-center">
@@ -475,29 +475,9 @@ export function BottomControlsPanel({
                           </FormItem>
                         )}
                       />
-                      <FormField
-                        control={control}
-                        name="isEliminationRoutingEnabled"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-row items-center justify-between rounded-lg p-2 hover:bg-muted/50">
-                            <FormLabel className="text-sm font-normal">Elimination Routing</FormLabel>
-                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={control}
-                        name="isContractBasedRoutingEnabled"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-row items-center justify-between rounded-lg p-2 hover:bg-muted/50">
-                            <FormLabel className="text-sm font-normal">Contract Based Routing</FormLabel>
-                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                          </FormItem>
-                        )}
-                      />
                     </div>
 
-                    {(form.watch("isSuccessBasedRoutingEnabled") || form.watch("isEliminationRoutingEnabled") || form.watch("isContractBasedRoutingEnabled")) && (
+                    {(form.watch("isSuccessBasedRoutingEnabled")) && (
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t mt-2">
                         {/* minAggregatesSize, maxAggregatesSize, Current Block Threshold group, defaultSuccessRate fields remain here */}

@@ -8,7 +8,8 @@ import type { ProcessorMetricsHistory, MerchantConnector } from '@/lib/types';
 
 interface SuccessRateOverTimeChartProps {
   data: ProcessorMetricsHistory;
-  merchantConnectors: MerchantConnector[]; // Added merchantConnectors prop
+  merchantConnectors: MerchantConnector[];
+  connectorToggleStates: Record<string, boolean>;
 }
 
 const chartColorKeys = ['--chart-1', '--chart-2', '--chart-3', '--chart-4', '--chart-5'] as const;
@@ -42,7 +43,7 @@ const CustomTooltip = ({ active, payload, label, merchantConnectors }: any) => {
 };
 
 
-export function SuccessRateOverTimeChart({ data, merchantConnectors }: SuccessRateOverTimeChartProps) {
+export function SuccessRateOverTimeChart({ data, merchantConnectors, connectorToggleStates }: SuccessRateOverTimeChartProps) {
   if (!data || data.length === 0) {
     return (
       <Card className="shadow-md">
@@ -98,8 +99,9 @@ export function SuccessRateOverTimeChart({ data, merchantConnectors }: SuccessRa
               }}
             />
             <Legend wrapperStyle={{ color: 'hsl(var(--foreground))', paddingTop: '10px' }} />
-            {/* Dynamically render areas based on keys in the first data point (excluding 'time') */}
-            {data && data.length > 0 && Object.keys(data[0]).filter(key => key !== 'time').map((processorId, index) => {
+            {data && data.length > 0 && Object.keys(data[0])
+              .filter(key => key !== 'time' && connectorToggleStates[key] === true)
+              .map((processorId, index) => {
               // The 'name' for the Area should be derived from the data passed by StatsView,
               // which already resolves it using merchantConnectors.
               // The dataKey is processorId. The 'name' prop for Legend comes from Area's name.
