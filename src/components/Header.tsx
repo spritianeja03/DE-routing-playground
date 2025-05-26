@@ -1,5 +1,5 @@
 
-import { Zap, PlayCircle, Loader2, PauseCircle, StopCircle, BarChartHorizontalBig, LineChart } from 'lucide-react';
+import { PlayCircle, Loader2, PauseCircle, StopCircle, BarChartHorizontalBig, LineChart } from 'lucide-react'; // Removed Zap
 import { Button } from '@/components/ui/button';
 import { TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -28,7 +28,8 @@ export function Header({
     <header className="p-4 border-b border-border flex items-center justify-between sticky top-0 bg-background/95 backdrop-blur-sm z-10">
       <div className="flex items-center gap-x-6">
         <div className="flex items-center gap-2">
-          <Zap className="h-8 w-8 text-primary" />
+          {/* <Zap className="h-8 w-8 text-primary" /> */}
+          <img src="https://juspay.in/favicon.png" alt="Hyperswitch Logo" width="32" height="32" className="text-primary" />
           <h1 className="text-2xl font-bold text-foreground">
             Hyperswitch <span className="text-primary">Intelligent Routing</span>
           </h1>

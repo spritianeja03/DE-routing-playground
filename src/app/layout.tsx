@@ -10,6 +10,9 @@ const geistMono = GeistMono;
 export const metadata: Metadata = {
   title: 'Hyperswitch Intelligent Routing',
   description: 'Visualize and optimize transaction flows',
+  icons: {
+    icon: 'https://juspay.in/favicon.png',
+  },
 };
 
 export default function RootLayout({
