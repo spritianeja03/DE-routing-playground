@@ -46,8 +46,6 @@ export default function HomePage() {
   
   const accumulatedProcessorStatsRef = useRef<Record<string, { successful: number; failed: number; volumeShareRaw: number }>>({});
   const accumulatedGlobalStatsRef = useRef<{ totalSuccessful: number; totalFailed: number }>({ totalSuccessful: 0, totalFailed: 0 });
-  // const processedAttemptNumbersRef = useRef(new Set<number>()); // Not currently used
-  // const processorTransactionHistoryRef = useRef<Record<string, Array<0 | 1>>>({}); // Not currently used
 
   const { toast } = useToast();
 
@@ -209,7 +207,7 @@ export default function HomePage() {
       const newPwsr: ControlsState['processorWiseSuccessRates'] = {};
       Object.keys(prev.processorWiseSuccessRates).forEach(procId => {
         newPwsr[procId] = { 
-          ...(prev.processorWiseSuccessRates[procId] || { sr: 0, srDeviation: 0 }), // Keep sr and srDeviation if they exist
+          ...(prev.processorWiseSuccessRates[procId] || { sr: 0, srDeviation: 0 }), 
           volumeShare: 0, successfulPaymentCount: 0, totalPaymentCount: 0 
         };
       });
@@ -228,7 +226,7 @@ export default function HomePage() {
     isProcessingBatchRef.current = true;
 
     try {
-      if (!currentControls || !apiKey || !profileId || !merchantId) { // Added merchantId check
+      if (!currentControls || !apiKey || !profileId || !merchantId) {
         if (simulationState === 'running') {
           isStoppingRef.current = true;
           setSimulationState('paused');
@@ -239,8 +237,8 @@ export default function HomePage() {
       }
 
       if (processedPaymentsCount >= currentControls.totalPayments) {
-          if (!isStoppingRef.current) { // Only stop if not already stopping
-            console.log("PTB: Target reached, stopping.");
+          if (!isStoppingRef.current) {
+            console.log("PTB: Target reached (early check), stopping.");
             isStoppingRef.current = true;
             setSimulationState('idle');
             toast({ title: "Simulation Completed", description: `All ${currentControls.totalPayments} payments processed.`, duration: 5000 });
@@ -318,7 +316,7 @@ export default function HomePage() {
           else console.error("Error during payment API call:", error);
         }
 
-        if (!isStoppingRef.current && !signal.aborted) {
+        if (!isStoppingRef.current && !signal.aborted) { 
           if (routedProcessorId) {
               if (!accumulatedProcessorStatsRef.current[routedProcessorId]) {
                   accumulatedProcessorStatsRef.current[routedProcessorId] = { successful: 0, failed: 0, volumeShareRaw: 0 };
@@ -332,19 +330,19 @@ export default function HomePage() {
         }
       } 
       
-      if (paymentsProcessedThisBatch > 0 && !isStoppingRef.current) { 
+      if (paymentsProcessedThisBatch > 0) { 
           setProcessedPaymentsCount(prev => {
               const newTotalProcessed = prev + paymentsProcessedThisBatch;
               if (currentControls && newTotalProcessed >= currentControls.totalPayments && !isStoppingRef.current) {
-                  console.log("PTB: Target reached in setProcessedPaymentsCount, stopping.");
-                  isStoppingRef.current = true;
+                  console.log("PTB: Target reached in setProcessedPaymentsCount, setting to idle.");
+                  isStoppingRef.current = true; 
                   setSimulationState('idle');
                   toast({ title: "Simulation Completed", description: `All ${currentControls.totalPayments} payments processed.`, duration: 5000 });
               }
               return newTotalProcessed;
           });
 
-          if (!isStoppingRef.current && currentControls) { // Check isStoppingRef again before updating history/controls
+          if (currentControls) { // Update stats regardless of stopping, if payments were processed
               const currentTime = Date.now();
               const newSuccessRateDataPoint: TimeSeriesDataPoint = { time: currentTime };
               const newVolumeDataPoint: TimeSeriesDataPoint = { time: currentTime };
@@ -405,15 +403,15 @@ export default function HomePage() {
         console.log("PTB EXIT: isProcessingBatchRef set to false.");
     }
   }, [
-    currentControls, simulationState, apiKey, profileId, merchantId, merchantConnectors, connectorToggleStates, // Added merchantId
+    currentControls, simulationState, apiKey, profileId, merchantId, merchantConnectors, connectorToggleStates,
     processedPaymentsCount, setProcessedPaymentsCount, setSuccessRateHistory, setVolumeHistory, 
     setOverallSuccessRateHistory, setSimulationState, setCurrentControls, toast
   ]);
 
   useEffect(() => {
-    if (simulationState === 'running' && !isProcessingBatchRef.current) { // Added !isProcessingBatchRef.current check
+    if (simulationState === 'running' && !isProcessingBatchRef.current) { 
       simulationIntervalRef.current = setInterval(() => {
-        if (!isProcessingBatchRef.current) { // Double check before calling
+        if (!isProcessingBatchRef.current) { 
              processTransactionBatch();
         }
       }, SIMULATION_INTERVAL_MS);
@@ -469,15 +467,15 @@ export default function HomePage() {
     }
 
     if (simulationState === 'idle' || forceStart) resetSimulationState(); 
-    isStoppingRef.current = false; // Explicitly reset stopping flag
-    isProcessingBatchRef.current = false; // Explicitly reset processing flag
+    isStoppingRef.current = false; 
+    isProcessingBatchRef.current = false; 
     setSimulationState('running');
     toast({ title: `Simulation ${simulationState === 'idle' || forceStart ? 'Started' : 'Resumed'}`, description: `Processing ${currentControls?.totalPayments || 0} payments.` });
-  }, [currentControls, apiKey, profileId, merchantId, merchantConnectors, toast, simulationState]); // Added simulationState
+  }, [currentControls, apiKey, profileId, merchantId, merchantConnectors, toast, simulationState]);
 
   const handlePauseSimulation = useCallback(() => {
     if (simulationState === 'running') {
-      isStoppingRef.current = true; // Signal to stop processing new batches
+      isStoppingRef.current = true; 
       setSimulationState('paused');
       if (apiCallAbortControllerRef.current) apiCallAbortControllerRef.current.abort();
       toast({ title: "Simulation Paused" });
@@ -499,7 +497,7 @@ export default function HomePage() {
   return (
     <>
       <AppLayout>
-        <Tabs defaultValue="stats" value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-grow overflow-hidden"> {/* Changed default to stats */}
+        <Tabs defaultValue="stats" value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-grow overflow-hidden">
           <Header
             activeTab={activeTab} onTabChange={setActiveTab}
             onStartSimulation={handleStartSimulation} onPauseSimulation={handlePauseSimulation}
