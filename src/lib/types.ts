@@ -43,10 +43,11 @@ export interface ControlsState {
   processorIncidents: ProcessorIncidentStatus;
   overallSuccessRate: number;
   processorWiseSuccessRates: Record<string, {
-    sr: number; // Base input SR
-    srDeviation: number; // SR deviation in percentage points (e.g., 5 for +/- 5%)
-    volumeShare: number; // Observed from simulation
-    failureRate: number; // Observed from simulation (100 - observed SR)
+    sr: number; // Base input SR from UI
+    srDeviation: number;
+    volumeShare: number; // Calculated for distribution
+    successfulPaymentCount: number; // Actual count
+    totalPaymentCount: number;      // Actual count
   }>;
   // New Intelligent Routing Parameters
   minAggregatesSize: number;

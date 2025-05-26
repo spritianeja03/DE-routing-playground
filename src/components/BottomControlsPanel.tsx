@@ -62,10 +62,11 @@ const formSchema = z.object({
   ruleActionProcessorId: z.string().optional(),
   processorIncidents: z.record(z.string(), z.number().nullable()),
   processorWiseSuccessRates: z.record(z.string(), z.object({
-    sr: z.number().min(0).max(100),
+    sr: z.number().min(0).max(100), // Base input SR from UI
     srDeviation: z.number().min(0).max(50),
-    volumeShare: z.number().min(0).max(100),
-    failureRate: z.number().min(0).max(100),
+    volumeShare: z.number().min(0).max(100), // Calculated for distribution
+    successfulPaymentCount: z.number().min(0), // Actual count
+    totalPaymentCount: z.number().min(0),      // Actual count
   })),
   minAggregatesSize: z.number().min(1).max(100000).optional(),
   maxAggregatesSize: z.number().min(1).max(1000000).optional(),
@@ -140,7 +141,7 @@ export function BottomControlsPanel({
         return acc;
       }, {} as Record<PaymentMethod, boolean>);
       incidents[key] = null;
-      rates[key] = { sr: 0, srDeviation: 5, volumeShare: 0, failureRate: 100 };
+      rates[key] = { sr: 0, srDeviation: 5, volumeShare: 0, successfulPaymentCount: 0, totalPaymentCount: 0 };
     });
     return { matrix, incidents, rates };
   }, [merchantConnectors]);

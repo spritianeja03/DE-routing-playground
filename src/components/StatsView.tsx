@@ -49,48 +49,30 @@ export function StatsView({
 
     // If processorWiseSuccessRates exists, but processedPayments is 0,
     // map processors to show 0 SR and 0 counts.
-    if (processedPayments === 0) {
-      return Object.keys(currentControls.processorWiseSuccessRates)
-        .map(processorId => {
-          const stats = currentControls.processorWiseSuccessRates![processorId];
-          const connectorInfo = merchantConnectors.find(mc => (mc.merchant_connector_id || mc.connector_name) === processorId);
-          const processorName = connectorInfo ? (connectorInfo.connector_label || connectorInfo.connector_name) : processorId;
-          return {
-            processor: processorName,
-            sr: 0, // Default SR to 0 if no payments processed
-            successfulPaymentCount: 0,
-            totalPaymentCount: 0,
-            volumeShareForSort: stats.volumeShare ?? 0,
-          };
-        })
-        .sort((a, b) => b.volumeShareForSort - a.volumeShareForSort)
-        .map(({ volumeShareForSort, ...rest }) => rest);
-    }
-
-    // If there are processed payments and processor-wise rates
+    // Directly use successfulPaymentCount and totalPaymentCount from currentControls
     return Object.keys(currentControls.processorWiseSuccessRates)
       .map(processorId => {
-        const stats = currentControls.processorWiseSuccessRates![processorId];
+        const processorData = currentControls.processorWiseSuccessRates![processorId];
         const connectorInfo = merchantConnectors.find(mc => (mc.merchant_connector_id || mc.connector_name) === processorId);
         const processorName = connectorInfo ? (connectorInfo.connector_label || connectorInfo.connector_name) : processorId;
         
-        // SR is 0 if this processor had no volume, otherwise 100 - failureRate.
-        const observedSr = (stats.volumeShare > 0) ? (100 - stats.failureRate) : 0;
-        
-        const totalPaymentCountForProcessor = Math.round((stats.volumeShare / 100) * processedPayments);
-        const successfulPaymentCountForProcessor = Math.round(totalPaymentCountForProcessor * (observedSr / 100));
-        
+        const successfulPayments = processorData.successfulPaymentCount;
+        const totalPayments = processorData.totalPaymentCount;
+        const calculatedSr = totalPayments > 0 ? (successfulPayments / totalPayments) * 100 : 0;
+
         return {
           processor: processorName,
-          sr: observedSr, 
-          successfulPaymentCount: successfulPaymentCountForProcessor,
-          totalPaymentCount: totalPaymentCountForProcessor,
-          volumeShareForSort: stats.volumeShare, // Keep for sorting
+          sr: calculatedSr, 
+          successfulPaymentCount: successfulPayments,
+          totalPaymentCount: totalPayments,
+          // Use totalPaymentCount for sorting by volume, or volumeShare if still needed for other charts
+          volumeForSort: totalPayments, 
         };
       })
-      .sort((a, b) => b.volumeShareForSort - a.volumeShareForSort)
-      .map(({ volumeShareForSort, ...rest }) => rest); // Remove temporary sort key
-  }, [currentControls?.processorWiseSuccessRates, merchantConnectors, processedPayments]);
+      // Sort by total payments for this processor as a proxy for volume
+      .sort((a, b) => b.volumeForSort - a.volumeForSort) 
+      .map(({ volumeForSort, ...rest }) => rest); // Remove temporary sort key
+  }, [currentControls?.processorWiseSuccessRates, merchantConnectors]);
 
   const transactionDistributionData = useMemo(() => {
     if (!currentControls?.processorWiseSuccessRates) {
