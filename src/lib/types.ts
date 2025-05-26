@@ -54,6 +54,7 @@ export interface ControlsState {
   maxAggregatesSize: number;
   currentBlockThresholdMaxTotalCount: number;
   volumeSplit: number;
+  isSuccessBasedRoutingEnabled?: boolean; // Renamed for consistency
 }
 
 

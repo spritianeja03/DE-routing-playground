@@ -99,6 +99,7 @@ const formSchema = z.object({
 export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule' | 'overallSuccessRate'> & { 
   structuredRule: StructuredRule | null;
   overallSuccessRate?: number;
+  isSuccessBasedRoutingEnabled?: boolean; // Corrected to match form schema
 };
 
 interface BottomControlsPanelProps {
@@ -201,7 +202,7 @@ export function BottomControlsPanel({
         return; 
       }
 
-      let apiUrl = `https://integ-api.hyperswitch.io/account/${merchantId}/business_profile/${profileId}/dynamic_routing/success_based/toggle`;
+      let apiUrl = `https://sandbox.hyperswitch.io/account/${merchantId}/business_profile/${profileId}/dynamic_routing/success_based/toggle`;
       if (enable) {
         apiUrl += `?enable=dynamic_connector_selection`;
       } else {
@@ -239,6 +240,35 @@ export function BottomControlsPanel({
               description: "Operation successful (no algorithm ID 'id' returned).",
             });
           }
+
+          // If successfully enabled, now call set_volume_split
+          const volumeSplitApiUrl = `https://sandbox.hyperswitch.io/account/${merchantId}/business_profile/${profileId}/dynamic_routing/set_volume_split?split=100`;
+          console.log(`Success Based Routing enabled. Now calling: POST ${volumeSplitApiUrl}`);
+          try {
+            const volumeSplitResponse = await fetch(volumeSplitApiUrl, {
+              method: 'POST',
+              headers: { 'api-key': apiKey },
+            });
+            if (!volumeSplitResponse.ok) {
+              let errorDetail = `Volume split HTTP error! status: ${volumeSplitResponse.status}`;
+              try {
+                const errorData = await volumeSplitResponse.json();
+                errorDetail = errorData.message || JSON.stringify(errorData) || errorDetail;
+              } catch (e) {
+                const textError = await volumeSplitResponse.text().catch(() => "");
+                errorDetail = textError || errorDetail;
+              }
+              console.error("Failed to set volume split:", errorDetail);
+              toast({ title: "Volume Split API Error", description: `Failed to set volume split: ${errorDetail}`, variant: "destructive" });
+            } else {
+              console.log("Successfully set volume split. Status:", volumeSplitResponse.status);
+              toast({ title: "Volume Split Success", description: "Dynamic routing volume split set to 100." });
+            }
+          } catch (volumeSplitError: any) {
+            console.error("Error setting volume split (fetch catch):", volumeSplitError);
+            toast({ title: "Volume Split Network Error", description: `Could not set volume split: ${volumeSplitError.message}`, variant: "destructive" });
+          }
+
         } else { 
           setSuccessBasedAlgorithmId(null);
           toast({
@@ -480,9 +510,9 @@ export function BottomControlsPanel({
 
                     {(form.watch("isSuccessBasedRoutingEnabled")) && (
                     <>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t mt-2">
+                      {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t mt-2"> */}
                         {/* minAggregatesSize, maxAggregatesSize, Current Block Threshold group, defaultSuccessRate fields remain here */}
-                        <FormField
+                        {/* <FormField
                           control={control}
                           name="minAggregatesSize"
                           render={({ field }) => (
@@ -495,8 +525,8 @@ export function BottomControlsPanel({
                               <FormMessage />
                             </FormItem>
                           )}
-                        />
-                        <FormField
+                        /> */}
+                        {/* <FormField
                           control={control}
                           name="maxAggregatesSize"
                           render={({ field }) => (
@@ -509,9 +539,9 @@ export function BottomControlsPanel({
                               <FormMessage />
                             </FormItem>
                           )}
-                        />
+                        /> */}
                         {/* Grouping for Current Block Threshold */}
-                        <div className="md:col-span-2 space-y-2 p-3 border rounded-md">
+                        {/* <div className="md:col-span-2 space-y-2 p-3 border rounded-md">
                           <h4 className="text-sm font-medium mb-2">Current Block Threshold</h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <FormField
@@ -543,9 +573,9 @@ export function BottomControlsPanel({
                               )}
                             />
                           </div>
-                        </div>
+                        </div> */}
                         {/* End of Grouping */}
-                        <FormField
+                        {/* <FormField
                           control={control}
                           name="defaultSuccessRate"
                           render={({ field }) => (
@@ -564,87 +594,78 @@ export function BottomControlsPanel({
                               <FormMessage />
                             </FormItem>
                           )}
-                        />
-                      </div>
-                      <div className="flex justify-end mt-4">
-                        <Button 
+                        /> */}
+                      {/* </div> */}
+                      {/* <div className="flex justify-end mt-4"> */}
+                        {/* <Button 
                           type="button" 
                           onClick={async () => {
-                            if (!form.getValues("isSuccessBasedRoutingEnabled")) {
-                              toast({ title: "Info", description: "Success Based Routing is not enabled.", variant: "default" });
-                              return;
-                            }
-                            if (!successBasedAlgorithmId) {
-                              toast({ title: "Error", description: "Algorithm ID not found. Please toggle Success Based Routing ON first.", variant: "destructive" });
-                              return;
-                            }
-                            if (!apiKey || !profileId || !merchantId) {
-                              toast({ title: "Error", description: "API credentials or Merchant/Profile ID missing.", variant: "destructive" });
-                              return;
-                            }
+                            // if (!form.getValues("isSuccessBasedRoutingEnabled")) {
+                            //   toast({ title: "Info", description: "Success Based Routing is not enabled.", variant: "default" });
+                            //   return;
+                            // }
+                            // if (!successBasedAlgorithmId) {
+                            //   toast({ title: "Error", description: "Algorithm ID not found. Please toggle Success Based Routing ON first.", variant: "destructive" });
+                            //   return;
+                            // }
+                            // if (!apiKey || !profileId || !merchantId) {
+                            //   toast({ title: "Error", description: "API credentials or Merchant/Profile ID missing.", variant: "destructive" });
+                            //   return;
+                            // }
 
-                            const formValues = form.getValues();
-                            const configPayload = {
-                              params: [ // Using static params from cURL for now
-                                "Currency", "CardBin", "Country", "PaymentMethod", 
-                                "PaymentMethodType", "AuthenticationType", "CardNetwork"
-                              ],
-                              config: {
-                                min_aggregates_size: formValues.minAggregatesSize,
-                                default_success_rate: formValues.defaultSuccessRate, // Assuming API expects 0-100
-                                max_aggregates_size: formValues.maxAggregatesSize,
-                                current_block_threshold: {
-                                  duration_in_mins: formValues.currentBlockThresholdDurationInMins,
-                                  max_total_count: formValues.currentBlockThresholdMaxTotalCount
-                                }
-                              }
-                            };
+                            // const formValues = form.getValues();
+                            // const configPayload = {
+                            //   params: [ // Using static params from cURL for now
+                            //     "Currency", "CardBin", "Country", "PaymentMethod", 
+                            //     "PaymentMethodType", "AuthenticationType", "CardNetwork"
+                            //   ],
+                            //   config: {
+                            //     min_aggregates_size: formValues.minAggregatesSize,
+                            //     default_success_rate: formValues.defaultSuccessRate, // Assuming API expects 0-100
+                            //     max_aggregates_size: formValues.maxAggregatesSize,
+                            //     current_block_threshold: {
+                            //       duration_in_mins: formValues.currentBlockThresholdDurationInMins,
+                            //       max_total_count: formValues.currentBlockThresholdMaxTotalCount
+                            //     }
+                            //   }
+                            // };
 
-                            // Remove undefined optional fields from config to match Option<T> behavior if API expects missing fields to be absent
-                            if (configPayload.config.min_aggregates_size === undefined) delete configPayload.config.min_aggregates_size;
-                            if (configPayload.config.default_success_rate === undefined) delete configPayload.config.default_success_rate;
-                            if (configPayload.config.max_aggregates_size === undefined) delete configPayload.config.max_aggregates_size;
-                            if (configPayload.config.current_block_threshold.duration_in_mins === undefined) delete configPayload.config.current_block_threshold.duration_in_mins;
-                            if (configPayload.config.current_block_threshold.max_total_count === undefined) delete configPayload.config.current_block_threshold.max_total_count;
-                            // If current_block_threshold itself could be optional and all its fields are undefined, it could be removed too.
-                            // For now, assuming current_block_threshold object is always sent if any of its fields are set.
-
-                            const apiUrl = `https://integ-api.hyperswitch.io/account/${merchantId}/business_profile/${profileId}/dynamic_routing/success_based/config/${successBasedAlgorithmId}`;
+                            // // Remove undefined optional fields from config to match Option<T> behavior if API expects missing fields to be absent
+                            // if (configPayload.config.min_aggregates_size === undefined) delete configPayload.config.min_aggregates_size;
+                            // if (configPayload.config.default_success_rate === undefined) delete configPayload.config.default_success_rate;
+                            // if (configPayload.config.max_aggregates_size === undefined) delete configPayload.config.max_aggregates_size;
+                            // if (configPayload.config.current_block_threshold.duration_in_mins === undefined) delete configPayload.config.current_block_threshold.duration_in_mins;
+                            // if (configPayload.config.current_block_threshold.max_total_count === undefined) delete configPayload.config.current_block_threshold.max_total_count;
                             
-                            // console.log("Attempting to PATCH Success Based Config:");
-                            // console.log("URL:", apiUrl);
-                            // console.log("Payload:", JSON.stringify(configPayload, null, 2));
-                            // console.log("API Key used:", apiKey);
+                            // const apiUrl = `https://sandbox.hyperswitch.io/account/${merchantId}/business_profile/${profileId}/dynamic_routing/success_based/config/${successBasedAlgorithmId}`;
+                            
+                            // try {
+                            //   const response = await fetch(apiUrl, {
+                            //     method: 'PATCH',
+                            //     headers: {
+                            //       'api-key': apiKey,
+                            //       'Content-Type': 'application/json',
+                            //       'Accept': 'application/json',
+                            //     },
+                            //     body: JSON.stringify(configPayload),
+                            //   });
 
-                            try {
-                              const response = await fetch(apiUrl, {
-                                method: 'PATCH',
-                                headers: {
-                                  'api-key': apiKey,
-                                  'Content-Type': 'application/json',
-                                  'Accept': 'application/json',
-                                },
-                                body: JSON.stringify(configPayload),
-                              });
-
-                              if (!response.ok) {
-                                const errorData = await response.json().catch(() => ({ message: "Failed to update config." }));
-                                throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-                              }
+                            //   if (!response.ok) {
+                            //     const errorData = await response.json().catch(() => ({ message: "Failed to update config." }));
+                            //     throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                            //   }
                               
-                              // const responseData = await response.json(); // Or handle success with no content if API returns 204
-                              toast({ title: "Success", description: "Success Based Routing configuration updated." });
-                              // console.log("Config update response:", responseData);
+                            //   toast({ title: "Success", description: "Success Based Routing configuration updated." });
 
-                            } catch (error: any) {
-                              console.error("Error updating config:", error);
-                              toast({ title: "Update Failed", description: error.message, variant: "destructive" });
-                            }
+                            // } catch (error: any) {
+                            //   console.error("Error updating config:", error);
+                            //   toast({ title: "Update Failed", description: error.message, variant: "destructive" });
+                            // }
                           }}
                         >
                           Update Config
-                        </Button>
-                      </div>
+                        </Button> */}
+                      {/* </div> */}
                     </>
                   )}
                   </CardContent>

@@ -55,6 +55,60 @@ export default function HomePage() {
     }
   }, [apiKey, profileId, merchantId]);
 
+  // const prevCurrentControlsRef = useRef<FormValues | null>(null); // Removed as the useEffect using it is removed
+
+  // useEffect(() => { // This useEffect has been moved to BottomControlsPanel.tsx
+  //   const prevControls = prevCurrentControlsRef.current;
+  //   const currentRuleEnabled = currentControls?.isSuccessBasedRoutingEnabled; 
+  //   const prevRuleEnabled = prevControls?.isSuccessBasedRoutingEnabled;
+
+  //   if (currentRuleEnabled === true && (prevRuleEnabled === false || prevRuleEnabled === undefined)) {
+  //     // Rule was just toggled from false or undefined to true
+  //     if (merchantId && profileId && apiKey) {
+  //       const apiUrl = `https://sandbox.hyperswitch.io/account/${merchantId}/business_profile/${profileId}/dynamic_routing/set_volume_split?split=100`;
+        
+  //       console.log(`Success rate rule enabled. Calling: POST ${apiUrl}`);
+        
+  //       fetch(apiUrl, {
+  //         method: 'POST',
+  //         headers: {
+  //           'api-key': apiKey,
+  //         },
+  //         // No body for this specific cURL
+  //       })
+  //       .then(async response => {
+  //         if (!response.ok) {
+  //           let errorDetail = `HTTP error! status: ${response.status}`;
+  //           try {
+  //             // Attempt to get more detailed error message if API returns JSON error
+  //             const errorData = await response.json();
+  //             errorDetail = errorData.message || JSON.stringify(errorData) || errorDetail;
+  //           } catch (e) {
+  //             // If parsing JSON fails, stick with the status text or get response text
+  //             const textError = await response.text().catch(() => "");
+  //             errorDetail = textError || errorDetail;
+  //           }
+  //           console.error("Failed to set volume split:", errorDetail);
+  //           toast({ title: "API Error", description: `Failed to set volume split: ${errorDetail}`, variant: "destructive" });
+  //           return; 
+  //         }
+  //         // If response.ok is true, assume success even with no body
+  //         console.log("Successfully set volume split. Status:", response.status);
+  //         toast({ title: "Success", description: "Dynamic routing volume split set." });
+  //       })
+  //       .catch(error => {
+  //         console.error("Error setting volume split (fetch catch):", error);
+  //         toast({ title: "Network Error", description: `Could not set volume split: ${error.message}`, variant: "destructive" });
+  //       });
+  //     } else {
+  //       console.warn("Cannot set volume split: API credentials (merchantId, profileId, apiKey) are missing.");
+  //       toast({ title: "Configuration Error", description: "API credentials missing, cannot set volume split.", variant: "destructive" });
+  //     }
+  //   }
+
+  //   prevCurrentControlsRef.current = currentControls;
+  // }, [currentControls, merchantId, profileId, apiKey, toast]);
+
   const handleControlsChange = useCallback((data: FormValues) => {
     setCurrentControls(prev => {
       const existingOverallSuccessRate = prev ? prev.overallSuccessRate : 0;
@@ -79,7 +133,7 @@ export default function HomePage() {
         setIsLoadingMerchantConnectors(false);
         return [];
       }
-      const response = await fetch(`https://integ-api.hyperswitch.io/account/${currentMerchantId}/profile/connectors`, {
+      const response = await fetch(`https://sandbox.hyperswitch.io/account/${currentMerchantId}/profile/connectors`, {
         method: 'GET', 
         headers: { 'api-key': currentApiKey, 'x-profile-id': profileId },
       });
@@ -160,7 +214,7 @@ export default function HomePage() {
     const connectorTypeForAPI = connectorToUpdate?.connector_type || "payment_processor";
 
     try {
-      const response = await fetch(`https://integ-api.hyperswitch.io/account/${merchantId}/connectors/${connectorId}`, {
+      const response = await fetch(`https://sandbox.hyperswitch.io/account/${merchantId}/connectors/${connectorId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'api-key': apiKey },
         body: JSON.stringify({ connector_type: connectorTypeForAPI, disabled: !newState }),
@@ -279,7 +333,19 @@ export default function HomePage() {
           payment_method_data: { card: cardDetailsToUse, billing: {
               address: { line1: "1467", line2: "Harrison Street", line3: "Harrison Street", city: "San Francisco", state: "California", zip: "94122", country: "US", first_name: "Joseph", last_name: "Doe" },
               phone: { number: "8056594427", country_code: "+91" }, email: "guest@example.com"
-          }}
+          }},
+          browser_info: {
+            user_agent: "Mozilla/5.0",
+            accept_header: "text/html",
+            language: "en-US",
+            color_depth: 24,
+            screen_height: 1080,
+            screen_width: 1920,
+            time_zone: 0,
+            java_enabled: true,
+            java_script_enabled: true,
+            ip_address: "127.0.0.1"
+          }
         };
 
         let isSuccess = false;
@@ -287,7 +353,7 @@ export default function HomePage() {
 
         try {
           console.log(`PTB: Making API call #${processedPaymentsCount + paymentsProcessedThisBatch + 1}`);
-          const response = await fetch('https://integ-api.hyperswitch.io/payments', {
+          const response = await fetch('https://sandbox.hyperswitch.io/payments', {
             method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'api-key': apiKey },
             body: JSON.stringify(paymentData), signal,
           });
