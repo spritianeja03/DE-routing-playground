@@ -28,11 +28,7 @@ export function Header({
     <header className="p-4 border-b border-border flex items-center justify-between sticky top-0 bg-background/95 backdrop-blur-sm z-10">
       <div className="flex items-center gap-x-6">
         <div className="flex items-center gap-2">
-          {/* <Zap className="h-8 w-8 text-primary" /> */}
-          <img src="https://juspay.in/favicon.png" alt="Hyperswitch Logo" width="32" height="32" className="text-primary" />
-          <h1 className="text-2xl font-bold text-foreground">
-            Hyperswitch <span className="text-primary">Intelligent Routing</span>
-          </h1>
+          <img src="https://hyperswitch.io/logos/juspay-hyperswitch.svg" alt="Hyperswitch Logo" />
         </div>
         <TabsList>
           <TabsTrigger value="stats" onClick={() => onTabChange("stats")}>
