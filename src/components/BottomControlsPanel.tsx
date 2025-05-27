@@ -171,7 +171,7 @@ export function BottomControlsPanel({
       successCardExpYear: "25",
       successCardHolderName: "Joseph Doe",
       successCardCvc: "123",
-      failureCardNumber: "4000000000000000", // Example failure card
+      failureCardNumber: "4000000000000002", // Example failure card
       failureCardExpMonth: "12",
       failureCardExpYear: "26",
       failureCardHolderName: "Jane Roe",
