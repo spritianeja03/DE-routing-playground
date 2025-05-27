@@ -27,8 +27,8 @@ export function ProcessorSuccessRatesTable({ data }: ProcessorSuccessRatesTableP
             <TableRow>
               <TableHead>Processor</TableHead>
               <TableHead className="text-right">SR (%)</TableHead>
-              <TableHead className="text-right">Successful Payments</TableHead>
               <TableHead className="text-right">Total Payments</TableHead>
+              <TableHead className="text-right">Successful Payments</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -36,8 +36,8 @@ export function ProcessorSuccessRatesTable({ data }: ProcessorSuccessRatesTableP
               <TableRow key={item.processor}>
                 <TableCell className="font-medium">{item.processor}</TableCell>
                 <TableCell className="text-right text-green-400">{item.sr.toFixed(1)}</TableCell>
-                <TableCell className="text-right">{item.successfulPaymentCount.toLocaleString()}</TableCell>
                 <TableCell className="text-right">{item.totalPaymentCount.toLocaleString()}</TableCell>
+                <TableCell className="text-right">{item.successfulPaymentCount.toLocaleString()}</TableCell>
               </TableRow>
             ))}
           </TableBody>
