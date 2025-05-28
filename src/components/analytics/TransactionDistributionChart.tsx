@@ -13,11 +13,11 @@ interface TransactionDistributionChartProps {
 // Predefined direct HSL color strings for the pie chart
 // These correspond to --chart-1 to --chart-5 from globals.css's dark theme
 const PIE_CHART_COLORS = [
-  'hsl(25, 95%, 53%)',    // Vibrant Orange (matches --chart-1 dark)
-  'hsl(0, 90%, 60%)',      // Bright Red (matches --chart-2 dark)
-  'hsl(35, 90%, 58%)',    // Another Orange shade (matches --chart-3 dark)
-  'hsl(180, 70%, 50%)',   // Muted Cyan/Teal (matches --chart-4 dark)
-  'hsl(5, 85%, 65%)',     // Softer Red/Coral (matches --chart-5 dark)
+  'hsl(44, 96%, 51%)', 
+  'hsl(218, 57%, 54%)',   
+  'hsl(354, 70%, 50%)', 
+  'hsl(112, 16%, 52%)',
+  'hsl(274, 74%, 66%)',  
 ];
 
 export function TransactionDistributionChart({ data }: TransactionDistributionChartProps) {
