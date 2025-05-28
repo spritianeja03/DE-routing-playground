@@ -33,25 +33,6 @@ export function TransactionDistributionChart({ data }: TransactionDistributionCh
         {hasData ? (
            <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Tooltip
-                formatter={(value: number, name: string, entry: any) => {
-                  // value is the raw value of the segment
-                  // entry.percent is the percentage (0 to 1)
-                  const rawValueStr = value.toLocaleString();
-                  const percentageStr = entry.percent !== undefined ? (entry.percent * 100).toFixed(1) + '%' : 'N/A';
-                  return [`${rawValueStr} (${percentageStr})`, name];
-                }}
-                wrapperStyle={{
-                  backgroundColor: 'hsl(var(--popover))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: 'var(--radius)',
-                  padding: '8px',
-                  color: 'hsl(var(--popover-foreground))',
-                  fontSize: '0.75rem', // text-xs
-                  boxShadow: '0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1)'
-                }}
-                itemStyle={{ color: 'hsl(var(--popover-foreground))' }}
-              />
               <Legend 
                 wrapperStyle={{ color: 'hsl(var(--foreground))', fontSize: '12px', paddingTop: '10px' }}
                 formatter={(value, entry) => (

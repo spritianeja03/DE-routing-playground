@@ -20,7 +20,7 @@ import { PAYMENT_METHODS, /*RULE_STRATEGY_NODES*/ } from '@/lib/constants'; // R
 import { useToast } from '@/hooks/use-toast';
 import { summarizeSimulation } from '@/ai/flows/summarize-simulation-flow'; // AI Summary Re-added
 
-const SIMULATION_INTERVAL_MS = 1000; // Interval between individual payment processing attempts
+const SIMULATION_INTERVAL_MS = 50; // Interval between individual payment processing attempts
 
 const LOCALSTORAGE_API_KEY = 'hyperswitch_apiKey';
 const LOCALSTORAGE_PROFILE_ID = 'hyperswitch_profileId';
@@ -188,10 +188,11 @@ export default function HomePage() {
 
 
       if (data.labels_with_score && data.labels_with_score.length > 0) {
-        const bestConnector = data.labels_with_score.reduce((prev: any, current: any) =>
-          (prev.score > current.score) ? prev : current
-        );
-        console.log(`[FetchSuccessRate] Selected connector: ${bestConnector.label} with score ${bestConnector.score}`);
+        // Sort connectors by score in descending order
+        const sortedConnectors = data.labels_with_score.sort((a: any, b: any) => b.score - a.score);
+        const bestConnector = sortedConnectors[0]; // Pick the first one (highest score)
+        
+        console.log(`[FetchSuccessRate] Selected connector: ${bestConnector.label} with score ${bestConnector.score} (after sorting)`);
         return { selectedConnector: bestConnector.label, routingApproach: routingApproachForLog, srScores: srScoresForLog };
       } else {
         console.warn("[FetchSuccessRate] No scores returned or empty list.");
@@ -251,7 +252,7 @@ export default function HomePage() {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: "Failed to update success rate window" }));
         console.error("[UpdateSuccessRateWindow] API Error:", errorData.message || `HTTP ${response.status}`);
-        toast({ title: "Update SR Window Error", description: errorData.message || `HTTP ${response.status}`, variant: "destructive" });
+        // toast({ title: "Update SR Window Error", description: errorData.message || `HTTP ${response.status}`, variant: "destructive" });
       } else {
         const responseDataText = await response.text(); // Get text first to avoid issues with empty/non-JSON
         try {
@@ -277,7 +278,7 @@ export default function HomePage() {
       }
     } catch (error: any) {
       console.error("[UpdateSuccessRateWindow] Fetch Error:", error);
-      toast({ title: "Update SR Window Network Error", description: error.message, variant: "destructive" });
+      // toast({ title: "Update SR Window Network Error", description: error.message, variant: "destructive" });
     }
   }, [toast]); // currentControls is not a direct dependency here, it's passed as an argument
 
@@ -920,6 +921,9 @@ export default function HomePage() {
   }, [simulationState, processTransactionBatch]);
 
   const handleStartSimulation = useCallback(async (forceStart = false) => {
+    const previousSimulationState = simulationState; // Capture state before any changes
+    console.log(`handleStartSimulation called. Current state: ${previousSimulationState}, forceStart: ${forceStart}`);
+
     if (!apiKey || !profileId || !merchantId) { 
       setIsApiCredentialsModalOpen(true);
       return;
@@ -960,12 +964,19 @@ export default function HomePage() {
          return;
     }
 
-    if (simulationState === 'idle' || forceStart) resetSimulationState(); 
+    if (previousSimulationState === 'idle' || forceStart) {
+      console.log("Resetting simulation state.");
+      resetSimulationState();
+    } else {
+      console.log("Not resetting simulation state (resuming or already running).");
+    }
+    
     isStoppingRef.current = false; 
     isProcessingBatchRef.current = false; 
     setSimulationState('running');
-    toast({ title: `Simulation ${simulationState === 'idle' || forceStart ? 'Started' : 'Resumed'}`, description: `Processing ${currentControls?.totalPayments || 0} payments.` });
-  }, [currentControls, apiKey, profileId, merchantId, merchantConnectors, toast, simulationState]);
+    // Use previousSimulationState for the toast message to accurately reflect the action taken
+    toast({ title: `Simulation ${previousSimulationState === 'idle' || forceStart ? 'Started' : 'Resumed'}`, description: `Processing ${currentControls?.totalPayments || 0} payments.` });
+  }, [currentControls, apiKey, profileId, merchantId, merchantConnectors, toast, simulationState]); // simulationState is still a dependency for useCallback re-creation if needed by other parts of its logic, even if previousSimulationState is used for the toast.
 
   const handlePauseSimulation = useCallback(() => {
     if (simulationState === 'running') {
@@ -1073,9 +1084,9 @@ export default function HomePage() {
             onStopSimulation={handleStopSimulation} simulationState={simulationState}
           />
           {/* Main content area split into two columns: Left for Tabs (Stats/Analytics), Right for Logs */}
-          <div className="flex flex-row flex-grow overflow-hidden">
+          <div className="flex flex-row flex-grow min-h-0 overflow-hidden"> {/* Added overflow-hidden */}
             {/* Left Pane: Existing Tabs Content */}
-            <div className="w-2/3 flex flex-col overflow-hidden p-0"> {/* Changed w-1/2 to w-2/3 */}
+            <div className="w-2/3 flex flex-col overflow-hidden p-0 min-h-0"> {/* Added min-h-0 */}
               <TabsContent value="stats" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
                 <ScrollArea className="h-full">
                   <div className="p-2 md:p-4 lg:p-6">
@@ -1102,50 +1113,49 @@ export default function HomePage() {
             </div>
 
             {/* Right Pane: New Static Logs View */}
-            <div className="w-1/3 flex flex-col overflow-hidden border-l"> {/* Changed w-1/2 to w-1/3 */}
-              <div className="p-2 md:p-4 lg:p-6 h-full flex flex-col">
-                <h2 className="text-lg font-semibold mb-2 flex-shrink-0">Transaction Logs</h2>
-                <ScrollArea className="flex-grow">
-                  {transactionLogs.length > 0 ? (
-                    transactionLogs.slice().reverse().map((log, index) => ( // .slice().reverse() to show newest first
-                      <div key={log.transactionNumber || index} className="text-xs p-2 mb-2 border rounded-md font-mono break-all bg-card">
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="font-bold text-sm">Transaction #{log.transactionNumber}</span>
-                          <span className="text-gray-500 dark:text-gray-400">
-                            {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 })}
+            <div className="w-1/3 flex flex-col overflow-hidden min-h-0 border-l p-2 md:p-4 lg:p-6">
+              <h2 className="text-lg font-semibold mb-2 flex-shrink-0">Transaction Logs</h2>
+              {/* ScrollArea takes remaining space and scrolls internally */}
+              <ScrollArea className="flex-grow min-h-0">
+                {transactionLogs.length > 0 ? (
+                  transactionLogs.slice().reverse().map((log, index) => (
+                    <div key={log.transactionNumber || index} className="text-xs p-2 mb-2 border rounded-md font-mono break-all bg-card">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="font-bold text-sm">Transaction #{log.transactionNumber}</span>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 })}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+                        <div><span className="font-semibold">Processor:</span> {log.connector}</div>
+                        <div><span className="font-semibold">Status:</span> <span className={`${log.status === 'succeeded' || log.status === 'requires_capture' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{log.status}</span></div>
+                        <div>
+                          <span className="font-semibold">Routing:</span>
+                          <span className={`
+                            ${log.routingApproach === 'exploration' ? 'text-blue-600 dark:text-blue-400' : ''}
+                            ${log.routingApproach === 'exploitation' ? 'text-purple-600 dark:text-purple-400' : ''}
+                            ${log.routingApproach === 'unknown' || log.routingApproach === 'N/A' ? 'text-gray-500 dark:text-gray-400' : ''}
+                          `}>
+                            {log.routingApproach}
                           </span>
                         </div>
-                        <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
-                          <div><span className="font-semibold">Processor:</span> {log.connector}</div>
-                          <div><span className="font-semibold">Status:</span> <span className={`${log.status === 'succeeded' || log.status === 'requires_capture' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{log.status}</span></div>
-                          <div>
-                            <span className="font-semibold">Routing:</span>
-                            <span className={`
-                              ${log.routingApproach === 'exploration' ? 'text-blue-600 dark:text-blue-400' : ''}
-                              ${log.routingApproach === 'exploitation' ? 'text-purple-600 dark:text-purple-400' : ''}
-                              ${log.routingApproach === 'unknown' || log.routingApproach === 'N/A' ? 'text-gray-500 dark:text-gray-400' : ''}
-                            `}>
-                              {log.routingApproach}
-                            </span>
+                      </div>
+                      {log.sr_scores && Object.keys(log.sr_scores).length > 0 && (
+                        <div className="mt-1 pt-1 border-t border-slate-200 dark:border-slate-700">
+                          <span className="font-semibold">SR Scores:</span>
+                          <div className="pl-2">
+                            {Object.entries(log.sr_scores).map(([name, score]) => (
+                              <div key={name}>{name}: {score.toFixed(2)}</div>
+                            ))}
                           </div>
                         </div>
-                        {log.sr_scores && Object.keys(log.sr_scores).length > 0 && (
-                          <div className="mt-1 pt-1 border-t border-slate-200 dark:border-slate-700">
-                            <span className="font-semibold">SR Scores:</span>
-                            <div className="pl-2">
-                              {Object.entries(log.sr_scores).map(([name, score]) => (
-                                <div key={name}>{name}: {score.toFixed(2)}</div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Log entries will appear here...</p>
-                  )}
-                </ScrollArea>
-              </div>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">Log entries will appear here...</p>
+                )}
+              </ScrollArea>
             </div>
           </div>
         </Tabs>

@@ -30,74 +30,6 @@ const getAllProcessorIds = (history: ProcessorMetricsHistory): string[] => {
   return Array.from(processorIdSet);
 };
 
-// Function to process data: if volume flattens, bring line to 0
-const processVolumeDataForChart = (history: ProcessorMetricsHistory): ProcessorMetricsHistory => {
-  if (!history || history.length === 0) {
-    return [];
-  }
-
-  const processedData = history.map(item => ({ ...item })); // Shallow copy, sufficient for this structure
-  const processorIds = getAllProcessorIds(processedData);
-
-  processorIds.forEach(processorId => {
-    let lastChangeIndex = -1;
-    let firstAppearanceIndex = -1;
-
-    // Find the first point where the processor has a non-zero volume
-    for (let i = 0; i < processedData.length; i++) {
-      const rawCurrentVolume = processedData[i][processorId];
-      const currentVolume = typeof rawCurrentVolume === 'string' ? parseFloat(rawCurrentVolume) : rawCurrentVolume;
-
-      if (typeof currentVolume === 'number' && !isNaN(currentVolume)) {
-        if (currentVolume > 0) {
-          firstAppearanceIndex = i;
-          lastChangeIndex = i; // Initialize lastChangeIndex to first appearance with volume
-          break;
-        } else if (currentVolume === 0 && firstAppearanceIndex === -1) {
-          // If it's 0, mark as first appearance to track subsequent changes from 0
-          firstAppearanceIndex = i;
-          lastChangeIndex = i;
-        }
-      } else if (rawCurrentVolume === undefined || rawCurrentVolume === null) {
-        // If data for this processor doesn't exist at this point, treat as 0 for initialization
-        if (firstAppearanceIndex === -1) {
-            firstAppearanceIndex = i;
-            lastChangeIndex = i;
-        }
-      }
-    }
-
-    if (firstAppearanceIndex !== -1) {
-      // Start checking for changes from the point after its first appearance
-      for (let i = firstAppearanceIndex + 1; i < processedData.length; i++) {
-        const rawCurrentVolume = processedData[i][processorId];
-        const rawPreviousVolume = processedData[i-1][processorId];
-
-        const currentVolume = typeof rawCurrentVolume === 'string' ? parseFloat(rawCurrentVolume) : rawCurrentVolume;
-        const previousVolume = typeof rawPreviousVolume === 'string' ? parseFloat(rawPreviousVolume) : rawPreviousVolume;
-        
-        // Ensure both are numbers for comparison, or handle undefined/null as no change from a previous 0 or undefined state
-        const numCurrentVolume = (typeof currentVolume === 'number' && !isNaN(currentVolume)) ? currentVolume : 0;
-        const numPreviousVolume = (typeof previousVolume === 'number' && !isNaN(previousVolume)) ? previousVolume : 0;
-
-        if (numCurrentVolume !== numPreviousVolume) {
-          lastChangeIndex = i;
-        }
-      }
-    }
-    
-    // If the volume became constant before the last data point
-    if (lastChangeIndex !== -1 && lastChangeIndex < processedData.length - 1) {
-      for (let j = lastChangeIndex + 1; j < processedData.length; j++) {
-        processedData[j][processorId] = 0; // Set to 0 for points after the last change
-      }
-    }
-  });
-
-  return processedData;
-};
-
-
 // Custom Tooltip Component
 const CustomTooltip = ({ active, payload, label, merchantConnectors }: any) => {
   if (active && payload && payload.length) {
@@ -127,10 +59,11 @@ const CustomTooltip = ({ active, payload, label, merchantConnectors }: any) => {
 
 
 export function VolumeOverTimeChart({ data, merchantConnectors, connectorToggleStates }: VolumeOverTimeChartProps) {
-  const processedChartData = processVolumeDataForChart(data);
-  const uniqueProcessorIds = getAllProcessorIds(processedChartData);
+  // const processedChartData = processVolumeDataForChart(data); // Removed: Use raw data for cumulative volume
+  const chartData = data; // Use the original data
+  const uniqueProcessorIds = getAllProcessorIds(chartData);
 
-  if (!processedChartData || processedChartData.length === 0) {
+  if (!chartData || chartData.length === 0) {
     return (
       <Card className="shadow-md">
         <CardHeader>
@@ -147,11 +80,11 @@ export function VolumeOverTimeChart({ data, merchantConnectors, connectorToggleS
     <Card className="shadow-md">
       <CardHeader>
         <CardTitle className="flex items-center"><BarChartBig className="mr-2 h-5 w-5 text-primary" /> Volume Over Time</CardTitle>
-        <CardDescription>Cumulative transaction volume per processor. Drops to zero if payments stop.</CardDescription> 
+        <CardDescription>Cumulative transaction volume per processor over time.</CardDescription> 
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={processedChartData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
+          <AreaChart data={chartData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis
               dataKey="time"
@@ -178,7 +111,7 @@ export function VolumeOverTimeChart({ data, merchantConnectors, connectorToggleS
               }}
             />
             <Legend wrapperStyle={{ color: 'hsl(var(--foreground))', paddingTop: '10px' }} />
-            {processedChartData && processedChartData.length > 0 && uniqueProcessorIds
+            {chartData && chartData.length > 0 && uniqueProcessorIds
               .filter(processorId => connectorToggleStates[processorId] === true)
               .map((processorId, index) => {
               const connector = merchantConnectors.find(mc => (mc.merchant_connector_id || mc.connector_name) === processorId);
