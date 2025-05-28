@@ -137,7 +137,7 @@ export function BottomControlsPanel({
   const [successBasedAlgorithmId, setSuccessBasedAlgorithmId] = useState<string | null>(null);
   // const [activeRoutingAlgorithm, setActiveRoutingAlgorithm] = useState<any | null>(null); // Removed
   // const [isLoadingActiveRouting, setIsLoadingActiveRouting] = useState<boolean>(false); // Removed
-  
+  const [isFormVisible, setIsFormVisible] = useState(true);
   const dynamicDefaults = useMemo(() => {
     const matrix: ProcessorPaymentMethodMatrix = {};
     const incidents: ProcessorIncidentStatus = {};
@@ -356,9 +356,13 @@ export function BottomControlsPanel({
   };
 
   return (
+    <div>
+      <Button variant="outline" size="sm" onClick={() => setIsFormVisible(!isFormVisible)} className="mb-2" style={{ zIndex: 1000, position: 'fixed', bottom: 0, right: 0 }}>
+        {isFormVisible ? "Hide Configs" : "Show Configs"}
+      </Button>
     <div
       className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-lg z-20"
-      style={{ height: BOTTOM_PANEL_HEIGHT }}
+      style={{ height: isFormVisible ? BOTTOM_PANEL_HEIGHT : '1px' }}
     >
       <ScrollArea className="h-full">
         <Form {...form}>
@@ -853,6 +857,7 @@ export function BottomControlsPanel({
           </form>
         </Form>
       </ScrollArea>
+    </div>
     </div>
   );
 }
