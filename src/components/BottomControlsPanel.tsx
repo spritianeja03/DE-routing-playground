@@ -163,8 +163,8 @@ export function BottomControlsPanel({
       processorMatrix: dynamicDefaults.matrix,
       processorIncidents: dynamicDefaults.incidents,
       processorWiseSuccessRates: dynamicDefaults.rates,
-      currentBlockThresholdDurationInMins: 5, // Default for old field
-      currentBlockThresholdMaxTotalCount: 5, // Default for old field
+      currentBlockThresholdDurationInMins: 60, // Default for old field
+      currentBlockThresholdMaxTotalCount: 20, // Default for old field
       minAggregatesSize: 5, // Default for new field
       maxAggregatesSize: 10, // Default for new field
       isSuccessBasedRoutingEnabled: false,
@@ -592,7 +592,7 @@ export function BottomControlsPanel({
                         {/* Grouping for Current Block Threshold */}
                         <div className="md:col-span-2 space-y-2 p-3 border rounded-md">
                           <h4 className="text-sm font-medium mb-2">Success Rate Window Parameters</h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <FormField
                               control={control}
                               name="minAggregatesSize"
@@ -609,14 +609,28 @@ export function BottomControlsPanel({
                             />
                             <FormField
                               control={control}
-                              name="currentBlockThresholdMaxTotalCount"
+                              name="maxAggregatesSize"
                               render={({ field }) => (
                                 <FormItem>
-                                  <FormLabel className="text-xs">Payment Count for Each Bucket (max_aggregates_size)</FormLabel>
+                                  <FormLabel className="text-xs">Maximum Aggregates Size (max_aggregates_size)</FormLabel>
                                   <FormControl>
                                     <Input type="number" placeholder="e.g., 10" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} min="0"/>
                                   </FormControl>
-                                  <FormDescription className="text-xs">Max. aggregate data points in a window (for /update).</FormDescription>
+                                  <FormDescription className="text-xs">Max. aggregate data points for SR calculation.</FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={control}
+                              name="currentBlockThresholdMaxTotalCount"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="text-xs">Current Block Threshold (max_total_count)</FormLabel>
+                                  <FormControl>
+                                    <Input type="number" placeholder="e.g., 5" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} min="0"/>
+                                  </FormControl>
+                                  <FormDescription className="text-xs">Max total count for current block threshold.</FormDescription>
                                   <FormMessage />
                                 </FormItem>
                               )}

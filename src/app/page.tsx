@@ -226,10 +226,10 @@ export default function HomePage() {
       labels_with_status: [{ label: connectorNameForApi, status: paymentSuccessStatus }],
       global_labels_with_status: [{ label: connectorNameForApi, status: paymentSuccessStatus }],
       config: { // Added config for UpdateSuccessRateWindow
-        max_aggregates_size: 3, // Using the new form value
+        max_aggregates_size: controls.maxAggregatesSize ?? 10, // Using the new form value
         current_block_threshold: { // This remains as per its original structure
-          duration_in_mins: controls.currentBlockThresholdDurationInMins ?? 15, 
-          max_total_count: controls.currentBlockThresholdMaxTotalCount ?? 5,    
+          duration_in_mins: controls.currentBlockThresholdDurationInMins ?? 60, 
+          max_total_count: controls.currentBlockThresholdMaxTotalCount ?? 20,    
         }
       }
     };
