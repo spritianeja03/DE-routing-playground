@@ -14,7 +14,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react'; // AI Summary Re-added
-// import ReactMarkdown from 'react-markdown'; // Temporarily commented out - install this package
+import ReactMarkdown from 'react-markdown';
+import remarkRehype from 'remark-rehype';
 import type { PaymentMethod, ProcessorMetricsHistory, StructuredRule, ControlsState, OverallSRHistory, OverallSRHistoryDataPoint, TimeSeriesDataPoint, MerchantConnector, TransactionLogEntry, AISummaryInput, AISummaryOutput } from '@/lib/types';
 import { PAYMENT_METHODS, /*RULE_STRATEGY_NODES*/ } from '@/lib/constants'; // RULE_STRATEGY_NODES removed
 import { useToast } from '@/hooks/use-toast';
@@ -1177,8 +1178,16 @@ export default function HomePage() {
                 <p className="mt-4 text-muted-foreground">Generating summary...</p>
               </div>
             ) : (
-              // Temporarily reverted to pre tag until react-markdown is installed
-              <pre className="font-sans text-sm whitespace-pre-wrap p-1">{summaryText}</pre>
+              <ReactMarkdown
+                remarkPlugins={[remarkRehype]}
+                components={{
+                  p: ({ node, ...props }) => (
+                    <p {...props} className="font-sans text-sm whitespace-pre-wrap p-1" />
+                  ),
+                }}
+              >
+                {summaryText}
+              </ReactMarkdown>
             )}
           </ScrollArea>
           <DialogFooter>
