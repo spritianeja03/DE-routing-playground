@@ -22,7 +22,7 @@ const CustomTooltip = ({ active, payload, label, merchantConnectors }: any) => {
         <p className="mb-2 font-semibold text-sm">Time: {label}</p>
         {payload.map((pld: any, index: number) => {
           const connector = merchantConnectors?.find((mc: MerchantConnector) => (mc.merchant_connector_id || mc.connector_name) === pld.name);
-          const displayName = connector ? (connector.connector_label || connector.connector_name) : pld.name;
+          const displayName = connector ? connector.connector_name : pld.name;
           return (
             <div key={index} className="mb-1.5 last:mb-0">
               <div className="flex items-center mb-0.5">
@@ -95,7 +95,7 @@ export function VolumeOverTimeChart({ data, merchantConnectors, connectorToggleS
               .filter(key => key !== 'time' && connectorToggleStates[key] === true)
               .map((processorId, index) => {
               const connector = merchantConnectors.find(mc => (mc.merchant_connector_id || mc.connector_name) === processorId);
-              const displayName = connector ? (connector.connector_label || connector.connector_name) : processorId;
+              const displayName = connector ? connector.connector_name : processorId;
               return (
                 <Area
                   key={processorId}

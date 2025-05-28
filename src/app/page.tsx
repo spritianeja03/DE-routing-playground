@@ -91,15 +91,14 @@ export default function HomePage() {
         allCredentialsFound = false;
       }
 
-      if (allCredentialsFound && storedMerchantId && storedApiKey) { 
-        console.log("All credentials loaded from localStorage. Fetching connectors.");
-        // Directly call fetchMerchantConnectors with the loaded values
-        // as state updates might not be synchronous for the first call.
-        fetchMerchantConnectors(storedMerchantId, storedApiKey); 
-      } else {
-        console.log("Not all credentials found in localStorage. Opening modal.");
-        setIsApiCredentialsModalOpen(true);
-      }
+      // Always open the modal on refresh
+      console.log("Opening API credentials modal on page load.");
+      setIsApiCredentialsModalOpen(true);
+
+      // If credentials were found and set, fetchMerchantConnectors will be called 
+      // by handleApiCredentialsSubmit when the modal is submitted,
+      // or if the user closes it and they were already valid, subsequent actions might trigger it.
+      // For now, we don't auto-fetch here to ensure modal interaction.
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run once on mount
@@ -108,7 +107,7 @@ export default function HomePage() {
   // Function to fetch success rates and select the best connector
   const fetchSuccessRateAndSelectConnector = useCallback(async (
     currentControls: FormValues,
-    activeConnectorLabels: string[], // Changed to expect an array of connector_label
+    activeConnectorLabels: string[], // Changed to expect an array of connector_name
     currentApiKey: string, // Still needed for other API calls, but not for this one as per user
     currentProfileId: string
   ): Promise<{ selectedConnector: string | null; routingApproach: TransactionLogEntry['routingApproach']; srScores: Record<string, number> | undefined }> => {
@@ -120,7 +119,7 @@ export default function HomePage() {
     const payload = {
       id: currentProfileId,
       params: "card", 
-      labels: activeConnectorLabels, // Use the provided connector_labels
+      labels: activeConnectorLabels, // Use the provided connector_names
       config: { // Specific config for FetchSuccessRate
         min_aggregates_size: currentControls.minAggregatesSize ?? 5, // Using the new form value
         default_success_rate: 100.0, // Removed as per previous changes
@@ -132,7 +131,7 @@ export default function HomePage() {
     console.log("[FetchSuccessRate] Payload:", JSON.stringify(payload, null, 2));
 
     try {
-      const response = await fetch('/api/hs-proxy/dynamic-routing/success_rate.SuccessRateCalculator/FetchSuccessRate', { // Reverted to proxy path
+      const response = await fetch('/api/hs-proxy/dynamic-routing/success_rate.SuccessRateCalculator/FetchSuccessRate', { 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -591,7 +590,7 @@ export default function HomePage() {
         // Always prepare and attempt to fetch success rate if there are active connectors and necessary info
         const activeConnectorLabelsForApi = merchantConnectors
           .filter(mc => connectorToggleStates[mc.merchant_connector_id || mc.connector_name])
-          .map(mc => mc.connector_label || mc.connector_name);
+          .map(mc => mc.connector_name);
 
         if (activeConnectorLabelsForApi.length > 0 && currentControls && profileId) {
           console.log("[PTB] Attempting to fetch connector scores for labels:", activeConnectorLabelsForApi);
@@ -614,7 +613,6 @@ export default function HomePage() {
           console.log("[PTB] Success Based Routing IS enabled. Evaluating fetched connector for routing.");
           if (returnedConnectorLabelFromApi) {
             const matchedConnector = merchantConnectors.find(mc =>
-              mc.connector_label === returnedConnectorLabelFromApi ||
               mc.connector_name === returnedConnectorLabelFromApi
             );
 
@@ -673,8 +671,8 @@ export default function HomePage() {
               };
               setTransactionLogs(prevLogs => [...prevLogs, newLogEntry]);
             } else {
-              if (responseData.status && (responseData.connector_label || responseData.merchant_connector_id || (responseData.attempts && responseData.attempts.length > 0 && responseData.attempts[0].connector))) {
-                  loggedConnectorName = responseData.connector_label || responseData.merchant_connector_id || responseData.attempts[0].connector || 'unknown';
+              if (responseData.status && (responseData.connector_name || responseData.merchant_connector_id || (responseData.attempts && responseData.attempts.length > 0 && responseData.attempts[0].connector))) {
+                  loggedConnectorName = responseData.connector_name || responseData.merchant_connector_id || responseData.attempts[0].connector || 'unknown';
                   transactionCounterRef.current += 1;
                    const newLogEntry: TransactionLogEntry = {
                       transactionNumber: transactionCounterRef.current,
@@ -692,22 +690,22 @@ export default function HomePage() {
           }
           
           // Determine routedProcessorId for stats accumulation (this is typically merchant_connector_id or a similar unique key)
-          if (responseData.connector_label) {
-              const mc = merchantConnectors.find(m => m.connector_label === responseData.connector_label || m.connector_name === responseData.connector_label);
+          if (responseData.connector_name) {
+              const mc = merchantConnectors.find(m => m.connector_name === responseData.connector_name);
               if (mc) routedProcessorId = mc.merchant_connector_id || mc.connector_name;
           } else if (responseData.merchant_connector_id) {
                routedProcessorId = responseData.merchant_connector_id;
           } else if (responseData.attempts && responseData.attempts.length > 0 && responseData.attempts[0].connector) {
               // Assuming attempts[0].connector might be a label or name
               const attemptConnector = responseData.attempts[0].connector;
-              const mc = merchantConnectors.find(m => m.connector_label === attemptConnector || m.connector_name === attemptConnector || m.merchant_connector_id === attemptConnector);
+              const mc = merchantConnectors.find(m => m.connector_name === attemptConnector || m.merchant_connector_id === attemptConnector);
               routedProcessorId = mc ? (mc.merchant_connector_id || mc.connector_name) : attemptConnector;
           }
 
           if (!routedProcessorId && loggedConnectorName && loggedConnectorName !== 'unknown') {
             // If we got a loggedConnectorName (likely a label or name) but couldn't map it to a routedProcessorId for stats,
             // try to find its merchant_connector_id for stats key.
-            const mc = merchantConnectors.find(m => m.connector_label === loggedConnectorName || m.connector_name === loggedConnectorName);
+            const mc = merchantConnectors.find(m => m.connector_name === loggedConnectorName);
             if (mc) routedProcessorId = mc.merchant_connector_id || mc.connector_name;
             else routedProcessorId = loggedConnectorName; // Fallback to using the logged name if no better ID found
           } else if (!routedProcessorId) {
@@ -722,8 +720,7 @@ export default function HomePage() {
           // We need to ensure we pass the 'connector_name' to updateSuccessRateWindow.
           let connectorNameForUpdateApi: string | null = null;
           if (loggedConnectorName && loggedConnectorName !== 'unknown') {
-            const foundConnector = merchantConnectors.find(mc => 
-                mc.connector_label === loggedConnectorName || 
+            const foundConnector = merchantConnectors.find(mc =>
                 mc.connector_name === loggedConnectorName ||
                 mc.merchant_connector_id === loggedConnectorName // If loggedConnectorName was an ID
             );

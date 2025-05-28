@@ -23,7 +23,7 @@ const CustomTooltip = ({ active, payload, label, merchantConnectors }: any) => {
         {payload.map((pld: any, index: number) => {
           // pld.name is the processorId (dataKey). We need to resolve it to connector_label.
           const connector = merchantConnectors?.find((mc: MerchantConnector) => (mc.merchant_connector_id || mc.connector_name) === pld.name);
-          const displayName = connector ? (connector.connector_label || connector.connector_name) : pld.name;
+          const displayName = connector ? connector.connector_name : pld.name;
           return (
             <div key={index} className="mb-1.5 last:mb-0">
               <div className="flex items-center mb-0.5">
@@ -146,7 +146,7 @@ export function SuccessRateOverTimeChart({ data, merchantConnectors, connectorTo
               // The `CustomTooltip` will then show `processorId`.
               // If a friendly name is desired, `merchantConnectors` must be passed down.
               const connector = merchantConnectors.find(mc => (mc.merchant_connector_id || mc.connector_name) === processorId);
-              const displayName = connector ? (connector.connector_label || connector.connector_name) : processorId;
+              const displayName = connector ? connector.connector_name : processorId;
               return (
                 <Area
                   key={processorId}
