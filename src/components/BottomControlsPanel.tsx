@@ -68,8 +68,10 @@ const formSchema = z.object({
     successfulPaymentCount: z.number().min(0), // Actual count
     totalPaymentCount: z.number().min(0),      // Actual count
   })),
-  currentBlockThresholdDurationInMins: z.number().min(0).optional(),
-  currentBlockThresholdMaxTotalCount: z.number().min(0).max(10000).optional(),
+  currentBlockThresholdDurationInMins: z.number().min(0).optional(), // Retain for now, but will be replaced by minAggregatesSize for API
+  currentBlockThresholdMaxTotalCount: z.number().min(0).max(10000).optional(), // Retain for now, but will be replaced by maxAggregatesSize for API
+  minAggregatesSize: z.number().min(0).optional(), // New field for min_aggregates_size
+  maxAggregatesSize: z.number().min(0).optional(), // New field for max_aggregates_size
   isSuccessBasedRoutingEnabled: z.boolean().optional(),
   // Test Payment Data Fields
   successCardNumber: z.string().optional(),
@@ -84,6 +86,15 @@ const formSchema = z.object({
   failureCardCvc: z.string().optional(),
   failurePercentage: z.number().min(0).max(100).optional(),
   explorationPercent: z.number().min(0).max(100).optional(), // Added explorationPercent
+  selectedRoutingParams: z.object({
+    PaymentMethod: z.boolean().optional(),
+    PaymentMethodType: z.boolean().optional(),
+    AuthenticationType: z.boolean().optional(),
+    Currency: z.boolean().optional(),
+    Country: z.boolean().optional(),
+    CardNetwork: z.boolean().optional(),
+    CardBin: z.boolean().optional(),
+  }).optional(),
 });
 
 export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule' | 'overallSuccessRate'> & {
@@ -91,6 +102,8 @@ export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule' | 'ov
   overallSuccessRate?: number;
   isSuccessBasedRoutingEnabled?: boolean; // Corrected to match form schema
   explorationPercent?: number; // Ensure it's part of FormValues if not automatically inferred
+  minAggregatesSize?: number; // Ensure it's part of FormValues
+  maxAggregatesSize?: number; // Ensure it's part of FormValues
 };
 
 interface BottomControlsPanelProps {
@@ -146,8 +159,10 @@ export function BottomControlsPanel({
       processorMatrix: dynamicDefaults.matrix,
       processorIncidents: dynamicDefaults.incidents,
       processorWiseSuccessRates: dynamicDefaults.rates,
-      currentBlockThresholdDurationInMins: 5,
-      currentBlockThresholdMaxTotalCount: 5,
+      currentBlockThresholdDurationInMins: 5, // Default for old field
+      currentBlockThresholdMaxTotalCount: 5, // Default for old field
+      minAggregatesSize: 5, // Default for new field
+      maxAggregatesSize: 10, // Default for new field
       isSuccessBasedRoutingEnabled: false,
       ruleConditionField: undefined,
       ruleConditionOperator: undefined,
@@ -166,6 +181,15 @@ export function BottomControlsPanel({
       failureCardCvc: "999",
       failurePercentage: 50,
       explorationPercent: 20, // Default value for explorationPercent
+      selectedRoutingParams: {
+        PaymentMethod: true,
+        PaymentMethodType: true,
+        AuthenticationType: true,
+        Currency: true,
+        Country: true,
+        CardNetwork: true,
+        CardBin: true,
+      },
       ...initialValues, // Props override static defaults
       ...loadInitialCardDetails(), // localStorage overrides props and static defaults for the fields it contains
     },
@@ -452,32 +476,32 @@ export function BottomControlsPanel({
                         />
                         {/* Grouping for Current Block Threshold */}
                         <div className="md:col-span-2 space-y-2 p-3 border rounded-md">
-                          <h4 className="text-sm font-medium mb-2">No. of Payments to Consider</h4>
+                          <h4 className="text-sm font-medium mb-2">Success Rate Window Parameters</h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <FormField
                               control={control}
-                              name="currentBlockThresholdDurationInMins"
+                              name="minAggregatesSize"
                               render={({ field }) => (
                                 <FormItem>
-                                  <FormLabel className="text-xs">Minimum Bucket Count</FormLabel>
+                                  <FormLabel className="text-xs">Minimum Bucket Count (min_aggregates_size)</FormLabel>
                                   <FormControl>
                                     <Input type="number" placeholder="e.g., 5" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} min="0" />
                                   </FormControl>
-                                  <FormDescription className="text-xs">Minimum number of buckets to track</FormDescription>
+                                  <FormDescription className="text-xs">Min. aggregate data points for SR calculation (for /fetch).</FormDescription>
                                   <FormMessage />
                                 </FormItem>
                               )}
                             />
                             <FormField
                               control={control}
-                              name="currentBlockThresholdMaxTotalCount"
+                              name="maxAggregatesSize"
                               render={({ field }) => (
                                 <FormItem>
-                                  <FormLabel className="text-xs">Payment Count for Each Bucket</FormLabel>
+                                  <FormLabel className="text-xs">Payment Count for Each Bucket (max_aggregates_size)</FormLabel>
                                   <FormControl>
                                     <Input type="number" placeholder="e.g., 10" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} min="0"/>
                                   </FormControl>
-                                  <FormDescription className="text-xs">Maximun number of payments to be tracked in a bucket.</FormDescription>
+                                  <FormDescription className="text-xs">Max. aggregate data points in a window (for /update).</FormDescription>
                                   <FormMessage />
                                 </FormItem>
                               )}
@@ -486,74 +510,42 @@ export function BottomControlsPanel({
                         </div>
                         {/* End of Grouping */}
                         {/* defaultSuccessRate field removed */}
+                        {/* currentBlockThresholdDurationInMins and currentBlockThresholdMaxTotalCount fields are now effectively replaced by minAggregatesSize and maxAggregatesSize for API calls */}
                       </div>
                       <div className="flex justify-end mt-4">
-                        {/* <Button 
-                          type="button" 
-                          disabled
-                          onClick={async () => {
-                            if (!form.getValues("isSuccessBasedRoutingEnabled")) {
-                              toast({ title: "Info", description: "Success Based Routing is not enabled.", variant: "default" });
-                              return;
-                            }
-                            if (!successBasedAlgorithmId) {
-                              toast({ title: "Error", description: "Algorithm ID not found. Please toggle Success Based Routing ON first.", variant: "destructive" });
-                              return;
-                            }
-                            if (!apiKey || !profileId || !merchantId) {
-                              toast({ title: "Error", description: "API credentials or Merchant/Profile ID missing.", variant: "destructive" });
-                              return;
-                            }
-
-                            const formValues = form.getValues();
-                            const configPayload = {
-                              params: [ // Using static params from cURL for now
-                                "Currency", "CardBin", "Country", "PaymentMethod", 
-                                "PaymentMethodType", "AuthenticationType", "CardNetwork"
-                              ],
-                              config: {
-                                current_block_threshold: {
-                                  duration_in_mins: formValues.currentBlockThresholdDurationInMins,
-                                  max_total_count: formValues.currentBlockThresholdMaxTotalCount
-                                }
-                              }
-                            };
-
-                            // Remove undefined optional fields from config to match Option<T> behavior if API expects missing fields to be absent
-                            if (configPayload.config.current_block_threshold.duration_in_mins === undefined) delete configPayload.config.current_block_threshold.duration_in_mins;
-                            if (configPayload.config.current_block_threshold.max_total_count === undefined) delete configPayload.config.current_block_threshold.max_total_count;
-                            
-                            const configApiUrl = `/api/hs-proxy/account/${merchantId}/business_profile/${profileId}/dynamic_routing/success_based/config/${successBasedAlgorithmId}`;
-                            
-                            try {
-                              const response = await fetch(configApiUrl, {
-                                method: 'PATCH',
-                                headers: {
-                                  'api-key': apiKey,
-                                  'Content-Type': 'application/json',
-                                  'Accept': 'application/json',
-                                },
-                                body: JSON.stringify(configPayload),
-                              });
-
-                              if (!response.ok) {
-                                const errorData = await response.json().catch(() => ({ message: "Failed to update config." }));
-                                throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-                              }
-                              
-                              toast({ title: "Success", description: "Success Based Routing configuration updated." });
-
-                            } catch (error: any) {
-                              console.error("Error updating config:", error);
-                              toast({ title: "Update Failed", description: error.message, variant: "destructive" });
-                            }
-                          }}
-                        >
-                          Update Config
-                        </Button> */}
+                        {/* Update Config Button Removed as per previous changes */}
                       </div>
                     </>
                   )}
+                  <div className="space-y-3 p-3 border rounded-md bg-card mt-4">
+                      <FormLabel className="text-sm font-medium">Routing Parameters</FormLabel>
+                      <FormDescription className="text-xs">
+                        Select parameters to consider for routing decisions.
+                      </FormDescription>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-3 pt-2">
+                        {(['PaymentMethod', 'PaymentMethodType', 'AuthenticationType', 'Currency', 'Country', 'CardNetwork', 'CardBin'] as const).map((param) => (
+                          <FormField
+                            key={param}
+                            control={control}
+                            name={`selectedRoutingParams.${param}`}
+                            render={({ field }) => (
+                              <FormItem className="flex flex-row items-center space-x-2">
+                                <FormControl>
+                                  <Checkbox
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                    id={`routing-param-${param}`}
+                                  />
+                                </FormControl>
+                                <Label htmlFor={`routing-param-${param}`} className="text-sm font-normal cursor-pointer">
+                                  {param.replace(/([A-Z])/g, ' $1').trim()}
+                                </Label>
+                              </FormItem>
+                            )}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               </TabsContent>

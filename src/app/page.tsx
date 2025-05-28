@@ -122,7 +122,8 @@ export default function HomePage() {
       params: "card", 
       labels: activeConnectorLabels, // Use the provided connector_labels
       config: { // Specific config for FetchSuccessRate
-        // default_success_rate: currentControls.defaultSuccessRate ?? 100.0, // Removed
+        min_aggregates_size: currentControls.minAggregatesSize ?? 5, // Using the new form value
+        default_success_rate: 100.0, // Removed as per previous changes
         exploration_percent: currentControls.explorationPercent ?? 20.0,
         // max_aggregates_size and current_block_threshold are NOT included here
       },
@@ -203,9 +204,10 @@ export default function HomePage() {
       labels_with_status: [{ label: connectorNameForApi, status: paymentSuccessStatus }],
       global_labels_with_status: [{ label: connectorNameForApi, status: paymentSuccessStatus }],
       config: { // Added config for UpdateSuccessRateWindow
-        current_block_threshold: {
-          duration_in_mins: controls.currentBlockThresholdDurationInMins ?? 60, // Default from your example
-          max_total_count: controls.currentBlockThresholdMaxTotalCount ?? 2,    // Default from your example
+        max_aggregates_size: controls.maxAggregatesSize ?? 10, // Using the new form value
+        current_block_threshold: { // This remains as per its original structure
+          duration_in_mins: controls.currentBlockThresholdDurationInMins ?? 15, 
+          max_total_count: controls.currentBlockThresholdMaxTotalCount ?? 5,    
         }
       }
     };
@@ -379,8 +381,10 @@ export default function HomePage() {
             selectedPaymentMethods: [...PAYMENT_METHODS],
             structuredRule: null, 
             // defaultSuccessRate: 100, // Removed
-            currentBlockThresholdDurationInMins: 15,
-            currentBlockThresholdMaxTotalCount: 5, 
+            currentBlockThresholdDurationInMins: 15, // Old field, kept for now if UI still uses it directly
+            currentBlockThresholdMaxTotalCount: 5,  // Old field, kept for now
+            minAggregatesSize: 5, // New field default
+            maxAggregatesSize: 10, // New field default
             processorMatrix: {}, 
             processorIncidents: {}, 
             processorWiseSuccessRates: {},
@@ -472,8 +476,10 @@ export default function HomePage() {
           processorIncidents: {}, overallSuccessRate: 0, processorWiseSuccessRates: {}, 
           structuredRule: null,
           // defaultSuccessRate: 90, // Removed
-          currentBlockThresholdDurationInMins: 5, 
-          currentBlockThresholdMaxTotalCount: 10,
+          currentBlockThresholdDurationInMins: 5, // Old field
+          currentBlockThresholdMaxTotalCount: 10, // Old field
+          minAggregatesSize: 5, // New field default
+          maxAggregatesSize: 10, // New field default
         } as FormValues;
       }
       const newPwsr: ControlsState['processorWiseSuccessRates'] = {};
@@ -877,7 +883,10 @@ export default function HomePage() {
             structuredRule: null, processorIncidents: initialPi, overallSuccessRate: 0,
             processorWiseSuccessRates: initialPwsr,
             // defaultSuccessRate: 90, // Removed
-            currentBlockThresholdDurationInMins: 5, currentBlockThresholdMaxTotalCount: 10,
+            currentBlockThresholdDurationInMins: 5, // Old field
+            currentBlockThresholdMaxTotalCount: 10, // Old field
+            minAggregatesSize: 5, // New field default
+            maxAggregatesSize: 10, // New field default
         });
     } else if (!currentControls) {
          toast({ title: "Error", description: "Control data not available.", variant: "destructive" });
@@ -996,10 +1005,13 @@ export default function HomePage() {
             onStartSimulation={handleStartSimulation} onPauseSimulation={handlePauseSimulation}
             onStopSimulation={handleStopSimulation} simulationState={simulationState}
           />
-          <div className="flex-grow overflow-hidden p-0">
-            <TabsContent value="stats" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
-              <ScrollArea className="h-full">
-                 <div className="p-2 md:p-4 lg:p-6">
+          {/* Main content area split into two columns: Left for Tabs (Stats/Analytics), Right for Logs */}
+          <div className="flex flex-row flex-grow overflow-hidden">
+            {/* Left Pane: Existing Tabs Content */}
+            <div className="w-1/2 flex flex-col overflow-hidden p-0">
+              <TabsContent value="stats" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
+                <ScrollArea className="h-full">
+                  <div className="p-2 md:p-4 lg:p-6">
                     <StatsView
                       currentControls={currentControls} merchantConnectors={merchantConnectors} 
                       processedPayments={processedPaymentsCount}
@@ -1008,18 +1020,41 @@ export default function HomePage() {
                       overallSuccessRateHistory={overallSuccessRateHistory}
                     />
                   </div>
-              </ScrollArea>
-            </TabsContent>
-            <TabsContent value="analytics" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
-               <ScrollArea className="h-full">
-                 <div className="p-2 md:p-4 lg:p-6">
+                </ScrollArea>
+              </TabsContent>
+              <TabsContent value="analytics" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
+                <ScrollArea className="h-full">
+                  <div className="p-2 md:p-4 lg:p-6">
                     <AnalyticsGraphsView
                       successRateHistory={successRateHistory} volumeHistory={volumeHistory}
                       merchantConnectors={merchantConnectors} connectorToggleStates={connectorToggleStates}
                     />
                   </div>
-              </ScrollArea>
-            </TabsContent>
+                </ScrollArea>
+              </TabsContent>
+            </div>
+
+            {/* Right Pane: New Static Logs View */}
+            <div className="w-1/2 flex flex-col overflow-hidden border-l">
+              <div className="p-2 md:p-4 lg:p-6 h-full flex flex-col">
+                <h2 className="text-lg font-semibold mb-2 flex-shrink-0">Transaction Logs</h2>
+                <ScrollArea className="flex-grow">
+                  {transactionLogs.length > 0 ? (
+                    transactionLogs.map((log, index) => (
+                      <div key={log.transactionNumber || index} className="text-xs p-1 border-b font-mono break-all">
+                        <span className="mr-2">#{log.transactionNumber}</span>
+                        <span className="mr-2 text-gray-500">{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 })}</span>
+                        <span className="mr-2 font-semibold">{log.connector}</span>
+                        <span className={`mr-2 ${log.status === 'succeeded' || log.status === 'requires_capture' ? 'text-green-600' : 'text-red-600'}`}>{log.status}</span>
+                        <span>({log.routingApproach})</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Log entries will appear here...</p>
+                  )}
+                </ScrollArea>
+              </div>
+            </div>
           </div>
         </Tabs>
       </AppLayout>
