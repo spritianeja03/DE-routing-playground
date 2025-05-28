@@ -395,7 +395,7 @@ export function BottomControlsPanel({
                   {/* Right half for Payment Request Payload */}
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Payment Request Payload (Example)</Label>
-                    <ScrollArea className="h-[200px] w-full rounded-md border p-3 bg-muted/30">
+                    <ScrollArea className="h-[200px] w-full rounded-md border p-3"> {/* Removed bg-muted/30 */}
                       <pre className="text-xs whitespace-pre-wrap break-all">
                         {`
 {
@@ -617,7 +617,7 @@ export function BottomControlsPanel({
               <TabsContent value="sr-incidents" className="pt-2 space-y-3">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {/* Section 1: Success Test Card Details */}
-                  <Card className="md:col-span-1">
+                  <Card className="md:col-span-1 shadow-md">
                     <CardHeader>
                       <CardTitle className="text-base">Success Test Card</CardTitle>
                       <CardDescription className="text-xs">Enter details for a successful transaction.</CardDescription>
@@ -684,7 +684,7 @@ export function BottomControlsPanel({
                   </Card>
 
                   {/* Section 2: Failure Test Card Details */}
-                  <Card className="md:col-span-1">
+                  <Card className="md:col-span-1 shadow-md">
                     <CardHeader>
                       <CardTitle className="text-base">Failure Test Card</CardTitle>
                       <CardDescription className="text-xs">Enter details for a failed transaction.</CardDescription>
@@ -751,7 +751,7 @@ export function BottomControlsPanel({
                   </Card>
 
                   {/* Section 3: Failure Percentage Slider */}
-                  <Card className="md:col-span-1">
+                  <Card className="md:col-span-1 shadow-md">
                     <CardHeader>
                       <CardTitle className="text-base">Failure Percentage</CardTitle>
                       <CardDescription className="text-xs">Set the likelihood of a transaction failing.</CardDescription>

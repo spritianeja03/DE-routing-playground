@@ -1052,7 +1052,7 @@ export default function HomePage() {
                 <ScrollArea className="flex-grow">
                   {transactionLogs.length > 0 ? (
                     transactionLogs.slice().reverse().map((log, index) => ( // .slice().reverse() to show newest first
-                      <div key={log.transactionNumber || index} className="text-xs p-2 mb-2 border rounded-md font-mono break-all bg-slate-50 dark:bg-slate-800">
+                      <div key={log.transactionNumber || index} className="text-xs p-2 mb-2 border rounded-md font-mono break-all bg-card">
                         <div className="flex justify-between items-center mb-1">
                           <span className="font-bold text-sm">Transaction #{log.transactionNumber}</span>
                           <span className="text-gray-500 dark:text-gray-400">
