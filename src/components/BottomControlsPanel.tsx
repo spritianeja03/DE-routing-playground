@@ -84,8 +84,7 @@ const formSchema = z.object({
   failureCardExpYear: z.string().optional(),
   failureCardHolderName: z.string().optional(),
   failureCardCvc: z.string().optional(),
-  connectorWiseFailurePercentage: z.map(z.string(), z.number().min(0).max(100)).optional(), // Connector-wise failure percentage
-  failurePercentage: z.number().min(0).max(100).optional(),
+  connectorWiseFailurePercentage: z.record(z.string(), z.number()), // Connector-wise failure percentage
   explorationPercent: z.number().min(0).max(100).optional(), // Added explorationPercent
   selectedRoutingParams: z.object({
     PaymentMethod: z.boolean().optional(),
@@ -115,10 +114,8 @@ interface BottomControlsPanelProps {
   onFormChange: (data: FormValues) => void;
   initialValues?: Partial<FormValues>;
   merchantConnectors: MerchantConnector[];
-  currentValues: FormValues | null;
   connectorToggleStates: Record<string, boolean>;
   onConnectorToggleChange: (connectorId: string, newState: boolean) => void;
-  onFailurePercentageChange?: (connectorId: string, percentage: number) => void;
   apiKey: string;
   profileId: string;
   merchantId: string;
@@ -128,12 +125,10 @@ const BOTTOM_PANEL_HEIGHT = "350px";
 
 export function BottomControlsPanel({ 
   onFormChange, 
-  initialValues, 
-  currentValues,
+  initialValues,
   merchantConnectors,
   connectorToggleStates, 
   onConnectorToggleChange, 
-  onFailurePercentageChange = () => { },
   apiKey, 
   profileId, 
   merchantId, 
@@ -147,6 +142,7 @@ export function BottomControlsPanel({
     const matrix: ProcessorPaymentMethodMatrix = {};
     const incidents: ProcessorIncidentStatus = {};
     const rates: ControlsState['processorWiseSuccessRates'] = {};
+    const connectorWiseFailurePercentage: Record<string, number> = {};
 
     (merchantConnectors || []).forEach(connector => {
       const key = connector.merchant_connector_id || connector.connector_name;
@@ -156,8 +152,11 @@ export function BottomControlsPanel({
       }, {} as Record<PaymentMethod, boolean>);
       incidents[key] = null;
       rates[key] = { sr: 0, srDeviation: 5, volumeShare: 0, successfulPaymentCount: 0, totalPaymentCount: 0 };
+      if(connector.disabled == false) {
+        connectorWiseFailurePercentage[connector.connector_name] = 50;
+      }
     });
-    return { matrix, incidents, rates };
+    return { matrix, incidents, rates, connectorWiseFailurePercentage };
   }, [merchantConnectors]);
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -188,7 +187,7 @@ export function BottomControlsPanel({
       failureCardExpYear: "26",
       failureCardHolderName: "Jane Roe",
       failureCardCvc: "999",
-      failurePercentage: 50,
+      connectorWiseFailurePercentage: dynamicDefaults.connectorWiseFailurePercentage,
       explorationPercent: 20, // Default value for explorationPercent
       selectedRoutingParams: {
         PaymentMethod: true,
@@ -252,6 +251,7 @@ export function BottomControlsPanel({
             processorMatrix: dynamicDefaults.matrix, 
             processorIncidents: dynamicDefaults.incidents,
             processorWiseSuccessRates: dynamicDefaults.rates,
+            connectorWiseFailurePercentage: dynamicDefaults.connectorWiseFailurePercentage,
         });
 
         const firstConnectorId = merchantConnectors[0].merchant_connector_id || merchantConnectors[0].connector_name;
@@ -266,6 +266,7 @@ export function BottomControlsPanel({
             processorMatrix: {},
             processorIncidents: {},
             processorWiseSuccessRates: {},
+            connectorWiseFailurePercentage: {},
             ruleActionProcessorId: undefined,
         });
         setSelectedIncidentProcessor('');
@@ -828,25 +829,22 @@ export function BottomControlsPanel({
                     </CardHeader>
                     <CardContent className="pt-4">
                       {
-                        Array.from(currentValues?.connectorWiseFailurePercentage?.entries() || []).map(([connector, failureRate]) => (
-                          <FormField
-                            key={connector}
-                            control={control}
-                            name={`failurePercentage`}
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel className="text-xs">{connector} Failure Rate: {failureRate}%</FormLabel>
-                                <FormControl>
-                                  <Slider
-                                    defaultValue={[failureRate || 50]}
-                                    min={0} max={100} step={1}
-                                    onValueChange={(value: number[]) => { field.onChange(value[0]); onFailurePercentageChange(connector, value[0]); }}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )} />
-                        ))}
+                        form.watch('connectorWiseFailurePercentage') && Object.entries(form.watch('connectorWiseFailurePercentage')).map(([connector, failureRate]) => (
+                          <FormItem key={connector} className="mb-2">
+                            <FormLabel className="text-xs">{connector} Failure Rate: {failureRate}%</FormLabel>
+                            <FormControl>
+                              <Slider
+                                value={[failureRate]}
+                                min={0} max={100} step={1}
+                                onValueChange={(value: number[]) => {
+                                  form.setValue(`connectorWiseFailurePercentage.${connector}`, value[0], { shouldValidate: true, shouldDirty: true });
+                                }}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        ))  
+                      }
                     </CardContent>
                   </Card>
                 </div>

@@ -384,6 +384,7 @@ export default function HomePage() {
       const initialProcessorWiseSuccessRates: ControlsState['processorWiseSuccessRates'] = {};
       const initialProcessorIncidents: ControlsState['processorIncidents'] = {};
       const initialProcessorMatrix: FormValues['processorMatrix'] = {};
+      const connectorWiseFailurePercentage: FormValues['connectorWiseFailurePercentage'] = {};
 
       (connectorsData || []).forEach((connector) => {
         const key = connector.merchant_connector_id || connector.connector_name;
@@ -419,10 +420,7 @@ export default function HomePage() {
             processorIncidents: initialProcessorIncidents,
             processorMatrix: initialProcessorMatrix,
             overallSuccessRate: base.overallSuccessRate || 0,
-            connectorWiseFailurePercentage: connectorsData.filter(connector => connector.disabled == false).reduce((acc, connector) => {
-              acc.set(connector.connector_name, 50); // Default to 50% for all connectors
-              return acc;
-            }, new Map<string, number>()),
+            connectorWiseFailurePercentage: connectorWiseFailurePercentage,
         };
       });
 
@@ -437,22 +435,6 @@ export default function HomePage() {
     } finally {
       setIsLoadingMerchantConnectors(false);
     }
-  };
-  
-  const handleFailurePercentageChange = (connectorId: string, newPercentage: number) => {
-    setCurrentControls(prev => {
-      if (!prev) return prev ?? null;
-      const updatedFailurePercentage = new Map(prev.connectorWiseFailurePercentage);
-      if (newPercentage < 0 || newPercentage > 100) {
-        toast({ title: "Invalid Percentage", description: "Failure percentage must be between 0 and 100.", variant: "destructive" });
-        return prev;
-      }
-      updatedFailurePercentage.set(connectorId, newPercentage);
-      return {
-        ...prev,
-        connectorWiseFailurePercentage: updatedFailurePercentage,
-      };
-    });
   };
 
   const handleConnectorToggleChange = async (connectorId: string, newState: boolean) => {
@@ -704,7 +686,8 @@ export default function HomePage() {
   const getCarddetailsForPayment = (currentControls: FormValues, connectorNameToUse: string): any => {
     let cardDetailsToUse;
     const randomNumber = Math.random() * 100;
-    let currentFailurePercentage = currentControls.connectorWiseFailurePercentage?.get(connectorNameToUse) || -1;
+    let currentFailurePercentage = currentControls.connectorWiseFailurePercentage?.[connectorNameToUse] || -1;
+    console.log(`[FR]: Random number: ${randomNumber}, Current failure percentage for ${connectorNameToUse}: ${currentFailurePercentage}`);
     if (randomNumber < currentFailurePercentage) {
       cardDetailsToUse = {
         card_number: currentControls.failureCardNumber || "4000000000000000", card_exp_month: currentControls.failureCardExpMonth || "12",
@@ -958,6 +941,7 @@ export default function HomePage() {
             maxAggregatesSize: 10, // New field default
             numberOfBatches: 100, // New batch processing field
             batchSize: 10, // New batch processing field
+            connectorWiseFailurePercentage: {}, // Initialize empty
         });
     } else if (!currentControls) {
          toast({ title: "Error", description: "Control data not available.", variant: "destructive" });
@@ -1161,9 +1145,9 @@ export default function HomePage() {
         </Tabs>
       </AppLayout>
       <BottomControlsPanel
-        onFormChange={handleControlsChange} merchantConnectors={merchantConnectors} currentValues={currentControls}
+        onFormChange={handleControlsChange} merchantConnectors={merchantConnectors}
         connectorToggleStates={connectorToggleStates} onConnectorToggleChange={handleConnectorToggleChange}
-        apiKey={apiKey} profileId={profileId} merchantId={merchantId} onFailurePercentageChange={handleFailurePercentageChange}
+        apiKey={apiKey} profileId={profileId} merchantId={merchantId}
       />
       <Dialog open={isApiCredentialsModalOpen} onOpenChange={setIsApiCredentialsModalOpen}>
         <DialogContent className="sm:max-w-md">
