@@ -55,6 +55,9 @@ export interface ControlsState {
   currentBlockThresholdMaxTotalCount: number;
   volumeSplit: number;
   isSuccessBasedRoutingEnabled?: boolean; // Renamed for consistency
+  // Batch processing parameters
+  numberOfBatches?: number;
+  batchSize?: number;
 }
 
 

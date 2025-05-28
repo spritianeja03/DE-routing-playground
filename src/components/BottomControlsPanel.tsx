@@ -95,6 +95,8 @@ const formSchema = z.object({
     CardNetwork: z.boolean().optional(),
     CardBin: z.boolean().optional(),
   }).optional(),
+  numberOfBatches: z.number().min(1).optional(),
+  batchSize: z.number().min(1).optional(),
 });
 
 export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule' | 'overallSuccessRate'> & {
@@ -104,6 +106,8 @@ export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule' | 'ov
   explorationPercent?: number; // Ensure it's part of FormValues if not automatically inferred
   minAggregatesSize?: number; // Ensure it's part of FormValues
   maxAggregatesSize?: number; // Ensure it's part of FormValues
+  numberOfBatches?: number; // New batch processing field
+  batchSize?: number; // New batch processing field
 };
 
 interface BottomControlsPanelProps {
@@ -368,16 +372,63 @@ export function BottomControlsPanel({
                     <FormField
                       control={control}
                       name="totalPayments"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Total Payments</FormLabel>
-                        <FormControl>
-                          <Input type="number" placeholder="e.g., 1000" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                    render={({ field }) => {
+                      const numberOfBatches = form.watch('numberOfBatches') || 100;
+                      const batchSize = form.watch('batchSize') || 10;
+                      const calculatedTotal = numberOfBatches * batchSize;
+                      
+                      // Update the totalPayments value when numberOfBatches or batchSize changes
+                      React.useEffect(() => {
+                        field.onChange(calculatedTotal);
+                      }, [numberOfBatches, batchSize, calculatedTotal, field]);
+                      
+                      return (
+                        <FormItem>
+                          <FormLabel>Total Payments (Calculated)</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              value={calculatedTotal} 
+                              disabled 
+                              className="bg-muted" 
+                            />
+                          </FormControl>
+                          <FormDescription className="text-xs">
+                            {numberOfBatches} batches × {batchSize} payments/batch = {calculatedTotal} total
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
                   />
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={control}
+                      name="numberOfBatches"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Number of Batches</FormLabel>
+                          <FormControl>
+                            <Input type="number" placeholder="e.g., 100" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={control}
+                      name="batchSize"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Batch Size</FormLabel>
+                          <FormControl>
+                            <Input type="number" placeholder="e.g., 10" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                   <div className="md:col-span-2">
                     <FormLabel>Payment Methods</FormLabel>
                     <div className="flex items-center space-x-3 mt-2 p-3 border rounded-md bg-muted/50">
