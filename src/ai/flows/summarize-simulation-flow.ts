@@ -23,37 +23,52 @@ const prompt = ai.definePrompt({
   name: 'summarizeSimulationPrompt',
   input: {schema: SummarizeSimulationInputSchema},
   output: {schema: SummarizeSimulationOutputSchema},
-  prompt: `You are an intelligent assistant summarizing payment routing simulations.
-Based on the following data, provide a concise (2-4 sentences) natural language overview of the simulation run.
-Highlight the overall success rate, total payments processed against the target, and mention any processors that significantly stood out (either positively or negatively).
-Also, briefly note if any incidents were active and on which processors.
+  prompt: `You are an expert payment routing analyst. Analyze the provided simulation data and transaction logs to generate a summary of critical switching triggers.
 
-Simulation Data:
+Overall Simulation Metrics:
 - Target Payments: {{targetTotalPayments}}
 - Processed Payments: {{totalPaymentsProcessed}}
-- Overall Success Rate: {{overallSuccessRate}}%
-- Total Successful: {{totalSuccessful}}
-- Total Failed: {{totalFailed}}
-- Effective TPS: {{effectiveTps}}
+- Overall Success Rate: {{overallSuccessRate}}% ({{totalSuccessful}} Succeeded, {{totalFailed}} Failed)
 - Simulation Duration: {{simulationDurationSteps}} steps
 
-Processor Performance:
+Processor Performance Overview:
 {{#each processorMetrics}}
-- {{name}}: Processed {{volume}} transactions with an observed SR of {{observedSr}}% (base SR was {{baseSr}}%).
+- {{name}}: Processed {{volume}} transactions. Observed SR: {{observedSr}}%. Base SR: {{baseSr}}%.
 {{/each}}
 
-Active Incidents:
+Active Incidents During Simulation:
 {{#if incidents.length}}
 {{#each incidents}}
 {{#if this.isActive}}
-- Incident active for {{this.processorName}}.
+- Incident was active for {{this.processorName}}.
 {{/if}}
 {{/each}}
 {{else}}
-- No incidents were active.
+- No incidents were active during the simulation.
 {{/if}}
 
-Generate a summary.
+Transaction Log Analysis:
+The following is a log of transactions showing the transaction number, status, and the connector used.
+{{#each transactionLogs}}
+Txn: {{this.transactionNumber}}, Status: {{this.status}}, Connector: {{this.connector}}, Timestamp: {{this.timestamp}}
+{{/each}}
+
+Based *primarily* on the detailed transactionLogs, identify and summarize the following in markdown format, similar to the example provided:
+
+**Critical Switching Triggers**
+
+**Major Transition Points:**
+(List 2-3 major shifts in routing. Example: "1. Transaction [Number]: Biggest routing shift ([OldConnector] → [NewConnector])")
+
+**Failure-Recovery Patterns:**
+(List 2-3 observed patterns. Examples:
+- Immediate Failover: PSP switches within 1-2 transactions after failures.
+- Recovery Testing: Failed PSPs get retried after 10-20 transaction gaps.
+- Performance-Based: Better-performing PSPs get more sustained usage.)
+
+Focus on how dynamic successes and failures, as seen in the transaction logs, affected routing decisions to different processors.
+The goal is to understand the switching patterns and how the system reacted to successes and failures.
+Be specific with transaction numbers where possible when describing transition points.
 `,
 });
 
@@ -79,4 +94,3 @@ const summarizeSimulationFlow = ai.defineFlow(
     }
   }
 );
-

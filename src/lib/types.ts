@@ -80,6 +80,13 @@ export interface OverallSRHistoryDataPoint {
 }
 export type OverallSRHistory = OverallSRHistoryDataPoint[];
 
+// Zod Schema for TransactionLogEntry
+export const TransactionLogEntrySchema = z.object({
+  transactionNumber: z.number().describe('Sequential number of the transaction in the simulation.'),
+  status: z.string().describe('Status of the payment (e.g., succeeded, failed, pending).'),
+  connector: z.string().describe('The payment connector/processor used for this transaction.'),
+  timestamp: z.number().describe('Timestamp of when the transaction was logged (epoch milliseconds).'),
+});
 
 // Zod Schemas for AI Simulation Summary Flow
 export const AISummaryProcessorMetricSchema = z.object({
@@ -106,6 +113,7 @@ export const SummarizeSimulationInputSchema = z.object({
   processorMetrics: z.array(AISummaryProcessorMetricSchema).describe('Metrics for each payment processor.'),
   incidents: z.array(AISummaryIncidentSchema).describe('Information about any active incidents for processors.'),
   simulationDurationSteps: z.number().describe('Total number of time steps the simulation ran for.'),
+  transactionLogs: z.array(TransactionLogEntrySchema).describe('Detailed log of each transaction attempt, including status and connector used.'),
 });
 export type AISummaryInput = z.infer<typeof SummarizeSimulationInputSchema>;
 
@@ -124,4 +132,13 @@ export interface MerchantConnector {
   // status?: 'active' | 'inactive'; // 'disabled' field might replace or complement a 'status' field
   // payment_methods_enabled?: Array<Record<string, any>>; // If API provides this detail
   [key: string]: any; // Allow other dynamic properties
+}
+
+// For logging payment attempts during simulation
+export interface TransactionLogEntry {
+  transactionNumber: number;
+  status: string; // e.g., "succeeded", "failed", "pending"
+  connector: string; // The connector used for the transaction
+  timestamp: number; // epoch milliseconds, to help with sequencing and time-based analysis
+  routingApproach?: 'exploration' | 'exploitation' | 'unknown' | 'N/A'; // Added routing approach
 }

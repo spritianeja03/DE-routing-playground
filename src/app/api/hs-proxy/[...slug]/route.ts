@@ -18,6 +18,7 @@ async function handler(req: NextRequest, { params }: { params: { slug: string[] 
   const contentType = req.headers.get('Content-Type');
   const accept = req.headers.get('Accept');
   const xProfileId = req.headers.get('x-profile-id'); // For /profile/connectors
+  const xFeature = req.headers.get('x-feature'); // For dynamic routing success rate call
 
   if (apiKey) {
     headers.set('api-key', apiKey);
@@ -30,6 +31,9 @@ async function handler(req: NextRequest, { params }: { params: { slug: string[] 
   }
   if (xProfileId) {
     headers.set('x-profile-id', xProfileId);
+  }
+  if (xFeature) { // Forward x-feature header if present
+    headers.set('x-feature', xFeature);
   }
   
   // Add any other headers you might need to forward or set
@@ -44,10 +48,32 @@ async function handler(req: NextRequest, { params }: { params: { slug: string[] 
 
     // Create a new NextResponse to stream the response back
     // This copies status, statusText, and headers from the origin response.
+    // Clone the response to read its body and still stream it
+    const clonedResponse = response.clone();
+    const responseBody = await clonedResponse.json().catch(() => null); // Gracefully handle non-JSON or empty bodies
+
+    const newHeaders = new Headers(response.headers); // Copy original headers
+
+    // Check if this is a payment response and extract data
+    if (path.startsWith('payments') && response.ok && responseBody) {
+      const paymentStatus = responseBody.status;
+      // Attempt to find connector name, trying common fields
+      const connectorName = responseBody.connector || responseBody.connector_name || responseBody.routing?.chosen_connector_id || responseBody.routing?.connector || 'unknown';
+      
+      if (paymentStatus) {
+        newHeaders.set('x-simulation-payment-status', String(paymentStatus));
+      }
+      if (connectorName) {
+        newHeaders.set('x-simulation-payment-connector', String(connectorName));
+      }
+    }
+
+    // Create a new NextResponse to stream the response back
+    // This copies status, statusText from the origin response, and uses our newHeaders.
     const nextResponse = new NextResponse(response.body, {
       status: response.status,
       statusText: response.statusText,
-      headers: response.headers,
+      headers: newHeaders, // Use the potentially modified headers
     });
 
     return nextResponse;

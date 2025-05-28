@@ -68,9 +68,6 @@ const formSchema = z.object({
     successfulPaymentCount: z.number().min(0), // Actual count
     totalPaymentCount: z.number().min(0),      // Actual count
   })),
-  minAggregatesSize: z.number().min(1).max(100000).optional(),
-  maxAggregatesSize: z.number().min(1).max(1000000).optional(),
-  defaultSuccessRate: z.number().min(0).max(100).optional(),
   currentBlockThresholdDurationInMins: z.number().min(0).optional(),
   currentBlockThresholdMaxTotalCount: z.number().min(0).max(10000).optional(),
   isSuccessBasedRoutingEnabled: z.boolean().optional(),
@@ -86,20 +83,14 @@ const formSchema = z.object({
   failureCardHolderName: z.string().optional(),
   failureCardCvc: z.string().optional(),
   failurePercentage: z.number().min(0).max(100).optional(),
-}).refine(data => {
-  if (data.minAggregatesSize !== undefined && data.maxAggregatesSize !== undefined) {
-    return data.maxAggregatesSize >= data.minAggregatesSize;
-  }
-  return true;
-}, {
-  message: "Max aggregates size must be >= min aggregates size.",
-  path: ["maxAggregatesSize"],
+  explorationPercent: z.number().min(0).max(100).optional(), // Added explorationPercent
 });
 
-export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule' | 'overallSuccessRate'> & { 
+export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule' | 'overallSuccessRate'> & {
   structuredRule: StructuredRule | null;
   overallSuccessRate?: number;
   isSuccessBasedRoutingEnabled?: boolean; // Corrected to match form schema
+  explorationPercent?: number; // Ensure it's part of FormValues if not automatically inferred
 };
 
 interface BottomControlsPanelProps {
@@ -155,10 +146,7 @@ export function BottomControlsPanel({
       processorMatrix: dynamicDefaults.matrix,
       processorIncidents: dynamicDefaults.incidents,
       processorWiseSuccessRates: dynamicDefaults.rates,
-      minAggregatesSize: 5,
-      maxAggregatesSize: 8,
-      defaultSuccessRate: 100,
-      currentBlockThresholdDurationInMins: 15,
+      currentBlockThresholdDurationInMins: 5,
       currentBlockThresholdMaxTotalCount: 5,
       isSuccessBasedRoutingEnabled: false,
       ruleConditionField: undefined,
@@ -177,6 +165,7 @@ export function BottomControlsPanel({
       failureCardHolderName: "Jane Roe",
       failureCardCvc: "999",
       failurePercentage: 50,
+      explorationPercent: 20, // Default value for explorationPercent
       ...initialValues, // Props override static defaults
       ...loadInitialCardDetails(), // localStorage overrides props and static defaults for the fields it contains
     },
@@ -191,105 +180,30 @@ export function BottomControlsPanel({
 
   // Removed useEffect for fetchActiveRouting
 
-  const handleSuccessBasedRoutingToggle = async (enable: boolean) => {
-    if (!merchantId || !profileId || !apiKey) {
-      toast({
-        title: "API Credentials Missing",
-        description: `Cannot ${enable ? "enable" : "disable"} Success Based Routing. Please check credentials.`,
-        variant: "destructive",
-      });
-      // Revert optimistic UI update by not changing form value if Switch component doesn't do it automatically
-      // If Switch updates its internal state, we might need to form.setValue back to !enable here.
-      // However, controlled Switch should not change visually until field.value changes.
-      return; 
-    }
+  const handleSuccessBasedRoutingToggle = (enable: boolean) => {
+    // Directly update form state and show toast, no API calls.
+    form.setValue('isSuccessBasedRoutingEnabled', enable, { shouldDirty: true, shouldValidate: true });
 
-    let basePath = `https://sandbox.hyperswitch.io/account/${merchantId}/business_profile/${profileId}/dynamic_routing/success_based/toggle`;
-    let apiUrl = basePath;
     if (enable) {
-      apiUrl += `?enable=dynamic_connector_selection`;
-    } else {
-      apiUrl += `?enable=none`; // For disabling, set enable=none
-    }
-    
-    try {
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'api-key': apiKey, 
-        },
-        // No body is sent
-      });
-
-      const responseData = await response.json().catch(() => null); 
-
-      if (!response.ok) {
-        const errorMessage = responseData?.message || responseData?.error?.message || `Failed to ${enable ? "enable" : "disable"} Success Based Routing. Status: ${response.status}`;
-        throw new Error(errorMessage);
-      }
-
-      // API call successful, now update form state
-      form.setValue('isSuccessBasedRoutingEnabled', enable, { shouldDirty: true, shouldValidate: true });
-
-      if (enable) {
-        if (responseData?.id) { // Changed from algorithm_id to id
-          setSuccessBasedAlgorithmId(responseData.id);
-          toast({
-            title: "Success Based Routing Enabled",
-            description: `Algorithm ID: ${responseData.id}`,
-          });
-        } else {
-          toast({
-            title: "Success Based Routing Enabled",
-            description: "Operation successful (no algorithm ID 'id' returned).",
-          });
-        }
-
-        // If successfully enabled, now call set_volume_split
-        const volumeSplitBasePath = `https://sandbox.hyperswitch.io/account/${merchantId}/business_profile/${profileId}/dynamic_routing/set_volume_split`;
-        const volumeSplitApiUrl = `${volumeSplitBasePath}?split=100`;
-        console.log(`Success Based Routing enabled. Now calling: POST ${volumeSplitApiUrl}`);
-        try {
-          const volumeSplitResponse = await fetch(volumeSplitApiUrl, {
-            method: 'POST',
-            headers: { 'api-key': apiKey },
-          });
-          if (!volumeSplitResponse.ok) {
-            let errorDetail = `Volume split HTTP error! status: ${volumeSplitResponse.status}`;
-            try {
-              const errorData = await volumeSplitResponse.json();
-              errorDetail = errorData.message || JSON.stringify(errorData) || errorDetail;
-            } catch (e) {
-              const textError = await volumeSplitResponse.text().catch(() => "");
-              errorDetail = textError || errorDetail;
-            }
-            console.error("Failed to set volume split:", errorDetail);
-            toast({ title: "Volume Split API Error", description: `Failed to set volume split: ${errorDetail}`, variant: "destructive" });
-          } else {
-            console.log("Successfully set volume split. Status:", volumeSplitResponse.status);
-            toast({ title: "Volume Split Success", description: "Dynamic routing volume split set to 100." });
-          }
-        } catch (volumeSplitError: any) {
-          console.error("Error setting volume split (fetch catch):", volumeSplitError);
-          toast({ title: "Volume Split Network Error", description: `Could not set volume split: ${volumeSplitError.message}`, variant: "destructive" });
-        }
-
-      } else { // Successfully disabled
-        setSuccessBasedAlgorithmId(null);
-        toast({
-          title: "Success Based Routing Disabled",
-          description: "Successfully set to 'none'.",
-        });
-      }
-    } catch (error: any) {
+      // The API calls for toggle and volume split are removed.
+      // We can still set successBasedAlgorithmId to a placeholder or null if it's used elsewhere,
+      // or remove its state management if it's no longer needed.
+      // For now, let's assume it's not critical if the API isn't called.
+      setSuccessBasedAlgorithmId(null); // Or some other indicator if needed
       toast({
-        title: `Error ${enable ? "Enabling" : "Disabling"} Routing`,
-        description: error.message || "An unknown error occurred.",
-        variant: "destructive",
+        title: "Success Based Routing Enabled",
+        description: "Configure parameters for success-based routing.",
       });
-      // Do not change form value on error, toggle should reflect pre-attempt state
+      // The volume split concept might be implicitly 100% to this strategy now,
+      // or it's handled by the backend when this strategy is chosen by the payment request.
+      // We can add a toast for that if it's still a relevant user-facing concept.
+      // toast({ title: "Volume Split Info", description: "Volume split is now 100% to dynamic routing when active." });
+    } else {
+      setSuccessBasedAlgorithmId(null);
+      toast({
+        title: "Success Based Routing Disabled",
+        description: "Routing will fallback to other configurations or defaults.",
+      });
     }
   };
 
@@ -518,49 +432,38 @@ export function BottomControlsPanel({
                     {(form.watch("isSuccessBasedRoutingEnabled")) && (
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t mt-2">
-                        {/* minAggregatesSize, maxAggregatesSize, Current Block Threshold group, defaultSuccessRate fields remain here */}
                         <FormField
                           control={control}
-                          name="minAggregatesSize"
+                          name="explorationPercent"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel className="text-xs">Min Aggregates Size</FormLabel>
+                              <FormLabel className="text-xs">Exploration Percent: {field.value}%</FormLabel>
                               <FormControl>
-                                <Input type="number" placeholder="e.g., 100" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
+                                <Slider
+                                  defaultValue={[field.value || 20]}
+                                  min={0} max={100} step={1}
+                                  onValueChange={(value: number[]) => { field.onChange(value[0]); }}
+                                />
                               </FormControl>
-                              <FormDescription className="text-xs">Min data points for performance eval.</FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={control}
-                          name="maxAggregatesSize"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-xs">Max Aggregates Size</FormLabel>
-                              <FormControl>
-                                <Input type="number" placeholder="e.g., 1000" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
-                              </FormControl>
-                              <FormDescription className="text-xs">Max data points for performance eval.</FormDescription>
+                              <FormDescription className="text-xs">Percentage of traffic for exploring new routes.</FormDescription>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
                         {/* Grouping for Current Block Threshold */}
                         <div className="md:col-span-2 space-y-2 p-3 border rounded-md">
-                          <h4 className="text-sm font-medium mb-2">Current Block Threshold</h4>
+                          <h4 className="text-sm font-medium mb-2">No. of Payments to Consider</h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <FormField
                               control={control}
                               name="currentBlockThresholdDurationInMins"
                               render={({ field }) => (
                                 <FormItem>
-                                  <FormLabel className="text-xs">Duration (mins)</FormLabel>
+                                  <FormLabel className="text-xs">Minimum Bucket Count</FormLabel>
                                   <FormControl>
                                     <Input type="number" placeholder="e.g., 5" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} min="0" />
                                   </FormControl>
-                                  <FormDescription className="text-xs">Time window for failure count.</FormDescription>
+                                  <FormDescription className="text-xs">Minimum number of buckets to track</FormDescription>
                                   <FormMessage />
                                 </FormItem>
                               )}
@@ -570,11 +473,11 @@ export function BottomControlsPanel({
                               name="currentBlockThresholdMaxTotalCount"
                               render={({ field }) => (
                                 <FormItem>
-                                  <FormLabel className="text-xs">Max Failures in Window</FormLabel>
+                                  <FormLabel className="text-xs">Payment Count for Each Bucket</FormLabel>
                                   <FormControl>
                                     <Input type="number" placeholder="e.g., 10" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} min="0"/>
                                   </FormControl>
-                                  <FormDescription className="text-xs">Failures in window before temp. blocking.</FormDescription>
+                                  <FormDescription className="text-xs">Maximun number of payments to be tracked in a bucket.</FormDescription>
                                   <FormMessage />
                                 </FormItem>
                               )}
@@ -582,26 +485,7 @@ export function BottomControlsPanel({
                           </div>
                         </div>
                         {/* End of Grouping */}
-                        <FormField
-                          control={control}
-                          name="defaultSuccessRate"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-xs">Default Success Rate (%)</FormLabel>
-                              <FormControl>
-                                <Input 
-                                  type="number" 
-                                  placeholder="e.g., 90" 
-                                  {...field} 
-                                  onChange={e => field.onChange(parseFloat(e.target.value) || 0)} 
-                                  min="0" max="100" step="0.1"
-                                />
-                              </FormControl>
-                              <FormDescription className="text-xs">Fallback SR if not enough data.</FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                        {/* defaultSuccessRate field removed */}
                       </div>
                       <div className="flex justify-end mt-4">
                         {/* <Button 
@@ -628,9 +512,6 @@ export function BottomControlsPanel({
                                 "PaymentMethodType", "AuthenticationType", "CardNetwork"
                               ],
                               config: {
-                                min_aggregates_size: formValues.minAggregatesSize,
-                                default_success_rate: formValues.defaultSuccessRate, // Assuming API expects 0-100
-                                max_aggregates_size: formValues.maxAggregatesSize,
                                 current_block_threshold: {
                                   duration_in_mins: formValues.currentBlockThresholdDurationInMins,
                                   max_total_count: formValues.currentBlockThresholdMaxTotalCount
@@ -639,9 +520,6 @@ export function BottomControlsPanel({
                             };
 
                             // Remove undefined optional fields from config to match Option<T> behavior if API expects missing fields to be absent
-                            if (configPayload.config.min_aggregates_size === undefined) delete configPayload.config.min_aggregates_size;
-                            if (configPayload.config.default_success_rate === undefined) delete configPayload.config.default_success_rate;
-                            if (configPayload.config.max_aggregates_size === undefined) delete configPayload.config.max_aggregates_size;
                             if (configPayload.config.current_block_threshold.duration_in_mins === undefined) delete configPayload.config.current_block_threshold.duration_in_mins;
                             if (configPayload.config.current_block_threshold.max_total_count === undefined) delete configPayload.config.current_block_threshold.max_total_count;
                             
