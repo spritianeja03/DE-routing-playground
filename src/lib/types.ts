@@ -141,4 +141,5 @@ export interface TransactionLogEntry {
   connector: string; // The connector used for the transaction
   timestamp: number; // epoch milliseconds, to help with sequencing and time-based analysis
   routingApproach?: 'exploration' | 'exploitation' | 'unknown' | 'N/A'; // Added routing approach
+  sr_scores?: Record<string, number>; // Added sr_scores
 }

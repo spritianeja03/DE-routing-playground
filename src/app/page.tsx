@@ -111,10 +111,10 @@ export default function HomePage() {
     activeConnectorLabels: string[], // Changed to expect an array of connector_label
     currentApiKey: string, // Still needed for other API calls, but not for this one as per user
     currentProfileId: string
-  ): Promise<{ selectedConnector: string | null; routingApproach: TransactionLogEntry['routingApproach'] }> => {
+  ): Promise<{ selectedConnector: string | null; routingApproach: TransactionLogEntry['routingApproach']; srScores: Record<string, number> | undefined }> => {
     if (!currentControls || activeConnectorLabels.length === 0 || !currentProfileId) { // Removed currentApiKey from check as it's not used here
       console.warn("[FetchSuccessRate] Missing required parameters (controls, labels, or profileId).");
-      return { selectedConnector: null, routingApproach: 'unknown' };
+      return { selectedConnector: null, routingApproach: 'unknown', srScores: undefined };
     }
 
     const payload = {
@@ -155,6 +155,16 @@ export default function HomePage() {
       const data = await response.json();
       console.log("[FetchSuccessRate] Response Data:", data);
 
+      let srScoresForLog: Record<string, number> | undefined = undefined;
+      if (data.labels_with_score && Array.isArray(data.labels_with_score)) {
+        srScoresForLog = data.labels_with_score.reduce((acc: Record<string, number>, item: any) => {
+          if (item && typeof item.label === 'string' && typeof item.score === 'number') {
+            acc[item.label] = parseFloat(item.score.toFixed(2)); // Keep scores with 2 decimal places
+          }
+          return acc;
+        }, {});
+      }
+
       if (typeof data.routing_approach === 'number') {
         if (data.routing_approach === 0) {
           routingApproachForLog = 'exploration';
@@ -170,16 +180,16 @@ export default function HomePage() {
           (prev.score > current.score) ? prev : current
         );
         console.log(`[FetchSuccessRate] Selected connector: ${bestConnector.label} with score ${bestConnector.score}`);
-        return { selectedConnector: bestConnector.label, routingApproach: routingApproachForLog };
+        return { selectedConnector: bestConnector.label, routingApproach: routingApproachForLog, srScores: srScoresForLog };
       } else {
         console.warn("[FetchSuccessRate] No scores returned or empty list.");
         toast({ title: "Fetch Success Rate Info", description: "No connector scores returned by the API."});
-        return { selectedConnector: null, routingApproach: routingApproachForLog };
+        return { selectedConnector: null, routingApproach: routingApproachForLog, srScores: srScoresForLog };
       }
     } catch (error: any) {
       console.error("[FetchSuccessRate] Fetch Error:", error);
       toast({ title: "Fetch Success Rate Network Error", description: error.message, variant: "destructive" });
-      return { selectedConnector: null, routingApproach: 'unknown' };
+      return { selectedConnector: null, routingApproach: 'unknown', srScores: undefined };
     }
   }, [toast]);
 
@@ -204,7 +214,7 @@ export default function HomePage() {
       labels_with_status: [{ label: connectorNameForApi, status: paymentSuccessStatus }],
       global_labels_with_status: [{ label: connectorNameForApi, status: paymentSuccessStatus }],
       config: { // Added config for UpdateSuccessRateWindow
-        max_aggregates_size: controls.maxAggregatesSize ?? 10, // Using the new form value
+        max_aggregates_size: 3, // Using the new form value
         current_block_threshold: { // This remains as per its original structure
           duration_in_mins: controls.currentBlockThresholdDurationInMins ?? 15, 
           max_total_count: controls.currentBlockThresholdMaxTotalCount ?? 5,    
@@ -576,6 +586,7 @@ export default function HomePage() {
         // --- BEGIN: Fetch success rate (always) and conditionally use it ---
         let routingApproachForLogEntry: TransactionLogEntry['routingApproach'] = 'N/A';
         let returnedConnectorLabelFromApi: string | null = null;
+        let srScoresForLogEntry: Record<string, number> | undefined = undefined;
 
         // Always prepare and attempt to fetch success rate if there are active connectors and necessary info
         const activeConnectorLabelsForApi = merchantConnectors
@@ -584,7 +595,7 @@ export default function HomePage() {
 
         if (activeConnectorLabelsForApi.length > 0 && currentControls && profileId) {
           console.log("[PTB] Attempting to fetch connector scores for labels:", activeConnectorLabelsForApi);
-          const { selectedConnector, routingApproach } = await fetchSuccessRateAndSelectConnector(
+          const { selectedConnector, routingApproach, srScores } = await fetchSuccessRateAndSelectConnector(
             currentControls,
             activeConnectorLabelsForApi,
             apiKey, // Not used by fetchSuccessRateAndSelectConnector for this specific API, but passed
@@ -592,6 +603,7 @@ export default function HomePage() {
           );
           returnedConnectorLabelFromApi = selectedConnector;
           routingApproachForLogEntry = routingApproach; // Always log the approach if API was called
+          srScoresForLogEntry = srScores;
         } else {
           console.log("[PTB] Not fetching success rates: No active connectors, or missing currentControls/profileId.");
           routingApproachForLogEntry = 'unknown'; // Or 'N/A' if preferred when not fetched
@@ -650,28 +662,30 @@ export default function HomePage() {
           let loggedConnectorName: string | null = null;
           if (paymentStatusHeader && connectorHeader) {
             loggedConnectorName = connectorHeader; // Prefer header
-            transactionCounterRef.current += 1;
-            const newLogEntry: TransactionLogEntry = {
-              transactionNumber: transactionCounterRef.current,
-              status: paymentStatusHeader,
-              connector: connectorHeader,
-              timestamp: Date.now(),
-              routingApproach: routingApproachForLogEntry, 
-            };
-            setTransactionLogs(prevLogs => [...prevLogs, newLogEntry]);
-          } else {
-            if (responseData.status && (responseData.connector_label || responseData.merchant_connector_id || (responseData.attempts && responseData.attempts.length > 0 && responseData.attempts[0].connector))) {
-                loggedConnectorName = responseData.connector_label || responseData.merchant_connector_id || responseData.attempts[0].connector || 'unknown';
-                transactionCounterRef.current += 1;
-                 const newLogEntry: TransactionLogEntry = {
-                    transactionNumber: transactionCounterRef.current,
-                    status: responseData.status,
-                    connector: loggedConnectorName || 'unknown',
-                    timestamp: Date.now(),
-                    routingApproach: routingApproachForLogEntry, 
-                };
-                setTransactionLogs(prevLogs => [...prevLogs, newLogEntry]);
-                console.warn("Used fallback logging from response body for transaction: ", transactionCounterRef.current);
+              transactionCounterRef.current += 1;
+              const newLogEntry: TransactionLogEntry = {
+                transactionNumber: transactionCounterRef.current,
+                status: paymentStatusHeader,
+                connector: connectorHeader,
+                timestamp: Date.now(),
+                routingApproach: routingApproachForLogEntry,
+                sr_scores: srScoresForLogEntry,
+              };
+              setTransactionLogs(prevLogs => [...prevLogs, newLogEntry]);
+            } else {
+              if (responseData.status && (responseData.connector_label || responseData.merchant_connector_id || (responseData.attempts && responseData.attempts.length > 0 && responseData.attempts[0].connector))) {
+                  loggedConnectorName = responseData.connector_label || responseData.merchant_connector_id || responseData.attempts[0].connector || 'unknown';
+                  transactionCounterRef.current += 1;
+                   const newLogEntry: TransactionLogEntry = {
+                      transactionNumber: transactionCounterRef.current,
+                      status: responseData.status,
+                      connector: loggedConnectorName || 'unknown',
+                      timestamp: Date.now(),
+                      routingApproach: routingApproachForLogEntry,
+                      sr_scores: srScoresForLogEntry,
+                  };
+                  setTransactionLogs(prevLogs => [...prevLogs, newLogEntry]);
+                  console.warn("Used fallback logging from response body for transaction: ", transactionCounterRef.current);
             } else {
                 console.warn("Could not log transaction, missing status/connector in headers and body for transaction attempt after: ", transactionCounterRef.current);
             }
@@ -1008,7 +1022,7 @@ export default function HomePage() {
           {/* Main content area split into two columns: Left for Tabs (Stats/Analytics), Right for Logs */}
           <div className="flex flex-row flex-grow overflow-hidden">
             {/* Left Pane: Existing Tabs Content */}
-            <div className="w-1/2 flex flex-col overflow-hidden p-0">
+            <div className="w-2/3 flex flex-col overflow-hidden p-0"> {/* Changed w-1/2 to w-2/3 */}
               <TabsContent value="stats" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
                 <ScrollArea className="h-full">
                   <div className="p-2 md:p-4 lg:p-6">
@@ -1035,18 +1049,43 @@ export default function HomePage() {
             </div>
 
             {/* Right Pane: New Static Logs View */}
-            <div className="w-1/2 flex flex-col overflow-hidden border-l">
+            <div className="w-1/3 flex flex-col overflow-hidden border-l"> {/* Changed w-1/2 to w-1/3 */}
               <div className="p-2 md:p-4 lg:p-6 h-full flex flex-col">
                 <h2 className="text-lg font-semibold mb-2 flex-shrink-0">Transaction Logs</h2>
                 <ScrollArea className="flex-grow">
                   {transactionLogs.length > 0 ? (
-                    transactionLogs.map((log, index) => (
-                      <div key={log.transactionNumber || index} className="text-xs p-1 border-b font-mono break-all">
-                        <span className="mr-2">#{log.transactionNumber}</span>
-                        <span className="mr-2 text-gray-500">{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 })}</span>
-                        <span className="mr-2 font-semibold">{log.connector}</span>
-                        <span className={`mr-2 ${log.status === 'succeeded' || log.status === 'requires_capture' ? 'text-green-600' : 'text-red-600'}`}>{log.status}</span>
-                        <span>({log.routingApproach})</span>
+                    transactionLogs.slice().reverse().map((log, index) => ( // .slice().reverse() to show newest first
+                      <div key={log.transactionNumber || index} className="text-xs p-2 mb-2 border rounded-md font-mono break-all bg-slate-50 dark:bg-slate-800">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="font-bold text-sm">Transaction #{log.transactionNumber}</span>
+                          <span className="text-gray-500 dark:text-gray-400">
+                            {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 })}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+                          <div><span className="font-semibold">Processor:</span> {log.connector}</div>
+                          <div><span className="font-semibold">Status:</span> <span className={`${log.status === 'succeeded' || log.status === 'requires_capture' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{log.status}</span></div>
+                          <div>
+                            <span className="font-semibold">Routing:</span>
+                            <span className={`
+                              ${log.routingApproach === 'exploration' ? 'text-blue-600 dark:text-blue-400' : ''}
+                              ${log.routingApproach === 'exploitation' ? 'text-purple-600 dark:text-purple-400' : ''}
+                              ${log.routingApproach === 'unknown' || log.routingApproach === 'N/A' ? 'text-gray-500 dark:text-gray-400' : ''}
+                            `}>
+                              {log.routingApproach}
+                            </span>
+                          </div>
+                        </div>
+                        {log.sr_scores && Object.keys(log.sr_scores).length > 0 && (
+                          <div className="mt-1 pt-1 border-t border-slate-200 dark:border-slate-700">
+                            <span className="font-semibold">SR Scores:</span>
+                            <div className="pl-2">
+                              {Object.entries(log.sr_scores).map(([name, score]) => (
+                                <div key={name}>{name}: {score.toFixed(2)}</div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))
                   ) : (

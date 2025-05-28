@@ -95,8 +95,8 @@ export function StatsView({
 
   return (
     <div className="space-y-6 flex flex-col">
-      {/* Stats Cards in a 2-column grid for wider screens, stack on smaller */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+      {/* Stats Cards in a 3-column grid for wider screens, stack on smaller */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4"> {/* Changed to sm:grid-cols-3 and gap-4 */}
         <Card className="shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Processed</CardTitle>
@@ -120,6 +120,7 @@ export function StatsView({
             <p className="text-xs text-muted-foreground">transactions per second (Rate limited by interval)</p>
           </CardContent>
         </Card> */}
+        {/* Ensure this card is part of the same grid row */}
         <Card className="shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Successful</CardTitle>
@@ -132,6 +133,7 @@ export function StatsView({
             </p>
           </CardContent>
         </Card>
+        {/* Ensure this card is part of the same grid row */}
         <Card className="shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Failed</CardTitle>

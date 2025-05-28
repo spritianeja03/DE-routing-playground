@@ -362,10 +362,12 @@ export function BottomControlsPanel({
               </TabsList>
 
               <TabsContent value="general" className="pt-2">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                   <FormField
-                    control={control}
-                    name="totalPayments"
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6"> {/* Increased gap */}
+                  {/* Left half for existing controls */}
+                  <div className="space-y-4">
+                    <FormField
+                      control={control}
+                      name="totalPayments"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Total Payments</FormLabel>
@@ -386,6 +388,68 @@ export function BottomControlsPanel({
                     </div>
                     <FormDescription className="text-xs mt-1">
                       Currently, "Card" is the only enabled payment method.
+                    </FormDescription>
+                  </div>
+                  </div>
+
+                  {/* Right half for Payment Request Payload */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Payment Request Payload (Example)</Label>
+                    <ScrollArea className="h-[200px] w-full rounded-md border p-3 bg-muted/30">
+                      <pre className="text-xs whitespace-pre-wrap break-all">
+                        {`
+{
+  "amount": 6540,
+  "currency": "USD",
+  "confirm": true,
+  "profile_id": "YOUR_PROFILE_ID", 
+  "capture_method": "automatic",
+  "authentication_type": "no_three_ds",
+  "customer": {
+    "id": "cus_sim_TIMESTAMP_INDEX",
+    "name": "John Doe",
+    "email": "customer@example.com",
+    "phone": "9999999999",
+    "phone_country_code": "+1"
+  },
+  "payment_method": "card",
+  "payment_method_type": "credit",
+  "payment_method_data": {
+    "card": {
+      "card_number": "SUCCESS_OR_FAILURE_CARD_NUMBER",
+      "card_exp_month": "SUCCESS_OR_FAILURE_EXP_MONTH",
+      "card_exp_year": "SUCCESS_OR_FAILURE_EXP_YEAR",
+      "card_holder_name": "SUCCESS_OR_FAILURE_HOLDER_NAME",
+      "card_cvc": "SUCCESS_OR_FAILURE_CVC"
+    },
+    "billing": {
+      "address": {
+        "line1": "1467",
+        "line2": "Harrison Street",
+        "line3": "Harrison Street",
+        "city": "San Francisco",
+        "state": "California",
+        "zip": "94122",
+        "country": "US",
+        "first_name": "Joseph",
+        "last_name": "Doe"
+      },
+      "phone": {
+        "number": "8056594427",
+        "country_code": "+91"
+      },
+      "email": "guest@example.com"
+    }
+  }
+  // "routing": { ... } // Conditionally added based on SBR
+}
+                        `.trim()}
+                      </pre>
+                    </ScrollArea>
+                    <FormDescription className="text-xs">
+                      This is an example of the payload sent to the /payments API. 
+                      Actual values for profile_id and card details are substituted during simulation.
+                      The 'routing' object is added if Success Based Routing is enabled and a connector is selected by the SR API.
                     </FormDescription>
                   </div>
                 </div>
@@ -461,10 +525,10 @@ export function BottomControlsPanel({
                           name="explorationPercent"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel className="text-xs">Exploration Percent: {field.value}%</FormLabel>
+                              <FormLabel className="text-xs">Exploration Percent: {field.value !== undefined ? field.value : 20}%</FormLabel>
                               <FormControl>
                                 <Slider
-                                  defaultValue={[field.value || 20]}
+                                  value={field.value !== undefined ? [field.value] : [20]}
                                   min={0} max={100} step={1}
                                   onValueChange={(value: number[]) => { field.onChange(value[0]); }}
                                 />
@@ -494,7 +558,7 @@ export function BottomControlsPanel({
                             />
                             <FormField
                               control={control}
-                              name="maxAggregatesSize"
+                              name="currentBlockThresholdMaxTotalCount"
                               render={({ field }) => (
                                 <FormItem>
                                   <FormLabel className="text-xs">Payment Count for Each Bucket (max_aggregates_size)</FormLabel>
@@ -701,7 +765,7 @@ export function BottomControlsPanel({
                             <FormLabel className="text-xs">Failure Rate: {field.value}%</FormLabel>
                             <FormControl>
                               <Slider
-                                defaultValue={[field.value || 50]}
+                                defaultValue={[field.value || 20]}
                                 min={0} max={100} step={1}
                                 onValueChange={(value: number[]) => { field.onChange(value[0]); }}
                               />
