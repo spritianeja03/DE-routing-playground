@@ -84,6 +84,7 @@ const formSchema = z.object({
   failureCardExpYear: z.string().optional(),
   failureCardHolderName: z.string().optional(),
   failureCardCvc: z.string().optional(),
+  connectorWiseFailurePercentage: z.map(z.string(), z.number().min(0).max(100)).optional(), // Connector-wise failure percentage
   failurePercentage: z.number().min(0).max(100).optional(),
   explorationPercent: z.number().min(0).max(100).optional(), // Added explorationPercent
   selectedRoutingParams: z.object({
@@ -114,11 +115,13 @@ interface BottomControlsPanelProps {
   onFormChange: (data: FormValues) => void;
   initialValues?: Partial<FormValues>;
   merchantConnectors: MerchantConnector[];
-  connectorToggleStates: Record<string, boolean>; 
-  onConnectorToggleChange: (connectorId: string, newState: boolean) => void; 
-  apiKey: string; 
-  profileId: string; 
-  merchantId: string; 
+  currentValues: FormValues | null;
+  connectorToggleStates: Record<string, boolean>;
+  onConnectorToggleChange: (connectorId: string, newState: boolean) => void;
+  onFailurePercentageChange?: (connectorId: string, percentage: number) => void;
+  apiKey: string;
+  profileId: string;
+  merchantId: string;
 }
 
 const BOTTOM_PANEL_HEIGHT = "350px";
@@ -126,9 +129,11 @@ const BOTTOM_PANEL_HEIGHT = "350px";
 export function BottomControlsPanel({ 
   onFormChange, 
   initialValues, 
+  currentValues,
   merchantConnectors,
   connectorToggleStates, 
   onConnectorToggleChange, 
+  onFailurePercentageChange = () => { },
   apiKey, 
   profileId, 
   merchantId, 
@@ -822,23 +827,26 @@ export function BottomControlsPanel({
                       <CardDescription className="text-xs">Set the likelihood of a transaction failing.</CardDescription>
                     </CardHeader>
                     <CardContent className="pt-4">
-                      <FormField
-                        control={control}
-                        name="failurePercentage"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs">Failure Rate: {field.value}%</FormLabel>
-                            <FormControl>
-                              <Slider
-                                defaultValue={[field.value || 20]}
-                                min={0} max={100} step={1}
-                                onValueChange={(value: number[]) => { field.onChange(value[0]); }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      {
+                        Array.from(currentValues?.connectorWiseFailurePercentage?.entries() || []).map(([connector, failureRate]) => (
+                          <FormField
+                            key={connector}
+                            control={control}
+                            name={`failurePercentage`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs">{connector} Failure Rate: {failureRate}%</FormLabel>
+                                <FormControl>
+                                  <Slider
+                                    defaultValue={[failureRate || 50]}
+                                    min={0} max={100} step={1}
+                                    onValueChange={(value: number[]) => { field.onChange(value[0]); onFailurePercentageChange(connector, value[0]); }}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )} />
+                        ))}
                     </CardContent>
                   </Card>
                 </div>
