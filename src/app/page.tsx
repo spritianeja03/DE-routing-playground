@@ -418,6 +418,10 @@ export default function HomePage() {
             processorIncidents: initialProcessorIncidents,
             processorMatrix: initialProcessorMatrix,
             overallSuccessRate: base.overallSuccessRate || 0,
+            connectorWiseFailurePercentage: connectorsData.filter(connector => connector.disabled == false).reduce((acc, connector) => {
+              acc.set(connector.connector_name, 50); // Default to 50% for all connectors
+              return acc;
+            }, new Map<string, number>()),
         };
       });
 
@@ -434,6 +438,22 @@ export default function HomePage() {
     }
   };
   
+  const handleFailurePercentageChange = (connectorId: string, newPercentage: number) => {
+    setCurrentControls(prev => {
+      if (!prev) return prev ?? null;
+      const updatedFailurePercentage = new Map(prev.connectorWiseFailurePercentage);
+      if (newPercentage < 0 || newPercentage > 100) {
+        toast({ title: "Invalid Percentage", description: "Failure percentage must be between 0 and 100.", variant: "destructive" });
+        return prev;
+      }
+      updatedFailurePercentage.set(connectorId, newPercentage);
+      return {
+        ...prev,
+        connectorWiseFailurePercentage: updatedFailurePercentage,
+      };
+    });
+  };
+
   const handleConnectorToggleChange = async (connectorId: string, newState: boolean) => {
     const originalState = connectorToggleStates[connectorId];
     setConnectorToggleStates(prev => ({ ...prev, [connectorId]: newState }));
@@ -532,26 +552,6 @@ export default function HomePage() {
     }
 
     const paymentMethodForAPI = "card";
-    let cardDetailsToUse;
-    const randomNumber = Math.random() * 100;
-    
-    if (currentControls.failurePercentage !== undefined && randomNumber < currentControls.failurePercentage) {
-      cardDetailsToUse = {
-        card_number: currentControls.failureCardNumber || "4000000000000000",
-        card_exp_month: currentControls.failureCardExpMonth || "12",
-        card_exp_year: currentControls.failureCardExpYear || "26",
-        card_holder_name: currentControls.failureCardHolderName || "Jane Roe",
-        card_cvc: currentControls.failureCardCvc || "999",
-      };
-    } else {
-      cardDetailsToUse = {
-        card_number: currentControls.successCardNumber || "4242424242424242",
-        card_exp_month: currentControls.successCardExpMonth || "10",
-        card_exp_year: currentControls.successCardExpYear || "25",
-        card_holder_name: currentControls.successCardHolderName || "Joseph Doe",
-        card_cvc: currentControls.successCardCvc || "123",
-      };
-    }
 
     const paymentData = {
       amount: 6540,
@@ -570,7 +570,7 @@ export default function HomePage() {
       payment_method: paymentMethodForAPI,
       payment_method_type: "credit",
       payment_method_data: {
-        card: cardDetailsToUse,
+        card: getCarddetailsForPayment(currentControls, ""),
         billing: {
           address: {
             line1: "1467",
@@ -623,6 +623,7 @@ export default function HomePage() {
             merchant_connector_id: matchedConnector.merchant_connector_id
           }
         };
+        (paymentData as any).payment_method_data.card = getCarddetailsForPayment(currentControls, matchedConnector.connector_name);
       }
     }
 
@@ -698,6 +699,26 @@ export default function HomePage() {
 
     return { isSuccess, routedProcessorId, logEntry };
   }, [currentControls, apiKey, profileId, merchantConnectors, connectorToggleStates, fetchSuccessRateAndSelectConnector, updateSuccessRateWindow]);
+
+  const getCarddetailsForPayment = (currentControls: FormValues, connectorNameToUse: string): any => {
+    let cardDetailsToUse;
+    const randomNumber = Math.random() * 100;
+    let currentFailurePercentage = currentControls.connectorWiseFailurePercentage?.get(connectorNameToUse) || -1;
+    if (randomNumber < currentFailurePercentage) {
+      cardDetailsToUse = {
+        card_number: currentControls.failureCardNumber || "4000000000000000", card_exp_month: currentControls.failureCardExpMonth || "12",
+        card_exp_year: currentControls.failureCardExpYear || "26", card_holder_name: currentControls.failureCardHolderName || "Jane Roe",
+        card_cvc: currentControls.failureCardCvc || "999",
+      };
+    } else {
+      cardDetailsToUse = {
+        card_number: currentControls.successCardNumber || "4242424242424242", card_exp_month: currentControls.successCardExpMonth || "10",
+        card_exp_year: currentControls.successCardExpYear || "25", card_holder_name: currentControls.successCardHolderName || "Joseph Doe",
+        card_cvc: currentControls.successCardCvc || "123",
+      };
+    }
+    return cardDetailsToUse;
+  };
 
   const processTransactionBatch = useCallback(async () => {
     console.log(
@@ -1130,9 +1151,9 @@ export default function HomePage() {
         </Tabs>
       </AppLayout>
       <BottomControlsPanel
-        onFormChange={handleControlsChange} merchantConnectors={merchantConnectors}
+        onFormChange={handleControlsChange} merchantConnectors={merchantConnectors} currentValues={currentControls}
         connectorToggleStates={connectorToggleStates} onConnectorToggleChange={handleConnectorToggleChange}
-        apiKey={apiKey} profileId={profileId} merchantId={merchantId}
+        apiKey={apiKey} profileId={profileId} merchantId={merchantId} onFailurePercentageChange={handleFailurePercentageChange}
       />
       <Dialog open={isApiCredentialsModalOpen} onOpenChange={setIsApiCredentialsModalOpen}>
         <DialogContent className="sm:max-w-md">
