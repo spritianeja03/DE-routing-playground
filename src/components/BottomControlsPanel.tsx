@@ -148,7 +148,6 @@ export function BottomControlsPanel({
   const [successBasedAlgorithmId, setSuccessBasedAlgorithmId] = useState<string | null>(null);
   // const [activeRoutingAlgorithm, setActiveRoutingAlgorithm] = useState<any | null>(null); // Removed
   // const [isLoadingActiveRouting, setIsLoadingActiveRouting] = useState<boolean>(false); // Removed
-  const [isFormVisible, setIsFormVisible] = useState(true);
   const dynamicDefaults = useMemo(() => {
     const matrix: ProcessorPaymentMethodMatrix = {};
     const incidents: ProcessorIncidentStatus = {};
@@ -368,9 +367,6 @@ export function BottomControlsPanel({
 
   return (
     <div>
-      <Button variant="outline" size="sm" onClick={() => setIsFormVisible(!isFormVisible)} className="mb-2" style={{ zIndex: 1000, position: 'fixed', bottom: 0, right: 0 }}>
-        {isFormVisible ? "Hide Configs" : "Show Configs"}
-      </Button>
     <div
       className={`h-full bg-card border-r border-border shadow-sm z-20 transition-all duration-200 flex flex-col min-w-[300px] ${collapsed ? 'w-16' : 'w-64'} p-4`}
     >
@@ -382,16 +378,75 @@ export function BottomControlsPanel({
                 <FormField
                   control={control}
                   name="totalPayments"
-                  render={({ field }) => (
-                    <FormItem className="mb-8">
-                      <FormLabel>Total Payments</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="e.g., 1000" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} className="bg-gray-50 dark:bg-muted border border-gray-200 dark:border-border text-gray-900 dark:text-white rounded-md px-3 py-2" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    const numberOfBatches = form.watch('numberOfBatches') || 100;
+                    const batchSize = form.watch('batchSize') || 10;
+                    const calculatedTotal = numberOfBatches * batchSize;
+                    
+                    // Update the totalPayments value when numberOfBatches or batchSize changes
+                    React.useEffect(() => {
+                      field.onChange(calculatedTotal);
+                    }, [numberOfBatches, batchSize, calculatedTotal, field]);
+                    
+                    return (
+                      <FormItem>
+                        <FormLabel>Total Payments (Calculated)</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            value={calculatedTotal} 
+                            disabled 
+                            className="bg-muted" 
+                          />
+                        </FormControl>
+                        <FormDescription className="text-xs">
+                          {numberOfBatches} batches × {batchSize} payments/batch = {calculatedTotal} total
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={control}
+                    name="numberOfBatches"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Number of Batches</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="e.g., 100" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={control}
+                    name="batchSize"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Batch Size</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="e.g., 10" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                    <FormLabel>Payment Methods</FormLabel>
+                    <div className="flex items-center space-x-3 mt-2 p-3 border rounded-md bg-muted/50">
+                      <Checkbox id="payment-method-card" checked={true} disabled={true} />
+                      <Label htmlFor="payment-method-card" className="font-normal text-muted-foreground">
+                        Card (Selected by default)
+                      </Label>
+                    </div>
+                    <FormDescription className="text-xs mt-1">
+                      Currently, "Card" is the only enabled payment method.
+                    </FormDescription>
+                  </div>
                 {/* Payment Request Payload Example Section */}
                 <div className="bg-white dark:bg-card rounded-xl shadow-xs border border-gray-200 dark:border-border p-4 mb-4 w-full overflow-x-auto relative">
                   <div className="text-sm font-semibold mb-2 flex items-center justify-between">
@@ -621,6 +676,20 @@ export function BottomControlsPanel({
                             </FormItem>
                           )}
                         />
+                        <FormField
+                              control={control}
+                              name="currentBlockThresholdMaxTotalCount"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="text-xs">Current Block Threshold (max_total_count)</FormLabel>
+                                  <FormControl>
+                                    <Input type="number" placeholder="e.g., 5" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} min="0"/>
+                                  </FormControl>
+                                  <FormDescription className="text-xs">Max total count for current block threshold.</FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
                       </div>
                     </div>
                   )}
@@ -660,29 +729,29 @@ export function BottomControlsPanel({
               <div className="flex flex-col gap-8">
                 {/* Section 3: Failure Percentage Slider (move to top) */}
                 <div className="bg-white dark:bg-card rounded-xl mb-8">
-                  <CardHeader>
-                    <CardTitle className="text-base">Failure Percentage</CardTitle>
-                    <CardDescription className="text-xs">Set the likelihood of a transaction failing.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex flex-col gap-4 pt-4">
-                    <FormField
-                      control={control}
-                      name="failurePercentage"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-xs">Failure Rate: {field.value}%</FormLabel>
-                          <FormControl>
-                            <Slider
-                              defaultValue={[field.value || 50]}
-                              min={0} max={100} step={1}
-                              onValueChange={(value: number[]) => { field.onChange(value[0]); }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </CardContent>
+                    <CardHeader>
+                      <CardTitle className="text-base">Failure Percentage</CardTitle>
+                      <CardDescription className="text-xs">Set the likelihood of a transaction failing.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-4">
+                      {
+                        form.watch('connectorWiseFailurePercentage') && Object.entries(form.watch('connectorWiseFailurePercentage')).map(([connector, failureRate]) => (
+                          <FormItem key={connector} className="mb-2">
+                            <FormLabel className="text-xs">{connector} Failure Rate: {failureRate}%</FormLabel>
+                            <FormControl>
+                              <Slider
+                                value={[failureRate]}
+                                min={0} max={100} step={1}
+                                onValueChange={(value: number[]) => {
+                                  form.setValue(`connectorWiseFailurePercentage.${connector}`, value[0], { shouldValidate: true, shouldDirty: true });
+                                }}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        ))  
+                      }
+                    </CardContent>
                 </div>
                 {/* Success Test Card Section */}
                 <div className="bg-white dark:bg-card rounded-xl mb-8">
