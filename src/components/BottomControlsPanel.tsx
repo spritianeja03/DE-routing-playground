@@ -600,7 +600,6 @@ export function BottomControlsPanel({
               </div>
             )}
             {activeTab === 'routing' && (
-              <ScrollArea className="h-[90vh]">
               <div className="flex flex-col gap-8">
                 <div>
                   <div className="pb-3">
@@ -727,11 +726,9 @@ export function BottomControlsPanel({
                     </div>
                 </div>
               </div>
-              </ScrollArea>
             )}
             {activeTab === 'test-payment-data' && (
               <div className="flex flex-col gap-8">
-                <ScrollArea className="h-[90vh]"> 
                 {/* Section 3: Failure Percentage Slider (move to top) */}
                 <div className="bg-white dark:bg-card rounded-xl mb-8">
                     <CardHeader>
@@ -931,7 +928,6 @@ export function BottomControlsPanel({
                     </div>
                   </CardContent>
                 </div>
-                </ScrollArea>
               </div>
             )}
           </form>
