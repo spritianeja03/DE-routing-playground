@@ -56,6 +56,11 @@ export function Header({
         </div>
       </div>
 
+      {/* Centered Title */}
+      <div className="flex-grow text-center">
+        <h1 className="text-2xl font-semibold text-foreground">Intelligent Routing Playground</h1>
+      </div>
+
       <div className="flex items-center gap-2">
         {(isIdle || isPaused) && (
           <Button onClick={onStartSimulation} disabled={isSimulating} variant="primary" size="default">
