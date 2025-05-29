@@ -1200,15 +1200,6 @@ export default function HomePage() {
           </SplitPane>
         </div>
       </AppLayout>
-      <BottomControlsPanel
-
-        onFormChange={handleControlsChange} merchantConnectors={merchantConnectors}
-
-        connectorToggleStates={connectorToggleStates} onConnectorToggleChange={handleConnectorToggleChange}
-
-        apiKey={apiKey} profileId={profileId} merchantId={merchantId}
-
-      />
       <Dialog open={isApiCredentialsModalOpen} onOpenChange={setIsApiCredentialsModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>API Credentials</DialogTitle></DialogHeader>
