@@ -3,7 +3,7 @@
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'; // Removed Text, not used
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { BarChartBig } from 'lucide-react';
-import type { ProcessorMetricsHistory, MerchantConnector } from '@/lib/types'; // Added MerchantConnector
+import type { ProcessorMetricsHistory, MerchantConnector, TimeSeriesDataPoint } from '@/lib/types'; // Added MerchantConnector
 
 interface VolumeOverTimeChartProps {
   data: ProcessorMetricsHistory;
@@ -28,6 +28,42 @@ const getAllProcessorIds = (history: ProcessorMetricsHistory): string[] => {
   });
   return Array.from(processorIdSet);
 };
+
+// Helper function to process data for discrete (non-cumulative) volume
+const processDiscreteVolumeData = (history: ProcessorMetricsHistory): ProcessorMetricsHistory => {
+  if (!history || history.length === 0) {
+    return [];
+  }
+
+  const processorIds = getAllProcessorIds(history);
+  const discreteData: ProcessorMetricsHistory = [];
+  // previousVolumes stores the *cumulative* volume from the original data for calculation
+  let previousCumulativeVolumes: Record<string, number> = {};
+
+  // Initialize previousCumulativeVolumes with 0 for all processors
+  processorIds.forEach(id => {
+    previousCumulativeVolumes[id] = 0;
+  });
+
+  for (const dataPoint of history) {
+    // Initialize newPoint with the time and ensure it matches TimeSeriesDataPoint structure
+    const newPoint: TimeSeriesDataPoint = { time: dataPoint.time };
+
+    for (const processorId of processorIds) {
+      // Ensure dataPoint[processorId] (cumulative volume from input) is treated as a number.
+      const cumulativeVolumeAtT = Number(dataPoint[processorId]) || 0;
+
+      // Discrete volume is current cumulative volume - previous cumulative volume
+      newPoint[processorId] = cumulativeVolumeAtT - (previousCumulativeVolumes[processorId] || 0);
+
+      // Update previousCumulativeVolumes with the current cumulative volume for the next iteration
+      previousCumulativeVolumes[processorId] = cumulativeVolumeAtT;
+    }
+    discreteData.push(newPoint);
+  }
+  return discreteData;
+};
+
 
 // Custom Tooltip Component
 const CustomTooltip = ({ active, payload, label, merchantConnectors }: any) => {
@@ -58,9 +94,8 @@ const CustomTooltip = ({ active, payload, label, merchantConnectors }: any) => {
 
 
 export function VolumeOverTimeChart({ data, merchantConnectors, connectorToggleStates }: VolumeOverTimeChartProps) {
-  // const processedChartData = processVolumeDataForChart(data); // Removed: Use raw data for cumulative volume
-  const chartData = data; // Use the original data
-  const uniqueProcessorIds = getAllProcessorIds(chartData);
+  const chartData = processDiscreteVolumeData(data);
+  const uniqueProcessorIds = getAllProcessorIds(data); // Get processor IDs from original data to ensure all are included
 
   if (!chartData || chartData.length === 0) {
     return (
@@ -79,7 +114,7 @@ export function VolumeOverTimeChart({ data, merchantConnectors, connectorToggleS
     <Card className="shadow-sm">
       <CardHeader className="p-6">
         <CardTitle className="flex items-center"><BarChartBig className="mr-2 h-5 w-5 text-primary" /> Volume Over Time</CardTitle>
-        <CardDescription>Cumulative transaction volume per processor over time.</CardDescription> 
+        <CardDescription>Transaction volume per processor for each time interval.</CardDescription>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>

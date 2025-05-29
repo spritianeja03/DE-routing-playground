@@ -372,7 +372,7 @@ export function BottomControlsPanel({
     >
       <ScrollArea className="flex-1">
         <Form {...form}>
-          <form onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-4">
+          <form onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-4 h-full"> {/* Added h-full */}
             {activeTab === 'general' && (
               <div className="flex flex-col gap-4">
                 <FormField
@@ -569,9 +569,9 @@ export function BottomControlsPanel({
               </div>
             )}
             {activeTab === 'processors' && (
-              <div className="bg-white dark:bg-card rounded-xl p-2">
+              <div className="bg-white dark:bg-card rounded-xl p-2 flex flex-col flex-grow"> {/* Added flex flex-col flex-grow */}
                 <CardHeader><CardTitle className="text-base">Processor ↔ PM Matrix</CardTitle></CardHeader>
-                <CardContent className="flex flex-col gap-4">
+                <CardContent className="flex flex-col gap-4 flex-grow overflow-y-auto"> {/* Added flex-grow overflow-y-auto */}
                   <div className="flex flex-col gap-2">
                     {(merchantConnectors || []).map(connector => {
                       const connectorId = connector.merchant_connector_id || connector.connector_name;

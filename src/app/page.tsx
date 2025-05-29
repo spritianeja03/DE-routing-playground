@@ -1087,7 +1087,7 @@ export default function HomePage() {
           />
           {/* Main Sidebar for selected section, only if not collapsed */}
           {!sidebarCollapsed && (
-            <div className="flex flex-col h-full">
+            <div className="flex flex-col h-full overflow-y-auto"> {/* Changed to overflow-y-auto */}
               <BottomControlsPanel
                 onFormChange={handleControlsChange} merchantConnectors={merchantConnectors}
                 connectorToggleStates={connectorToggleStates} onConnectorToggleChange={handleConnectorToggleChange}
@@ -1153,10 +1153,11 @@ export default function HomePage() {
               </Tabs>
             </div>
             {/* Right Pane: New Static Logs View */}
-            <div className="flex flex-col overflow-hidden min-h-0 border-l p-2 md:p-4 lg:p-6">
+            <div className=" flex flex-col h-full min-h-0 border-l p-2 md:p-4 lg:p-6">
               <h2 className="text-lg font-semibold mb-2 flex-shrink-0">Transaction Logs</h2>
-              {/* ScrollArea takes remaining space and scrolls internally */}
-              <ScrollArea className="flex-grow min-h-0">
+              {/* Wrapper for ScrollArea to manage flex sizing */}
+              <div className="flex-grow min-h-0">
+                <ScrollArea className="h-full"> {/* ScrollArea takes full height of its new wrapper */}
                 {transactionLogs.length > 0 ? (
                   transactionLogs.slice().reverse().map((log, index) => (
                     <div key={log.transactionNumber || index} className="text-xs p-2 mb-2 border rounded-md font-mono break-all bg-card">
@@ -1195,7 +1196,8 @@ export default function HomePage() {
                 ) : (
                   <p className="text-sm text-muted-foreground">Log entries will appear here...</p>
                 )}
-              </ScrollArea>
+                </ScrollArea>
+              </div> {/* Closing tag for the new wrapper div "flex-grow min-h-0" */}
             </div>
           </SplitPane>
         </div>
