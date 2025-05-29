@@ -60,7 +60,6 @@ export default function HomePage() {
   const [connectorToggleStates, setConnectorToggleStates] = useState<Record<string, boolean>>({});
   const [isLoadingMerchantConnectors, setIsLoadingMerchantConnectors] = useState<boolean>(false);
 
-  const simulationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const apiCallAbortControllerRef = useRef<AbortController | null>(null);
   const isStoppingRef = useRef(false);
   const isProcessingBatchRef = useRef(false);
@@ -886,29 +885,10 @@ export default function HomePage() {
   ]);
 
   useEffect(() => {
-    if (simulationState === 'running' && !isProcessingBatchRef.current && processedPaymentsCount < (currentControls?.totalPayments || 0)) {
-      simulationIntervalRef.current = setInterval(() => {
-        if (!isProcessingBatchRef.current && processedPaymentsCount < (currentControls?.totalPayments || 0) && simulationState === 'running' && !isStoppingRef.current) {
-          processTransactionBatch();
-        } else if (simulationIntervalRef.current && (processedPaymentsCount >= (currentControls?.totalPayments || 0) || simulationState !== 'running' || isStoppingRef.current)) {
-          clearInterval(simulationIntervalRef.current);
-          simulationIntervalRef.current = null;
-        }
-      }, SIMULATION_INTERVAL_MS);
-    } else {
-      if (simulationIntervalRef.current) {
-        clearInterval(simulationIntervalRef.current);
-        simulationIntervalRef.current = null;
-      }
-      if (apiCallAbortControllerRef.current) {
-        apiCallAbortControllerRef.current.abort();
-        apiCallAbortControllerRef.current = null;
-      }
+    console.log("useEffect: Mounting, checking API credentials.");
+    if(simulationState == 'running') {
+      processTransactionBatch();
     }
-    return () => {
-      if (simulationIntervalRef.current) clearInterval(simulationIntervalRef.current);
-      if (apiCallAbortControllerRef.current) apiCallAbortControllerRef.current.abort();
-    };
   }, [simulationState, processTransactionBatch]);
 
   const handleStartSimulation = useCallback(async (forceStart = false) => {
@@ -1153,10 +1133,10 @@ export default function HomePage() {
               </Tabs>
             </div>
             {/* Right Pane: New Static Logs View */}
-            <div className="flex flex-col overflow-hidden min-h-0 border-l p-2 md:p-4 lg:p-6">
+            <div className="flex flex-col overflow-hidden h-full border-l p-2 md:p-4 lg:p-6">
               <h2 className="text-lg font-semibold mb-2 flex-shrink-0">Transaction Logs</h2>
               {/* ScrollArea takes remaining space and scrolls internally */}
-              <ScrollArea className="flex-grow min-h-0">
+              <ScrollArea className="flex-grow h-full">
                 {transactionLogs.length > 0 ? (
                   transactionLogs.slice().reverse().map((log, index) => (
                     <div key={log.transactionNumber || index} className="text-xs p-2 mb-2 border rounded-md font-mono break-all bg-card">
