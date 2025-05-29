@@ -374,39 +374,40 @@ export function BottomControlsPanel({
         <Form {...form}>
           <form onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-4 h-full"> {/* Added h-full */}
             {activeTab === 'general' && (
+              <ScrollArea className="h-[100%]">
               <div className="flex flex-col gap-4">
-                <FormField
-                  control={control}
-                  name="totalPayments"
-                  render={({ field }) => {
-                    const numberOfBatches = form.watch('numberOfBatches') || 100;
-                    const batchSize = form.watch('batchSize') || 10;
-                    const calculatedTotal = numberOfBatches * batchSize;
-                    
-                    // Update the totalPayments value when numberOfBatches or batchSize changes
-                    React.useEffect(() => {
-                      field.onChange(calculatedTotal);
-                    }, [numberOfBatches, batchSize, calculatedTotal, field]);
-                    
-                    return (
-                      <FormItem>
-                        <FormLabel>Total Payments (Calculated)</FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="number" 
-                            value={calculatedTotal} 
-                            disabled 
-                            className="bg-muted" 
-                          />
-                        </FormControl>
-                        <FormDescription className="text-xs">
-                          {numberOfBatches} batches × {batchSize} payments/batch = {calculatedTotal} total
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    );
-                  }}
-                />
+                  <FormField
+                    control={control}
+                    name="totalPayments"
+                    render={({ field }) => {
+                      const numberOfBatches = form.watch('numberOfBatches') || 100;
+                      const batchSize = form.watch('batchSize') || 10;
+                      const calculatedTotal = numberOfBatches * batchSize;
+                      
+                      // Update the totalPayments value when numberOfBatches or batchSize changes
+                      React.useEffect(() => {
+                        field.onChange(calculatedTotal);
+                      }, [numberOfBatches, batchSize, calculatedTotal, field]);
+                      
+                      return (
+                        <FormItem>
+                          <FormLabel>Total Payments (Calculated)</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              value={calculatedTotal} 
+                              disabled 
+                              className="bg-muted" 
+                            />
+                          </FormControl>
+                          <FormDescription className="text-xs">
+                            {numberOfBatches} batches × {batchSize} payments/batch = {calculatedTotal} total
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={control}
@@ -567,6 +568,7 @@ export function BottomControlsPanel({
                 {/* Success Test Card Section (moved to test-payment-data) */}
                 {/* Failure Test Card Section (moved to test-payment-data) */}
               </div>
+              </ScrollArea>
             )}
             {activeTab === 'processors' && (
               <div className="bg-white dark:bg-card rounded-xl p-2 flex flex-col flex-grow"> {/* Added flex flex-col flex-grow */}
@@ -699,29 +701,29 @@ export function BottomControlsPanel({
                     <span className="text-base font-medium">Routing Parameters</span>
                   </div>
                   <div className="text-xs text-muted-foreground mb-4">Select parameters to consider for routing decisions.</div>
-                  <div className="flex flex-col gap-3 pt-2">
-                    {(['PaymentMethod', 'PaymentMethodType', 'AuthenticationType', 'Currency', 'Country', 'CardNetwork', 'CardBin'] as const).map((param) => (
-                      <FormField
-                        key={param}
-                        control={control}
-                        name={`selectedRoutingParams.${param}`}
-                        render={({ field }) => (
-                          <FormItem className="flex flex-row items-center space-x-2">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                                id={`routing-param-${param}`}
-                              />
-                            </FormControl>
-                            <Label htmlFor={`routing-param-${param}`} className="text-base font-normal cursor-pointer">
-                              {param.replace(/([A-Z])/g, ' $1').trim()}
-                            </Label>
-                          </FormItem>
-                        )}
-                      />
-                    ))}
-                  </div>
+                    <div className="flex flex-col gap-3 pt-2">
+                      {(['PaymentMethod', 'PaymentMethodType', 'AuthenticationType', 'Currency', 'Country', 'CardNetwork', 'CardBin'] as const).map((param) => (
+                        <FormField
+                          key={param}
+                          control={control}
+                          name={`selectedRoutingParams.${param}`}
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-center space-x-2">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                  id={`routing-param-${param}`}
+                                />
+                              </FormControl>
+                              <Label htmlFor={`routing-param-${param}`} className="text-base font-normal cursor-pointer">
+                                {param.replace(/([A-Z])/g, ' $1').trim()}
+                              </Label>
+                            </FormItem>
+                          )}
+                        />
+                      ))}
+                    </div>
                 </div>
               </div>
             )}
@@ -734,7 +736,7 @@ export function BottomControlsPanel({
                       <CardDescription className="text-xs">Set the likelihood of a transaction failing.</CardDescription>
                     </CardHeader>
                     <CardContent className="pt-4">
-                      {
+                        {
                         form.watch('connectorWiseFailurePercentage') && Object.entries(form.watch('connectorWiseFailurePercentage')).map(([connector, failureRate]) => (
                           <FormItem key={connector} className="mb-2">
                             <FormLabel className="text-xs">{connector} Failure Rate: {failureRate}%</FormLabel>
@@ -749,8 +751,7 @@ export function BottomControlsPanel({
                             </FormControl>
                             <FormMessage />
                           </FormItem>
-                        ))  
-                      }
+                        ))}
                     </CardContent>
                 </div>
                 {/* Success Test Card Section */}

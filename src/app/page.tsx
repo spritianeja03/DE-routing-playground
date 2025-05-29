@@ -60,7 +60,6 @@ export default function HomePage() {
   const [connectorToggleStates, setConnectorToggleStates] = useState<Record<string, boolean>>({});
   const [isLoadingMerchantConnectors, setIsLoadingMerchantConnectors] = useState<boolean>(false);
 
-  const simulationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const apiCallAbortControllerRef = useRef<AbortController | null>(null);
   const isStoppingRef = useRef(false);
   const isProcessingBatchRef = useRef(false);
@@ -886,29 +885,10 @@ export default function HomePage() {
   ]);
 
   useEffect(() => {
-    if (simulationState === 'running' && !isProcessingBatchRef.current && processedPaymentsCount < (currentControls?.totalPayments || 0)) {
-      simulationIntervalRef.current = setInterval(() => {
-        if (!isProcessingBatchRef.current && processedPaymentsCount < (currentControls?.totalPayments || 0) && simulationState === 'running' && !isStoppingRef.current) {
-          processTransactionBatch();
-        } else if (simulationIntervalRef.current && (processedPaymentsCount >= (currentControls?.totalPayments || 0) || simulationState !== 'running' || isStoppingRef.current)) {
-          clearInterval(simulationIntervalRef.current);
-          simulationIntervalRef.current = null;
-        }
-      }, SIMULATION_INTERVAL_MS);
-    } else {
-      if (simulationIntervalRef.current) {
-        clearInterval(simulationIntervalRef.current);
-        simulationIntervalRef.current = null;
-      }
-      if (apiCallAbortControllerRef.current) {
-        apiCallAbortControllerRef.current.abort();
-        apiCallAbortControllerRef.current = null;
-      }
+    console.log("useEffect: Mounting, checking API credentials.");
+    if(simulationState == 'running') {
+      processTransactionBatch();
     }
-    return () => {
-      if (simulationIntervalRef.current) clearInterval(simulationIntervalRef.current);
-      if (apiCallAbortControllerRef.current) apiCallAbortControllerRef.current.abort();
-    };
   }, [simulationState, processTransactionBatch]);
 
   const handleStartSimulation = useCallback(async (forceStart = false) => {
