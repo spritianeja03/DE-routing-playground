@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack -p 9002",
+    "dev": "next dev --turbopack -p 8080",
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "build": "next build",
@@ -52,7 +52,9 @@
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.54.2",
     "react-split-pane": "^0.1.92",
+    "react-markdown": "^10.1.0",
     "recharts": "^2.15.1",
+    "remark-rehype": "^11.1.2",
     "tailwind-merge": "^3.0.1",
     "tailwindcss-animate": "^1.0.7",
     "zod": "^3.24.2"

@@ -26,11 +26,11 @@
     --ring: 207 90% 54%; 
     --radius: 0.5rem; /* Slightly less rounded for flat */
 
-    --chart-1: 25 90% 60%;
-    --chart-2: 0 80% 65%;
-    --chart-3: 35 85% 65%;
-    --chart-4: 200 80% 60%;
-    --chart-5: 300 80% 70%;
+    --chart-1: 44 96% 51%; /* Lime */
+    --chart-2: 218 57% 54%; /* Cyan */
+    --chart-3: 354 70% 50%; /* Rose */
+    --chart-4: 112 16% 52%; /* Amber */
+    --chart-5: 274 74% 66%; /* Violet */
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -75,11 +75,11 @@
     --ring: 207 90% 58%;       
 
     /* Sci-fi Chart Colors (can remain distinct or be adjusted for black theme) */
-    --chart-1: 25 95% 53%;    /* Stripe - Vibrant Orange */
-    --chart-2: 0 90% 60%;      /* Adyen - Bright Red */
-    --chart-3: 35 90% 58%;    /* Paypal - Gold/Dark Yellow */
-    --chart-4: 180 70% 50%;   /* Worldpay - Muted Cyan/Teal */
-    --chart-5: 5 85% 65%;     /* Checkout - Softer Red/Coral */
+    --chart-1: 44 96% 51%;    /* Stripe - Vibrant Orange */
+    --chart-2: 218 57% 54%;      /* Adyen - Cyan */
+    --chart-3: 354 70% 50%;    /* Paypal - Rose */
+    --chart-4: 112 16% 52%;   /* Worldpay - Muted Amber */
+    --chart-5: 274 74% 66%;     /* Checkout - Violet */
     
     --sidebar-background: 220 10% 8%; /* Dark sidebar */
     --sidebar-foreground: 0 0% 90%;

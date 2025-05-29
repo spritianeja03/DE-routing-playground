@@ -84,7 +84,7 @@ const formSchema = z.object({
   failureCardExpYear: z.string().optional(),
   failureCardHolderName: z.string().optional(),
   failureCardCvc: z.string().optional(),
-  failurePercentage: z.number().min(0).max(100).optional(),
+  connectorWiseFailurePercentage: z.record(z.string(), z.number()), // Connector-wise failure percentage
   explorationPercent: z.number().min(0).max(100).optional(), // Added explorationPercent
   selectedRoutingParams: z.object({
     PaymentMethod: z.boolean().optional(),
@@ -95,6 +95,8 @@ const formSchema = z.object({
     CardNetwork: z.boolean().optional(),
     CardBin: z.boolean().optional(),
   }).optional(),
+  numberOfBatches: z.number().min(1).optional(),
+  batchSize: z.number().min(1).optional(),
 });
 
 export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule' | 'overallSuccessRate'> & {
@@ -104,6 +106,8 @@ export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule' | 'ov
   explorationPercent?: number; // Ensure it's part of FormValues if not automatically inferred
   minAggregatesSize?: number; // Ensure it's part of FormValues
   maxAggregatesSize?: number; // Ensure it's part of FormValues
+  numberOfBatches?: number; // New batch processing field
+  batchSize?: number; // New batch processing field
 };
 
 interface BottomControlsPanelProps {
@@ -129,7 +133,7 @@ function formatCardNumber(value: string) {
 
 export function BottomControlsPanel({ 
   onFormChange, 
-  initialValues, 
+  initialValues,
   merchantConnectors,
   connectorToggleStates, 
   onConnectorToggleChange, 
@@ -144,11 +148,12 @@ export function BottomControlsPanel({
   const [successBasedAlgorithmId, setSuccessBasedAlgorithmId] = useState<string | null>(null);
   // const [activeRoutingAlgorithm, setActiveRoutingAlgorithm] = useState<any | null>(null); // Removed
   // const [isLoadingActiveRouting, setIsLoadingActiveRouting] = useState<boolean>(false); // Removed
-  
+  const [isFormVisible, setIsFormVisible] = useState(true);
   const dynamicDefaults = useMemo(() => {
     const matrix: ProcessorPaymentMethodMatrix = {};
     const incidents: ProcessorIncidentStatus = {};
     const rates: ControlsState['processorWiseSuccessRates'] = {};
+    const connectorWiseFailurePercentage: Record<string, number> = {};
 
     (merchantConnectors || []).forEach(connector => {
       const key = connector.merchant_connector_id || connector.connector_name;
@@ -158,8 +163,11 @@ export function BottomControlsPanel({
       }, {} as Record<PaymentMethod, boolean>);
       incidents[key] = null;
       rates[key] = { sr: 0, srDeviation: 5, volumeShare: 0, successfulPaymentCount: 0, totalPaymentCount: 0 };
+      if(connector.disabled == false) {
+        connectorWiseFailurePercentage[connector.connector_name] = 50;
+      }
     });
-    return { matrix, incidents, rates };
+    return { matrix, incidents, rates, connectorWiseFailurePercentage };
   }, [merchantConnectors]);
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -170,8 +178,8 @@ export function BottomControlsPanel({
       processorMatrix: dynamicDefaults.matrix,
       processorIncidents: dynamicDefaults.incidents,
       processorWiseSuccessRates: dynamicDefaults.rates,
-      currentBlockThresholdDurationInMins: 5, // Default for old field
-      currentBlockThresholdMaxTotalCount: 5, // Default for old field
+      currentBlockThresholdDurationInMins: 60, // Default for old field
+      currentBlockThresholdMaxTotalCount: 20, // Default for old field
       minAggregatesSize: 5, // Default for new field
       maxAggregatesSize: 10, // Default for new field
       isSuccessBasedRoutingEnabled: false,
@@ -190,7 +198,7 @@ export function BottomControlsPanel({
       failureCardExpYear: "26",
       failureCardHolderName: "Jane Roe",
       failureCardCvc: "999",
-      failurePercentage: 50,
+      connectorWiseFailurePercentage: dynamicDefaults.connectorWiseFailurePercentage,
       explorationPercent: 20, // Default value for explorationPercent
       selectedRoutingParams: {
         PaymentMethod: true,
@@ -254,6 +262,7 @@ export function BottomControlsPanel({
             processorMatrix: dynamicDefaults.matrix, 
             processorIncidents: dynamicDefaults.incidents,
             processorWiseSuccessRates: dynamicDefaults.rates,
+            connectorWiseFailurePercentage: dynamicDefaults.connectorWiseFailurePercentage,
         });
 
         const firstConnectorId = merchantConnectors[0].merchant_connector_id || merchantConnectors[0].connector_name;
@@ -268,6 +277,7 @@ export function BottomControlsPanel({
             processorMatrix: {},
             processorIncidents: {},
             processorWiseSuccessRates: {},
+            connectorWiseFailurePercentage: {},
             ruleActionProcessorId: undefined,
         });
         setSelectedIncidentProcessor('');
@@ -357,6 +367,10 @@ export function BottomControlsPanel({
   };
 
   return (
+    <div>
+      <Button variant="outline" size="sm" onClick={() => setIsFormVisible(!isFormVisible)} className="mb-2" style={{ zIndex: 1000, position: 'fixed', bottom: 0, right: 0 }}>
+        {isFormVisible ? "Hide Configs" : "Show Configs"}
+      </Button>
     <div
       className={`h-full bg-card border-r border-border shadow-sm z-20 transition-all duration-200 flex flex-col min-w-[300px] ${collapsed ? 'w-16' : 'w-64'} p-4`}
     >
@@ -849,6 +863,7 @@ export function BottomControlsPanel({
           </form>
         </Form>
       </ScrollArea>
+    </div>
     </div>
   );
 }

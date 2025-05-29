@@ -12,11 +12,11 @@ interface TransactionDistributionChartProps {
 // Predefined direct HSL color strings for the pie chart
 // These correspond to --chart-1 to --chart-5 from globals.css's dark theme
 const PIE_CHART_COLORS = [
-  'hsl(25, 95%, 53%)',    // Vibrant Orange (matches --chart-1 dark)
-  'hsl(0, 90%, 60%)',      // Bright Red (matches --chart-2 dark)
-  'hsl(35, 90%, 58%)',    // Another Orange shade (matches --chart-3 dark)
-  'hsl(180, 70%, 50%)',   // Muted Cyan/Teal (matches --chart-4 dark)
-  'hsl(5, 85%, 65%)',     // Softer Red/Coral (matches --chart-5 dark)
+  'hsl(44, 96%, 51%)', 
+  'hsl(218, 57%, 54%)',   
+  'hsl(354, 70%, 50%)', 
+  'hsl(112, 16%, 52%)',
+  'hsl(274, 74%, 66%)',  
 ];
 
 export function TransactionDistributionChart({ data }: TransactionDistributionChartProps) {
@@ -32,25 +32,6 @@ export function TransactionDistributionChart({ data }: TransactionDistributionCh
         {hasData ? (
            <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Tooltip
-                formatter={(value: number, name: string, entry: any) => {
-                  // value is the raw value of the segment
-                  // entry.percent is the percentage (0 to 1)
-                  const rawValueStr = value.toLocaleString();
-                  const percentageStr = entry.percent !== undefined ? (entry.percent * 100).toFixed(1) + '%' : 'N/A';
-                  return [`${rawValueStr} (${percentageStr})`, name];
-                }}
-                wrapperStyle={{
-                  backgroundColor: 'hsl(var(--popover))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: 'var(--radius)',
-                  padding: '8px',
-                  color: 'hsl(var(--popover-foreground))',
-                  fontSize: '0.75rem', // text-xs
-                  boxShadow: '0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1)'
-                }}
-                itemStyle={{ color: 'hsl(var(--popover-foreground))' }}
-              />
               <Legend 
                 wrapperStyle={{ color: 'hsl(var(--foreground))', fontSize: '12px', paddingTop: '10px' }}
                 formatter={(value, entry) => (

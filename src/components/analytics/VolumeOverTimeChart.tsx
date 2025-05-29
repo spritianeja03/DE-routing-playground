@@ -1,6 +1,6 @@
 "use client";
 
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Text } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'; // Removed Text, not used
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { BarChartBig } from 'lucide-react';
 import type { ProcessorMetricsHistory, MerchantConnector } from '@/lib/types'; // Added MerchantConnector
@@ -13,15 +13,31 @@ interface VolumeOverTimeChartProps {
 
 const chartColorKeys = ['--chart-1', '--chart-2', '--chart-3', '--chart-4', '--chart-5'] as const;
 
+// Helper function to get all unique processor IDs from the data
+const getAllProcessorIds = (history: ProcessorMetricsHistory): string[] => {
+  if (!history || history.length === 0) {
+    return [];
+  }
+  const processorIdSet = new Set<string>();
+  history.forEach(dataPoint => {
+    Object.keys(dataPoint).forEach(key => {
+      if (key !== 'time') {
+        processorIdSet.add(key);
+      }
+    });
+  });
+  return Array.from(processorIdSet);
+};
+
 // Custom Tooltip Component
-const CustomTooltip = ({ active, payload, label, merchantConnectors }: any) => { 
+const CustomTooltip = ({ active, payload, label, merchantConnectors }: any) => {
   if (active && payload && payload.length) {
     return (
       <div className="p-3 bg-popover border border-border rounded-lg shadow-xs text-popover-foreground text-xs">
         <p className="mb-2 font-semibold text-sm">Time: {label}</p>
         {payload.map((pld: any, index: number) => {
           const connector = merchantConnectors?.find((mc: MerchantConnector) => (mc.merchant_connector_id || mc.connector_name) === pld.name);
-          const displayName = connector ? (connector.connector_label || connector.connector_name) : pld.name;
+          const displayName = connector ? connector.connector_name : pld.name;
           return (
             <div key={index} className="mb-1.5 last:mb-0">
               <div className="flex items-center mb-0.5">
@@ -42,7 +58,11 @@ const CustomTooltip = ({ active, payload, label, merchantConnectors }: any) => {
 
 
 export function VolumeOverTimeChart({ data, merchantConnectors, connectorToggleStates }: VolumeOverTimeChartProps) {
-  if (!data || data.length === 0) {
+  // const processedChartData = processVolumeDataForChart(data); // Removed: Use raw data for cumulative volume
+  const chartData = data; // Use the original data
+  const uniqueProcessorIds = getAllProcessorIds(chartData);
+
+  if (!chartData || chartData.length === 0) {
     return (
       <Card className="shadow-sm">
         <CardHeader className="p-6">
@@ -59,14 +79,14 @@ export function VolumeOverTimeChart({ data, merchantConnectors, connectorToggleS
     <Card className="shadow-sm">
       <CardHeader className="p-6">
         <CardTitle className="flex items-center"><BarChartBig className="mr-2 h-5 w-5 text-primary" /> Volume Over Time</CardTitle>
-        <CardDescription>Transaction volume per processor as the simulation progresses.</CardDescription>
+        <CardDescription>Cumulative transaction volume per processor over time.</CardDescription> 
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={data} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
+          <AreaChart data={chartData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis 
-              dataKey="time" 
+            <XAxis
+              dataKey="time"
               stroke="hsl(var(--muted-foreground))" 
               tickFormatter={(timestamp) => {
                 if (typeof timestamp !== 'number') return ''; // Handle cases where timestamp might not be a number
@@ -78,7 +98,7 @@ export function VolumeOverTimeChart({ data, merchantConnectors, connectorToggleS
               }}
             />
             <YAxis stroke="hsl(var(--muted-foreground))" width={50} tickFormatter={(value) => value.toLocaleString()} />
-            <Tooltip 
+            <Tooltip
               content={<CustomTooltip merchantConnectors={merchantConnectors} />} // Pass merchantConnectors to CustomTooltip
               labelFormatter={(timestamp) => { // Format time in tooltip header
                 if (typeof timestamp !== 'number') return '';
@@ -90,19 +110,19 @@ export function VolumeOverTimeChart({ data, merchantConnectors, connectorToggleS
               }}
             />
             <Legend wrapperStyle={{ color: 'hsl(var(--foreground))', paddingTop: '10px' }} />
-            {data && data.length > 0 && Object.keys(data[0])
-              .filter(key => key !== 'time' && connectorToggleStates[key] === true)
+            {chartData && chartData.length > 0 && uniqueProcessorIds
+              .filter(processorId => connectorToggleStates[processorId] === true)
               .map((processorId, index) => {
               const connector = merchantConnectors.find(mc => (mc.merchant_connector_id || mc.connector_name) === processorId);
-              const displayName = connector ? (connector.connector_label || connector.connector_name) : processorId;
+              const displayName = connector ? connector.connector_name : processorId;
               return (
                 <Area
                   key={processorId}
                   type="monotone"
                   dataKey={processorId}
                   name={displayName} // Use resolved displayName for Legend
-                  stroke={`hsl(var(${chartColorKeys[index % chartColorKeys.length]}))`      }
-                  fill={`hsl(var(${chartColorKeys[index % chartColorKeys.length]}))`      }
+                  stroke={`hsl(var(${chartColorKeys[index % chartColorKeys.length]}))`}
+                  fill={`hsl(var(${chartColorKeys[index % chartColorKeys.length]}))`}
                   fillOpacity={0.2}
                   strokeWidth={2}
                   dot={{ r: 1, strokeWidth: 1 }}

@@ -53,7 +53,7 @@ export function StatsView({
       .map(processorId => {
         const processorData = currentControls.processorWiseSuccessRates![processorId];
         const connectorInfo = merchantConnectors.find(mc => (mc.merchant_connector_id || mc.connector_name) === processorId);
-        const processorName = connectorInfo ? (connectorInfo.connector_label || connectorInfo.connector_name) : processorId;
+        const processorName = connectorInfo ? connectorInfo.connector_name : processorId;
         
         const successfulPayments = processorData.successfulPaymentCount;
         const totalPayments = processorData.totalPaymentCount;
@@ -81,7 +81,7 @@ export function StatsView({
       .map((processorId) => {
         const stats = currentControls.processorWiseSuccessRates![processorId];
         const connectorInfo = merchantConnectors.find(mc => (mc.merchant_connector_id || mc.connector_name) === processorId);
-        const processorName = connectorInfo ? (connectorInfo.connector_label || connectorInfo.connector_name) : processorId;
+        const processorName = connectorInfo ? connectorInfo.connector_name : processorId;
         return {
           name: processorName,
           value: stats.volumeShare, // Raw volume count for pie chart value

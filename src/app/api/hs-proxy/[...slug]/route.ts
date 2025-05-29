@@ -7,8 +7,8 @@ interface RequestInitWithDuplex extends RequestInit {
   duplex?: 'half';
 }
 
-async function handler(req: NextRequest, { params }: { params: { slug: string[] } }) {
-  const { slug } = params;
+async function handler(req: NextRequest, { params }: { params: Promise<{ slug: string[] }> }) {
+  const { slug } = await params;
   const path = slug.join('/');
   const targetUrl = `${HYPERSWITCH_API_BASE_URL}/${path}`;
 
@@ -39,18 +39,29 @@ async function handler(req: NextRequest, { params }: { params: { slug: string[] 
   // Add any other headers you might need to forward or set
 
   try {
+    const request_body = await req.text(); // Read the request body as text
     const response = await fetch(targetUrl, {
       method: req.method,
       headers: headers,
-      body: req.method !== 'GET' && req.method !== 'HEAD' ? req.body : undefined,
+      body: req.method !== 'GET' && req.method !== 'HEAD' ? request_body : undefined,
       duplex: 'half' // Added for streaming request bodies in Node.js fetch
     } as RequestInitWithDuplex); // Cast to our custom type
+
+   
 
     // Create a new NextResponse to stream the response back
     // This copies status, statusText, and headers from the origin response.
     // Clone the response to read its body and still stream it
     const clonedResponse = response.clone();
     const responseBody = await clonedResponse.json().catch(() => null); // Gracefully handle non-JSON or empty bodies
+
+     if (targetUrl.includes("dynamic-routing")) {
+      console.log(`[HS_PROXY] Dynamic routing request to ${targetUrl}`);
+      // print the request body for debugging
+      console.log(request_body);
+      console.log(responseBody);
+    }
+
 
     const newHeaders = new Headers(response.headers); // Copy original headers
 
