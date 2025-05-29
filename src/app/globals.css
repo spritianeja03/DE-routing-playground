@@ -101,3 +101,60 @@
     font-feature-settings: "rlig" 1,"calt" 1;
   }
 }
+
+/* SplitPane splitter styles */
+.SplitPane .Resizer {
+  background: #222;
+  opacity: 0.5;
+  z-index: 1;
+  box-sizing: border-box;
+  background-clip: padding-box;
+  transition: background 0.2s;
+}
+.SplitPane .Resizer:hover {
+  background: #666;
+}
+.SplitPane .Resizer.vertical {
+  width: 6px;
+  margin: 0 -3px;
+  cursor: col-resize;
+  border-left: 1px solid #444;
+  border-right: 1px solid #444;
+}
+.SplitPane .Resizer.horizontal {
+  height: 6px;
+  margin: -3px 0;
+  cursor: row-resize;
+  border-top: 1px solid #444;
+  border-bottom: 1px solid #444;
+}
+.SplitPane .Resizer:after {
+  content: '';
+  display: block;
+  margin: 0 auto;
+  width: 24px;
+  height: 24px;
+  background: url('data:image/svg+xml;utf8,<svg fill="gray" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M9 18l6-6-6-6"/></svg>') center center no-repeat;
+  opacity: 0.3;
+}
+
+/* --- Fix for code block and container cropping issues --- */
+pre, code {
+  white-space: pre;
+  overflow-x: auto;
+  display: block;
+  max-width: 100%;
+}
+
+/* Ensure form containers and input wrappers are responsive */
+.w-full, .max-w-full, .form-container, .input-wrapper {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Prevent heading and label cropping */
+.font-semibold, .font-medium, .form-label, .form-title {
+  white-space: normal;
+  overflow-wrap: break-word;
+}

@@ -4,7 +4,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { AppLayout } from '@/components/AppLayout';
 import { Header } from '@/components/Header';
 import { BottomControlsPanel, type FormValues } from '@/components/BottomControlsPanel';
-import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { StatsView } from '@/components/StatsView';
@@ -19,6 +19,8 @@ import type { PaymentMethod, ProcessorMetricsHistory, StructuredRule, ControlsSt
 import { PAYMENT_METHODS, /*RULE_STRATEGY_NODES*/ } from '@/lib/constants'; // RULE_STRATEGY_NODES removed
 import { useToast } from '@/hooks/use-toast';
 import { summarizeSimulation } from '@/ai/flows/summarize-simulation-flow'; // AI Summary Re-added
+import SplitPane from 'react-split-pane';
+import { MiniSidebar } from '@/components/MiniSidebar';
 
 const SIMULATION_INTERVAL_MS = 1000; // Interval between individual payment processing attempts
 
@@ -63,6 +65,11 @@ export default function HomePage() {
   const [summaryAttempted, setSummaryAttempted] = useState<boolean>(false); // New state
 
   const { toast } = useToast();
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mainPaneSize, setMainPaneSize] = useState('50%');
+
+  const [activeSection, setActiveSection] = useState('general');
 
   useEffect(() => {
     // Load credentials from localStorage on initial mount
@@ -999,43 +1006,90 @@ export default function HomePage() {
   return (
     <>
       <AppLayout>
-        <Tabs defaultValue="stats" value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-grow overflow-hidden">
-          <Header
-            activeTab={activeTab} onTabChange={setActiveTab}
-            onStartSimulation={handleStartSimulation} onPauseSimulation={handlePauseSimulation}
-            onStopSimulation={handleStopSimulation} simulationState={simulationState}
+        <Header
+          activeTab={activeTab} onTabChange={setActiveTab}
+          onStartSimulation={handleStartSimulation} onPauseSimulation={handlePauseSimulation}
+          onStopSimulation={handleStopSimulation} simulationState={simulationState}
+        />
+        <div className="flex flex-row flex-grow overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
+          {/* Mini Sidebar */}
+          <MiniSidebar
+            activeSection={activeSection}
+            onSectionChange={(section) => {
+              setActiveSection(section);
+              setSidebarCollapsed(false); // Always expand when a section is selected
+            }}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
           />
-          {/* Main content area split into two columns: Left for Tabs (Stats/Analytics), Right for Logs */}
-          <div className="flex flex-row flex-grow overflow-hidden">
-            {/* Left Pane: Existing Tabs Content */}
-            <div className="w-1/2 flex flex-col overflow-hidden p-0">
-              <TabsContent value="stats" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
-                <ScrollArea className="h-full">
-                  <div className="p-2 md:p-4 lg:p-6">
-                    <StatsView
-                      currentControls={currentControls} merchantConnectors={merchantConnectors} 
-                      processedPayments={processedPaymentsCount}
-                      totalSuccessful={accumulatedGlobalStatsRef.current.totalSuccessful}
-                      totalFailed={accumulatedGlobalStatsRef.current.totalFailed}
-                      overallSuccessRateHistory={overallSuccessRateHistory}
-                    />
-                  </div>
-                </ScrollArea>
-              </TabsContent>
-              <TabsContent value="analytics" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
-                <ScrollArea className="h-full">
-                  <div className="p-2 md:p-4 lg:p-6">
-                    <AnalyticsGraphsView
-                      successRateHistory={successRateHistory} volumeHistory={volumeHistory}
-                      merchantConnectors={merchantConnectors} connectorToggleStates={connectorToggleStates}
-                    />
-                  </div>
-                </ScrollArea>
-              </TabsContent>
+          {/* Main Sidebar for selected section, only if not collapsed */}
+          {!sidebarCollapsed && (
+            <div className="flex flex-col h-full">
+              <BottomControlsPanel
+                onFormChange={handleControlsChange} merchantConnectors={merchantConnectors}
+                connectorToggleStates={connectorToggleStates} onConnectorToggleChange={handleConnectorToggleChange}
+                apiKey={apiKey} profileId={profileId} merchantId={merchantId}
+                collapsed={sidebarCollapsed}
+                onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
+                activeTab={activeSection}
+              />
             </div>
-
-            {/* Right Pane: New Static Logs View */}
-            <div className="w-1/2 flex flex-col overflow-hidden border-l">
+          )}
+          {/* Main and Logs with draggable splitter */}
+          {/** @ts-expect-error SplitPane children typing workaround */}
+          <SplitPane
+            split="vertical"
+            minSize={340}
+            defaultSize={340}
+            primary="second"
+            maxSize={typeof window !== 'undefined' ? window.innerWidth - 400 : undefined}
+            onChange={size => setMainPaneSize(typeof size === 'number' ? `${size}px` : size)}
+            style={{ position: 'relative', height: '100%', flex: 1 }}
+          >
+            <div className="flex flex-col overflow-hidden h-full">
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
+                <div className="flex items-center justify-start p-4 pb-0">
+                  <TabsList>
+                    <TabsTrigger value="stats">
+                      <svg className="mr-2 h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+                      Stats
+                    </TabsTrigger>
+                    <TabsTrigger value="analytics">
+                      <svg className="mr-2 h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>
+                      Analytics
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
+                <TabsContent value="stats" className="flex-1 h-full">
+                  <ScrollArea className="h-full">
+                    <div className="p-2 md:p-4 lg:p-6">
+                      <div className="bg-white dark:bg-card border border-gray-200 dark:border-border rounded-xl shadow-sm p-6 mb-6">
+                        <StatsView
+                          currentControls={currentControls} merchantConnectors={merchantConnectors} 
+                          processedPayments={processedPaymentsCount}
+                          totalSuccessful={accumulatedGlobalStatsRef.current.totalSuccessful}
+                          totalFailed={accumulatedGlobalStatsRef.current.totalFailed}
+                          overallSuccessRateHistory={overallSuccessRateHistory}
+                        />
+                      </div>
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+                <TabsContent value="analytics" className="flex-1 h-full">
+                  <ScrollArea className="h-full">
+                    <div className="p-2 md:p-4 lg:p-6">
+                      <div className="bg-white dark:bg-card border border-gray-200 dark:border-border rounded-xl shadow-sm p-6 mb-6">
+                        <AnalyticsGraphsView
+                          successRateHistory={successRateHistory} volumeHistory={volumeHistory}
+                          merchantConnectors={merchantConnectors} connectorToggleStates={connectorToggleStates}
+                        />
+                      </div>
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+              </Tabs>
+            </div>
+            <div className="border-l border-gray-200 dark:border-border bg-white dark:bg-background flex flex-col overflow-hidden h-full">
               <div className="p-2 md:p-4 lg:p-6 h-full flex flex-col">
                 <h2 className="text-lg font-semibold mb-2 flex-shrink-0">Transaction Logs</h2>
                 <ScrollArea className="flex-grow">
@@ -1055,14 +1109,9 @@ export default function HomePage() {
                 </ScrollArea>
               </div>
             </div>
-          </div>
-        </Tabs>
+          </SplitPane>
+        </div>
       </AppLayout>
-      <BottomControlsPanel
-        onFormChange={handleControlsChange} merchantConnectors={merchantConnectors}
-        connectorToggleStates={connectorToggleStates} onConnectorToggleChange={handleConnectorToggleChange}
-        apiKey={apiKey} profileId={profileId} merchantId={merchantId}
-      />
       <Dialog open={isApiCredentialsModalOpen} onOpenChange={setIsApiCredentialsModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>API Credentials</DialogTitle></DialogHeader>

@@ -24,7 +24,7 @@ const switchVariants = cva(
 )
 
 const switchThumbVariants = cva(
-  "pointer-events-none block rounded-full bg-background shadow-lg ring-0 border border-muted-foreground/50 data-[state=unchecked]:translate-x-0",
+  "pointer-events-none block rounded-full bg-background shadow-sm ring-0 border border-muted-foreground/50 data-[state=unchecked]:translate-x-0",
   // Removed: transition-transform
   // Added: border border-muted-foreground/50 to make thumb always visible
   {

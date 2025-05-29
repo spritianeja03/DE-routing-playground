@@ -1,4 +1,3 @@
-
 "use client";
 
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Text } from 'recharts';
@@ -18,7 +17,7 @@ const chartColorKeys = ['--chart-1', '--chart-2', '--chart-3', '--chart-4', '--c
 const CustomTooltip = ({ active, payload, label, merchantConnectors }: any) => { 
   if (active && payload && payload.length) {
     return (
-      <div className="p-3 bg-popover border border-border rounded-lg shadow-xl text-popover-foreground text-xs">
+      <div className="p-3 bg-popover border border-border rounded-lg shadow-xs text-popover-foreground text-xs">
         <p className="mb-2 font-semibold text-sm">Time: {label}</p>
         {payload.map((pld: any, index: number) => {
           // pld.name is the processorId (dataKey). We need to resolve it to connector_label.
@@ -46,12 +45,12 @@ const CustomTooltip = ({ active, payload, label, merchantConnectors }: any) => {
 export function SuccessRateOverTimeChart({ data, merchantConnectors, connectorToggleStates }: SuccessRateOverTimeChartProps) {
   if (!data || data.length === 0) {
     return (
-      <Card className="shadow-md">
-        <CardHeader>
+      <Card className="shadow-sm">
+        <CardHeader className="p-6">
           <CardTitle className="flex items-center"><LineChart className="mr-2 h-5 w-5 text-primary" /> Success Rate Over Time</CardTitle>
           <CardDescription>Processor success rates as the simulation progresses.</CardDescription>
         </CardHeader>
-        <CardContent className="h-[300px] flex items-center justify-center">
+        <CardContent className="h-[300px] flex items-center justify-center p-6">
           <p className="text-muted-foreground">No success rate data available yet. Run a simulation.</p>
         </CardContent>
       </Card>
@@ -59,12 +58,12 @@ export function SuccessRateOverTimeChart({ data, merchantConnectors, connectorTo
   }
 
   return (
-    <Card className="shadow-md">
-      <CardHeader>
+    <Card className="shadow-sm">
+      <CardHeader className="p-6">
         <CardTitle className="flex items-center"><LineChart className="mr-2 h-5 w-5 text-primary" /> Success Rate Over Time</CardTitle>
-        <CardDescription>Processor success rates (%) as the simulation progresses.</CardDescription>
+        <CardDescription>Processor success rates as the simulation progresses.</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-6">
         <ResponsiveContainer width="100%" height={300}>
           <AreaChart data={data} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -102,66 +101,23 @@ export function SuccessRateOverTimeChart({ data, merchantConnectors, connectorTo
             {data && data.length > 0 && Object.keys(data[0])
               .filter(key => key !== 'time' && connectorToggleStates[key] === true)
               .map((processorId, index) => {
-              // The 'name' for the Area should be derived from the data passed by StatsView,
-              // which already resolves it using merchantConnectors.
-              // The dataKey is processorId. The 'name' prop for Legend comes from Area's name.
-              // The data itself should have processorId as key, and the 'name' for legend is set on Area.
-              // The 'name' in the data objects (e.g. data[0][processorId]) is the value, not the processor display name.
-              // The `name` prop of `<Area>` is what matters for the legend.
-              // This component doesn't need to know about merchantConnectors directly if StatsView prepares names.
-              // However, the current structure of TimeSeriesDataPoint is [processorId: string]: number | string;
-              // The `name` prop of `<Area>` is used for the legend.
-              // The `CustomTooltip` also uses `pld.name` which is this same `name` prop from `<Area>`.
-              // So, `StatsView` must ensure the `dataKey` (processorId) has a corresponding human-readable name
-              // when it constructs the data for these charts, or these charts need the merchantConnectors list.
-              // For now, assuming `processorId` itself is used if a friendly name isn't part of the `data` structure directly.
-              // The current `Area` rendering uses `processorId` as `dataKey` and `processorName` (derived from `PROCESSORS.find`) as `name`.
-              // Since `PROCESSORS` is gone, `processorName` must come from elsewhere or `processorId` is used as name.
-              // The `data` prop passed to AreaChart is `ProcessorMetricsHistory` which is `TimeSeriesDataPoint[]`.
-              // `TimeSeriesDataPoint` is `{ time: number; [processorId: string]: number | string; }`.
-              // The `name` prop of `<Area>` is what's used in the legend.
-              // The `CustomTooltip` receives `pld.name`.
-              // The `StatsView` prepares `processorSRData` and `transactionDistributionData` with `processor` or `name` fields for display.
-              // The line charts `SuccessRateOverTimeChart` and `VolumeOverTimeChart` receive `successRateHistory` and `volumeHistory`.
-              // These history objects are `TimeSeriesDataPoint[]`.
-              // The `Area` components are generated by iterating `Object.keys(data[0])`.
-              // The `name` prop of `Area` should be the display name.
-              // This means `StatsView` doesn't directly influence the `name` prop of these `<Area>`s.
-              // The chart components themselves need to resolve `processorId` to a display name.
-              // This means they DO need access to `merchantConnectors`.
-
-              // This component will now require merchantConnectors to resolve names.
-              // This change was missed in StatsView prop drilling.
-              // For now, let's assume `processorId` is acceptable as the name if no mapping is available here.
-              // The `name` prop of `<Area>` is what is shown in the legend.
-              // The current code (after removing PROCESSORS.find) would make `processorName = processorId`.
-              // This is acceptable if `StatsView` doesn't pass resolved names in the `data` structure for these charts.
-              // The `data` for these charts is `ProcessorMetricsHistory`, which is `TimeSeriesDataPoint[]`.
-              // `TimeSeriesDataPoint` is `{ time: number, [processorId: string]: number }`.
-              // The `name` prop of the `<Area>` component is what's used for the legend.
-              // The `CustomTooltip` also uses `pld.name`.
-              // The most straightforward way is to pass `merchantConnectors` to these charts too.
-
-              // Simpler: The `name` prop of Area should be set to `processorId` if we don't pass `merchantConnectors` here.
-              // The `CustomTooltip` will then show `processorId`.
-              // If a friendly name is desired, `merchantConnectors` must be passed down.
-              const connector = merchantConnectors.find(mc => (mc.merchant_connector_id || mc.connector_name) === processorId);
-              const displayName = connector ? (connector.connector_label || connector.connector_name) : processorId;
-              return (
-                <Area
-                  key={processorId}
-                  type="monotone"
-                  dataKey={processorId}
-                  name={displayName} // Use resolved displayName for Legend
-                  stroke={`hsl(var(${chartColorKeys[index % chartColorKeys.length]}))`      }
-                  fill={`hsl(var(${chartColorKeys[index % chartColorKeys.length]}))`      }
-                  fillOpacity={0.2}
-                  strokeWidth={2}
-                  dot={{ r: 1, strokeWidth: 1 }}
-                  activeDot={{ r: 4, strokeWidth: 1 }}
-                />
-              );
-            })}
+                const connector = merchantConnectors.find(mc => (mc.merchant_connector_id || mc.connector_name) === processorId);
+                const displayName = connector ? (connector.connector_label || connector.connector_name) : processorId;
+                return (
+                  <Area
+                    key={processorId}
+                    type="monotone"
+                    dataKey={processorId}
+                    name={displayName}
+                    stroke={`hsl(var(${chartColorKeys[index % chartColorKeys.length]}))`}
+                    fill={`hsl(var(${chartColorKeys[index % chartColorKeys.length]}))`}
+                    fillOpacity={0.2}
+                    strokeWidth={2}
+                    dot={{ r: 1, strokeWidth: 1 }}
+                    activeDot={{ r: 4, strokeWidth: 1 }}
+                  />
+                );
+              })}
           </AreaChart>
         </ResponsiveContainer>
       </CardContent>

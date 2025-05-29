@@ -1,4 +1,3 @@
-
 "use client"
 
 import Image from 'next/image';
@@ -24,8 +23,8 @@ export function TransactionDistributionChart({ data }: TransactionDistributionCh
   const hasData = data && data.length > 0 && data.some(item => item.value > 0);
 
   return (
-    <Card className="shadow-lg">
-      <CardHeader>
+    <Card>
+      <CardHeader className="pt-6 pl-6 pr-6">
         <CardTitle className="flex items-center"><PieChartIcon className="mr-2 h-6 w-6 text-primary" /> Transaction Distribution</CardTitle>
         <CardDescription>Processor-wise distribution of transactions.</CardDescription>
       </CardHeader>
@@ -92,7 +91,7 @@ export function TransactionDistributionChart({ data }: TransactionDistributionCh
                 alt="Distribution Chart Placeholder"
                 width={300}
                 height={150}
-                className="rounded-md shadow-md opacity-50"
+                className="rounded-md shadow-sm opacity-50"
                 data-ai-hint="pie chart"
             />
             <p className="mt-2 text-sm text-muted-foreground">Chart data will appear here after simulation.</p>

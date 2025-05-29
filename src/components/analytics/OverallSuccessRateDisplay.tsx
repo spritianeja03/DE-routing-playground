@@ -1,4 +1,3 @@
-
 "use client";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TrendingUp } from 'lucide-react';
@@ -15,12 +14,12 @@ export function OverallSuccessRateDisplay({ rate, history }: OverallSuccessRateD
   const hasEnoughDataForChart = history && history.length >= 1;
 
   return (
-    <Card className="shadow-lg">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-6 pl-6 pr-6">
         <CardTitle className="text-sm font-medium">Overall Success Rate</CardTitle>
         <TrendingUp className="h-5 w-5 text-primary" />
       </CardHeader>
-      <CardContent className="flex flex-col">
+      <CardContent className="flex flex-col p-6">
         <div className="text-4xl font-bold text-primary">{rate.toFixed(1)}%</div>
         <p className="text-xs text-muted-foreground mb-2">
           Based on current simulation parameters
