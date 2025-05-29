@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useMemo } from 'react';
@@ -95,14 +94,14 @@ export function StatsView({
 
   return (
     <div className="space-y-6 flex flex-col">
-      {/* Stats Cards in a 3-column grid for wider screens, stack on smaller */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4"> {/* Changed to sm:grid-cols-3 and gap-4 */}
-        <Card className="shadow-md">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      {/* Stats Cards in a 2-column grid for wider screens, stack on smaller */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <Card className="shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-6 pl-6 pr-6">
             <CardTitle className="text-sm font-medium">Total Processed</CardTitle>
             <ListChecks className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-6">
             <div className="text-2xl font-bold">{processedPayments.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
                 of {currentControls?.totalPayments.toLocaleString() || 'N/A'} target
@@ -120,26 +119,24 @@ export function StatsView({
             <p className="text-xs text-muted-foreground">transactions per second (Rate limited by interval)</p>
           </CardContent>
         </Card> */}
-        {/* Ensure this card is part of the same grid row */}
-        <Card className="shadow-md">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <Card className="shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-6 pl-6 pr-6">
             <CardTitle className="text-sm font-medium">Total Successful</CardTitle>
             <CheckCircle2 className="h-5 w-5 text-green-500" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-6">
             <div className="text-2xl font-bold">{totalSuccessful.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
               {processedPayments > 0 ? `${((totalSuccessful / processedPayments) * 100).toFixed(1)}% of processed` : '0.0%'}
             </p>
           </CardContent>
         </Card>
-        {/* Ensure this card is part of the same grid row */}
-        <Card className="shadow-md">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <Card className="shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-6 pl-6 pr-6">
             <CardTitle className="text-sm font-medium">Total Failed</CardTitle>
             <XCircle className="h-5 w-5 text-red-500" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-6">
             <div className="text-2xl font-bold">{totalFailed.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
               {processedPayments > 0 ? `${((totalFailed / processedPayments) * 100).toFixed(1)}% of processed` : '0.0%'}
@@ -151,10 +148,6 @@ export function StatsView({
       <OverallSuccessRateDisplay rate={overallSR} history={overallSuccessRateHistory} />
       <TransactionDistributionChart data={transactionDistributionData} />
       <ProcessorSuccessRatesTable data={processorSRData} />
-      
-      <div className="p-6 bg-muted/30 rounded-lg text-center mt-auto">
-        <p className="text-muted-foreground">Summary statistics based on current simulation run.</p>
-      </div>
     </div>
   );
 }

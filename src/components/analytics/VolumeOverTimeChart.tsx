@@ -1,4 +1,3 @@
-
 "use client";
 
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'; // Removed Text, not used
@@ -34,7 +33,7 @@ const getAllProcessorIds = (history: ProcessorMetricsHistory): string[] => {
 const CustomTooltip = ({ active, payload, label, merchantConnectors }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="p-3 bg-popover border border-border rounded-lg shadow-xl text-popover-foreground text-xs">
+      <div className="p-3 bg-popover border border-border rounded-lg shadow-xs text-popover-foreground text-xs">
         <p className="mb-2 font-semibold text-sm">Time: {label}</p>
         {payload.map((pld: any, index: number) => {
           const connector = merchantConnectors?.find((mc: MerchantConnector) => (mc.merchant_connector_id || mc.connector_name) === pld.name);
@@ -65,8 +64,8 @@ export function VolumeOverTimeChart({ data, merchantConnectors, connectorToggleS
 
   if (!chartData || chartData.length === 0) {
     return (
-      <Card className="shadow-md">
-        <CardHeader>
+      <Card className="shadow-sm">
+        <CardHeader className="p-6">
           <CardTitle className="flex items-center"><BarChartBig className="mr-2 h-5 w-5 text-primary" /> Volume Over Time</CardTitle>
           <CardDescription>Transaction volume per processor as the simulation progresses.</CardDescription>
         </CardHeader>
@@ -77,8 +76,8 @@ export function VolumeOverTimeChart({ data, merchantConnectors, connectorToggleS
     );
   }
   return (
-    <Card className="shadow-md">
-      <CardHeader>
+    <Card className="shadow-sm">
+      <CardHeader className="p-6">
         <CardTitle className="flex items-center"><BarChartBig className="mr-2 h-5 w-5 text-primary" /> Volume Over Time</CardTitle>
         <CardDescription>Cumulative transaction volume per processor over time.</CardDescription> 
       </CardHeader>

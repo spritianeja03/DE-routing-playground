@@ -1,7 +1,7 @@
-
-import { PlayCircle, Loader2, PauseCircle, StopCircle, BarChartHorizontalBig, LineChart } from 'lucide-react'; // Removed Zap
+import { PlayCircle, Loader2, PauseCircle, StopCircle, BarChartHorizontalBig, LineChart, Sun, Moon } from 'lucide-react'; // Removed Zap
 import { Button } from '@/components/ui/button';
-import { TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { TabsList, TabsTrigger, Tabs } from '@/components/ui/tabs';
+import { useEffect, useState } from 'react';
 
 interface HeaderProps {
   activeTab: string;
@@ -24,22 +24,36 @@ export function Header({
   const isPaused = simulationState === 'paused';
   const isIdle = simulationState === 'idle';
 
+  // Theme toggle state
+  const [isDark, setIsDark] = useState(true);
+
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDark]);
+
   return (
     <header className="p-4 border-b border-border flex items-center justify-between sticky top-0 bg-background/95 backdrop-blur-sm z-10">
       <div className="flex items-center gap-x-6">
         <div className="flex items-center gap-2">
-          <img src="https://hyperswitch.io/logos/juspay-hyperswitch.svg" alt="Hyperswitch Logo" />
+          {/* Light mode logo */}
+          <img
+            src="/juspay-hyperswitch-1.jpg"
+            alt="Hyperswitch Logo Light"
+            className="block dark:hidden"
+            style={{ height: 40 }}
+          />
+          {/* Dark mode logo (existing) */}
+          <img
+            src="https://hyperswitch.io/logos/juspay-hyperswitch.svg"
+            alt="Hyperswitch Logo Dark"
+            className="hidden dark:block"
+            style={{ height: 40 }}
+          />
         </div>
-        <TabsList>
-          <TabsTrigger value="stats" onClick={() => onTabChange("stats")}>
-            <BarChartHorizontalBig className="mr-2 h-5 w-5" />
-            Stats
-          </TabsTrigger>
-          <TabsTrigger value="analytics" onClick={() => onTabChange("analytics")}>
-            <LineChart className="mr-2 h-5 w-5" />
-            Analytics
-          </TabsTrigger>
-        </TabsList>
       </div>
 
       <div className="flex items-center gap-2">

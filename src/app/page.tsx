@@ -4,7 +4,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { AppLayout } from '@/components/AppLayout';
 import { Header } from '@/components/Header';
 import { BottomControlsPanel, type FormValues } from '@/components/BottomControlsPanel';
-import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { StatsView } from '@/components/StatsView';
@@ -20,6 +20,8 @@ import type { PaymentMethod, ProcessorMetricsHistory, StructuredRule, ControlsSt
 import { PAYMENT_METHODS, /*RULE_STRATEGY_NODES*/ } from '@/lib/constants'; // RULE_STRATEGY_NODES removed
 import { useToast } from '@/hooks/use-toast';
 import { summarizeSimulation } from '@/ai/flows/summarize-simulation-flow'; // AI Summary Re-added
+import SplitPane from 'react-split-pane';
+import { MiniSidebar } from '@/components/MiniSidebar';
 
 const SIMULATION_INTERVAL_MS = 50; // Interval between individual payment processing attempts
 
@@ -48,11 +50,11 @@ export default function HomePage() {
   const [successRateHistory, setSuccessRateHistory] = useState<ProcessorMetricsHistory>([]);
   const [volumeHistory, setVolumeHistory] = useState<ProcessorMetricsHistory>([]);
   const [overallSuccessRateHistory, setOverallSuccessRateHistory] = useState<OverallSRHistory>([]);
-  
+
   const [isApiCredentialsModalOpen, setIsApiCredentialsModalOpen] = useState<boolean>(false);
   const [apiKey, setApiKey] = useState<string>('');
   const [profileId, setProfileId] = useState<string>('');
-  const [merchantId, setMerchantId] = useState<string>(''); 
+  const [merchantId, setMerchantId] = useState<string>('');
 
   const [merchantConnectors, setMerchantConnectors] = useState<MerchantConnector[]>([]);
   const [connectorToggleStates, setConnectorToggleStates] = useState<Record<string, boolean>>({});
@@ -62,7 +64,7 @@ export default function HomePage() {
   const apiCallAbortControllerRef = useRef<AbortController | null>(null);
   const isStoppingRef = useRef(false);
   const isProcessingBatchRef = useRef(false);
-  
+
   const accumulatedProcessorStatsRef = useRef<Record<string, { successful: number; failed: number; volumeShareRaw: number }>>({});
   const accumulatedGlobalStatsRef = useRef<{ totalSuccessful: number; totalFailed: number }>({ totalSuccessful: 0, totalFailed: 0 });
 
@@ -77,6 +79,11 @@ export default function HomePage() {
   const [summaryAttempted, setSummaryAttempted] = useState<boolean>(false); // New state
 
   const { toast } = useToast();
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mainPaneSize, setMainPaneSize] = useState('50%');
+
+  const [activeSection, setActiveSection] = useState('general');
 
   useEffect(() => {
     // Load credentials from localStorage on initial mount
@@ -98,7 +105,7 @@ export default function HomePage() {
       } else {
         allCredentialsFound = false;
       }
-      
+
       if (storedMerchantId) {
         setMerchantId(storedMerchantId);
       } else {
@@ -114,7 +121,7 @@ export default function HomePage() {
       // or if the user closes it and they were already valid, subsequent actions might trigger it.
       // For now, we don't auto-fetch here to ensure modal interaction.
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run once on mount
 
 
@@ -132,7 +139,7 @@ export default function HomePage() {
 
     const payload = {
       id: currentProfileId,
-      params: "card", 
+      params: "card",
       labels: activeConnectorLabels, // Use the provided connector_names
       config: { // Specific config for FetchSuccessRate
         min_aggregates_size: currentControls.minAggregatesSize ?? 5, // Using the new form value
@@ -145,7 +152,7 @@ export default function HomePage() {
     console.log("[FetchSuccessRate] Payload:", JSON.stringify(payload, null, 2));
 
     try {
-      const response = await fetch('/api/hs-proxy/dynamic-routing/success_rate.SuccessRateCalculator/FetchSuccessRate', { 
+      const response = await fetch('/api/hs-proxy/dynamic-routing/success_rate.SuccessRateCalculator/FetchSuccessRate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -192,12 +199,12 @@ export default function HomePage() {
         // Sort connectors by score in descending order
         const sortedConnectors = data.labels_with_score.sort((a: any, b: any) => b.score - a.score);
         const bestConnector = sortedConnectors[0]; // Pick the first one (highest score)
-        
+
         console.log(`[FetchSuccessRate] Selected connector: ${bestConnector.label} with score ${bestConnector.score} (after sorting)`);
         return { selectedConnector: bestConnector.label, routingApproach: routingApproachForLog, srScores: srScoresForLog };
       } else {
         console.warn("[FetchSuccessRate] No scores returned or empty list.");
-        toast({ title: "Fetch Success Rate Info", description: "No connector scores returned by the API."});
+        toast({ title: "Fetch Success Rate Info", description: "No connector scores returned by the API." });
         return { selectedConnector: null, routingApproach: routingApproachForLog, srScores: srScoresForLog };
       }
     } catch (error: any) {
@@ -230,8 +237,8 @@ export default function HomePage() {
       config: { // Added config for UpdateSuccessRateWindow
         max_aggregates_size: controls.maxAggregatesSize ?? 10, // Using the new form value
         current_block_threshold: { // This remains as per its original structure
-          duration_in_mins: controls.currentBlockThresholdDurationInMins ?? 60, 
-          max_total_count: controls.currentBlockThresholdMaxTotalCount ?? 20,    
+          duration_in_mins: controls.currentBlockThresholdDurationInMins ?? 60,
+          max_total_count: controls.currentBlockThresholdMaxTotalCount ?? 20,
         }
       }
     };
@@ -269,7 +276,7 @@ export default function HomePage() {
               console.log(`[UpdateSuccessRateWindow] HTTP call successful for ${connectorNameForApi}, but API status is unexpected: ${updateData.status}. Full response:`, updateData);
             }
           } else if (response.status === 204 || !responseDataText) { // Handle 204 No Content or genuinely empty responses
-             console.log(`[UpdateSuccessRateWindow] Successfully called for connector ${connectorNameForApi} (HTTP ${response.status}, No Content/Empty Response).`);
+            console.log(`[UpdateSuccessRateWindow] Successfully called for connector ${connectorNameForApi} (HTTP ${response.status}, No Content/Empty Response).`);
           } else {
             console.log(`[UpdateSuccessRateWindow] HTTP call successful for ${connectorNameForApi}, but response was not JSON or status field missing. Response text:`, responseDataText);
           }
@@ -302,9 +309,9 @@ export default function HomePage() {
   //     // Rule was just toggled from false or undefined to true
   //     if (merchantId && profileId && apiKey) {
   //       const apiUrl = `https://sandbox.hyperswitch.io/account/${merchantId}/business_profile/${profileId}/dynamic_routing/set_volume_split?split=100`;
-        
+
   //       console.log(`Success rate rule enabled. Calling: POST ${apiUrl}`);
-        
+
   //       fetch(apiUrl, {
   //         method: 'POST',
   //         headers: {
@@ -349,7 +356,7 @@ export default function HomePage() {
     setCurrentControls(prev => {
       const existingOverallSuccessRate = prev ? prev.overallSuccessRate : 0;
       return {
-        ...(prev || {}), 
+        ...(prev || {}),
         ...data,
         overallSuccessRate: data.overallSuccessRate !== undefined ? data.overallSuccessRate : existingOverallSuccessRate,
       };
@@ -370,7 +377,7 @@ export default function HomePage() {
         return [];
       }
       const response = await fetch(`https://sandbox.hyperswitch.io/account/${currentMerchantId}/profile/connectors`, {
-        method: 'GET', 
+        method: 'GET',
         headers: { 'api-key': currentApiKey, 'x-profile-id': profileId },
       });
       if (!response.ok) {
@@ -378,9 +385,9 @@ export default function HomePage() {
         throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
       const connectorsData: MerchantConnector[] = await response.json();
-      
+
       setMerchantConnectors(connectorsData || []);
-      
+
       const initialToggleStates: Record<string, boolean> = {};
       const initialProcessorWiseSuccessRates: ControlsState['processorWiseSuccessRates'] = {};
       const initialProcessorIncidents: ControlsState['processorIncidents'] = {};
@@ -390,7 +397,7 @@ export default function HomePage() {
       (connectorsData || []).forEach((connector) => {
         const key = connector.merchant_connector_id || connector.connector_name;
         if (key) {
-          initialToggleStates[key] = !(connector.disabled === true); 
+          initialToggleStates[key] = !(connector.disabled === true);
           initialProcessorWiseSuccessRates[key] = { sr: 0, srDeviation: 0, volumeShare: 0, successfulPaymentCount: 0, totalPaymentCount: 0 };
           initialProcessorIncidents[key] = null;
           initialProcessorMatrix[key] = PAYMENT_METHODS.reduce((acc, method) => {
@@ -399,29 +406,29 @@ export default function HomePage() {
         }
       });
       setConnectorToggleStates(initialToggleStates);
-      
+
       setCurrentControls(prev => {
-        const base = prev ? {...prev} : {
-            totalPayments: 100, 
-            selectedPaymentMethods: [...PAYMENT_METHODS],
-            structuredRule: null, 
-            // defaultSuccessRate: 100, // Removed
-            currentBlockThresholdDurationInMins: 15, // Old field, kept for now if UI still uses it directly
-            currentBlockThresholdMaxTotalCount: 5,  // Old field, kept for now
-            minAggregatesSize: 5, // New field default
-            maxAggregatesSize: 10, // New field default
-            processorMatrix: {}, 
-            processorIncidents: {}, 
-            processorWiseSuccessRates: {},
-        } as FormValues; 
+        const base = prev ? { ...prev } : {
+          totalPayments: 100,
+          selectedPaymentMethods: [...PAYMENT_METHODS],
+          structuredRule: null,
+          // defaultSuccessRate: 100, // Removed
+          currentBlockThresholdDurationInMins: 15, // Old field, kept for now if UI still uses it directly
+          currentBlockThresholdMaxTotalCount: 5,  // Old field, kept for now
+          minAggregatesSize: 5, // New field default
+          maxAggregatesSize: 10, // New field default
+          processorMatrix: {},
+          processorIncidents: {},
+          processorWiseSuccessRates: {},
+        } as FormValues;
 
         return {
-            ...base,
-            processorWiseSuccessRates: initialProcessorWiseSuccessRates,
-            processorIncidents: initialProcessorIncidents,
-            processorMatrix: initialProcessorMatrix,
-            overallSuccessRate: base.overallSuccessRate || 0,
-            connectorWiseFailurePercentage: connectorWiseFailurePercentage,
+          ...base,
+          processorWiseSuccessRates: initialProcessorWiseSuccessRates,
+          processorIncidents: initialProcessorIncidents,
+          processorMatrix: initialProcessorMatrix,
+          overallSuccessRate: base.overallSuccessRate || 0,
+          connectorWiseFailurePercentage: connectorWiseFailurePercentage,
         };
       });
 
@@ -429,7 +436,7 @@ export default function HomePage() {
       return connectorsData || [];
     } catch (error: any) {
       console.error("Error fetching merchant connectors:", error);
-      setMerchantConnectors([]); 
+      setMerchantConnectors([]);
       setConnectorToggleStates({});
       toast({ title: "Failed to Fetch Connectors", description: error.message || "Could not retrieve connector list.", variant: "destructive" });
       return [];
@@ -467,9 +474,9 @@ export default function HomePage() {
       setConnectorToggleStates(prev => ({ ...prev, [connectorId]: originalState }));
     }
   };
-  
+
   const handleApiCredentialsSubmit = () => {
-    if (!apiKey || !profileId || !merchantId) { 
+    if (!apiKey || !profileId || !merchantId) {
       toast({ title: "API Credentials Required", description: "Please enter all API credentials.", variant: "destructive" });
       return;
     }
@@ -480,7 +487,7 @@ export default function HomePage() {
       localStorage.setItem(LOCALSTORAGE_MERCHANT_ID, merchantId);
     }
     setIsApiCredentialsModalOpen(false);
-    fetchMerchantConnectors(merchantId, apiKey); 
+    fetchMerchantConnectors(merchantId, apiKey);
   };
 
   const resetSimulationState = () => {
@@ -497,10 +504,10 @@ export default function HomePage() {
     setSummaryAttempted(false); // Reset summary attempt flag
 
     setCurrentControls(prev => {
-      if (!prev) { 
+      if (!prev) {
         return {
-          totalPayments: 1000, selectedPaymentMethods: [...PAYMENT_METHODS], processorMatrix: {}, 
-          processorIncidents: {}, overallSuccessRate: 0, processorWiseSuccessRates: {}, 
+          totalPayments: 1000, selectedPaymentMethods: [...PAYMENT_METHODS], processorMatrix: {},
+          processorIncidents: {}, overallSuccessRate: 0, processorWiseSuccessRates: {},
           structuredRule: null,
           // defaultSuccessRate: 90, // Removed
           currentBlockThresholdDurationInMins: 5, // Old field
@@ -513,9 +520,9 @@ export default function HomePage() {
       }
       const newPwsr: ControlsState['processorWiseSuccessRates'] = {};
       Object.keys(prev.processorWiseSuccessRates).forEach(procId => {
-        newPwsr[procId] = { 
-          ...(prev.processorWiseSuccessRates[procId] || { sr: 0, srDeviation: 0 }), 
-          volumeShare: 0, successfulPaymentCount: 0, totalPaymentCount: 0 
+        newPwsr[procId] = {
+          ...(prev.processorWiseSuccessRates[procId] || { sr: 0, srDeviation: 0 }),
+          volumeShare: 0, successfulPaymentCount: 0, totalPaymentCount: 0
         };
       });
       return { ...prev, overallSuccessRate: 0, processorWiseSuccessRates: newPwsr };
@@ -712,7 +719,7 @@ export default function HomePage() {
 
     if (isStoppingRef.current || simulationState !== 'running') return;
     if (isProcessingBatchRef.current) return;
-    
+
     isProcessingBatchRef.current = true;
 
     try {
@@ -721,40 +728,40 @@ export default function HomePage() {
           isStoppingRef.current = true;
           setSimulationState('paused');
           setIsApiCredentialsModalOpen(true);
-          toast({ title: "Credentials Missing", description: "Enter API Key, Profile ID, and Merchant ID.", variant: "destructive"});
+          toast({ title: "Credentials Missing", description: "Enter API Key, Profile ID, and Merchant ID.", variant: "destructive" });
         }
         return;
       }
 
       if (processedPaymentsCount >= currentControls.totalPayments) {
-          if (!isStoppingRef.current) {
-            console.log("PTB: Target reached (early check), stopping.");
-            isStoppingRef.current = true;
-            setSimulationState('idle');
-            toast({ title: "Simulation Completed", description: `All ${currentControls.totalPayments} payments processed.`, duration: 5000 });
-          }
-          return;
+        if (!isStoppingRef.current) {
+          console.log("PTB: Target reached (early check), stopping.");
+          isStoppingRef.current = true;
+          setSimulationState('idle');
+          toast({ title: "Simulation Completed", description: `All ${currentControls.totalPayments} payments processed.`, duration: 5000 });
+        }
+        return;
       }
 
       apiCallAbortControllerRef.current = new AbortController();
       const { signal } = apiCallAbortControllerRef.current;
-      
+
       // Use batch size from controls or default to 1
       const batchSize = currentControls.batchSize || 1;
       const remainingPayments = currentControls.totalPayments - processedPaymentsCount;
       const paymentsToProcessInBatch = Math.min(batchSize, remainingPayments);
-      
+
       if (paymentsToProcessInBatch <= 0) return;
-      
+
       // Create array of payment indices for this batch
       const batchIndices = Array.from({ length: paymentsToProcessInBatch }, (_, i) => processedPaymentsCount + i);
-      
+
       let paymentsProcessedThisBatch = 0;
-      
+
       try {
         // Process payments in parallel using Promise.all
         const batchResults = await Promise.all(
-          batchIndices.map(paymentIndex => 
+          batchIndices.map(paymentIndex =>
             processSinglePayment(paymentIndex, signal)
               .catch(error => {
                 if (error.name === 'AbortError') throw error;
@@ -763,15 +770,15 @@ export default function HomePage() {
               })
           )
         );
-        
+
         if (isStoppingRef.current || signal.aborted) return;
-        
+
         // Update transaction logs and statistics
         batchResults.forEach(result => {
           if (result.logEntry) {
             setTransactionLogs(prevLogs => [...prevLogs, result.logEntry!]);
           }
-          
+
           if (result.routedProcessorId) {
             if (!accumulatedProcessorStatsRef.current[result.routedProcessorId]) {
               accumulatedProcessorStatsRef.current[result.routedProcessorId] = { successful: 0, failed: 0, volumeShareRaw: 0 };
@@ -782,13 +789,13 @@ export default function HomePage() {
               accumulatedProcessorStatsRef.current[result.routedProcessorId].failed++;
             }
           }
-          
+
           if (result.isSuccess) {
             accumulatedGlobalStatsRef.current.totalSuccessful++;
           } else {
             accumulatedGlobalStatsRef.current.totalFailed++;
           }
-          
+
           paymentsProcessedThisBatch++;
         });
       } catch (error: any) {
@@ -797,95 +804,95 @@ export default function HomePage() {
           return;
         }
         console.error("Error in batch processing:", error);
-      } 
-      
-      if (paymentsProcessedThisBatch > 0) { 
-          setProcessedPaymentsCount(prev => {
-              const newTotalProcessed = prev + paymentsProcessedThisBatch;
-              if (currentControls && newTotalProcessed >= currentControls.totalPayments && !isStoppingRef.current) {
-                  console.log("PTB: Target reached in setProcessedPaymentsCount, setting to idle.");
-                  isStoppingRef.current = true; 
-                  setSimulationState('idle');
-                  toast({ title: "Simulation Completed", description: `All ${currentControls.totalPayments} payments processed.`, duration: 5000 });
-              }
-              return newTotalProcessed;
+      }
+
+      if (paymentsProcessedThisBatch > 0) {
+        setProcessedPaymentsCount(prev => {
+          const newTotalProcessed = prev + paymentsProcessedThisBatch;
+          if (currentControls && newTotalProcessed >= currentControls.totalPayments && !isStoppingRef.current) {
+            console.log("PTB: Target reached in setProcessedPaymentsCount, setting to idle.");
+            isStoppingRef.current = true;
+            setSimulationState('idle');
+            toast({ title: "Simulation Completed", description: `All ${currentControls.totalPayments} payments processed.`, duration: 5000 });
+          }
+          return newTotalProcessed;
+        });
+
+        if (currentControls) { // Update stats regardless of stopping, if payments were processed
+          const currentTime = Date.now();
+          const newSuccessRateDataPoint: TimeSeriesDataPoint = { time: currentTime };
+          const newVolumeDataPoint: TimeSeriesDataPoint = { time: currentTime };
+
+          merchantConnectors.forEach(connector => {
+            const key = connector.merchant_connector_id || connector.connector_name;
+            const stats = accumulatedProcessorStatsRef.current[key] || { successful: 0, failed: 0 };
+            const totalForProcessor = stats.successful + stats.failed;
+            newSuccessRateDataPoint[key] = totalForProcessor > 0 ? (stats.successful / totalForProcessor) * 100 : 0;
+            newVolumeDataPoint[key] = totalForProcessor;
           });
 
-          if (currentControls) { // Update stats regardless of stopping, if payments were processed
-              const currentTime = Date.now();
-              const newSuccessRateDataPoint: TimeSeriesDataPoint = { time: currentTime };
-              const newVolumeDataPoint: TimeSeriesDataPoint = { time: currentTime };
-          
-              merchantConnectors.forEach(connector => {
-                const key = connector.merchant_connector_id || connector.connector_name;
-                const stats = accumulatedProcessorStatsRef.current[key] || { successful: 0, failed: 0 };
-                const totalForProcessor = stats.successful + stats.failed;
-                newSuccessRateDataPoint[key] = totalForProcessor > 0 ? (stats.successful / totalForProcessor) * 100 : 0;
-                newVolumeDataPoint[key] = totalForProcessor;
-              });
+          setSuccessRateHistory(prev => [...prev, newSuccessRateDataPoint]);
+          setVolumeHistory(prev => [...prev, newVolumeDataPoint]);
 
-              setSuccessRateHistory(prev => [...prev, newSuccessRateDataPoint]);
-              setVolumeHistory(prev => [...prev, newVolumeDataPoint]);
+          const totalProcessedOverall = accumulatedGlobalStatsRef.current.totalSuccessful + accumulatedGlobalStatsRef.current.totalFailed;
+          const currentOverallSR = totalProcessedOverall > 0 ? (accumulatedGlobalStatsRef.current.totalSuccessful / totalProcessedOverall) * 100 : 0;
+          setOverallSuccessRateHistory(prev => [...prev, { time: currentTime, overallSR: currentOverallSR }]);
 
-              const totalProcessedOverall = accumulatedGlobalStatsRef.current.totalSuccessful + accumulatedGlobalStatsRef.current.totalFailed;
-              const currentOverallSR = totalProcessedOverall > 0 ? (accumulatedGlobalStatsRef.current.totalSuccessful / totalProcessedOverall) * 100 : 0;
-    setOverallSuccessRateHistory(prev => [...prev, { time: currentTime, overallSR: currentOverallSR }]);
-              
-    setCurrentControls(prevControls => {
-                  if (!prevControls) return prevControls;
-                  const newPwsr = { ...prevControls.processorWiseSuccessRates };
-                  let totalVolumeAcrossProcessors = 0;
-                  
-                  const allProcessorKeys = new Set([...Object.keys(newPwsr), ...merchantConnectors.map(mc => mc.merchant_connector_id || mc.connector_name), ...Object.keys(accumulatedProcessorStatsRef.current)]);
+          setCurrentControls(prevControls => {
+            if (!prevControls) return prevControls;
+            const newPwsr = { ...prevControls.processorWiseSuccessRates };
+            let totalVolumeAcrossProcessors = 0;
 
-                  allProcessorKeys.forEach(procId => {
-                      if (!newPwsr[procId]) { 
-                          const connectorInfo = merchantConnectors.find(mc => (mc.merchant_connector_id || mc.connector_name) === procId);
-                          newPwsr[procId] = { 
-                              sr: connectorInfo ? (prevControls.processorWiseSuccessRates[procId]?.sr || 0) : 0, 
-                              srDeviation: prevControls.processorWiseSuccessRates[procId]?.srDeviation || 0, 
-                              volumeShare: 0, successfulPaymentCount: 0, totalPaymentCount: 0
-                          }; 
-                      }
-                      const stats = accumulatedProcessorStatsRef.current[procId] || { successful: 0, failed: 0 };
-                      totalVolumeAcrossProcessors += (stats.successful + stats.failed);
-                  });
+            const allProcessorKeys = new Set([...Object.keys(newPwsr), ...merchantConnectors.map(mc => mc.merchant_connector_id || mc.connector_name), ...Object.keys(accumulatedProcessorStatsRef.current)]);
 
-                  allProcessorKeys.forEach(procId => {
-                      const currentProcessorStats = accumulatedProcessorStatsRef.current[procId] || { successful: 0, failed: 0 };
-                      const currentTotalForProcessor = currentProcessorStats.successful + currentProcessorStats.failed;
-                      newPwsr[procId] = {
-                          ...(newPwsr[procId] || { sr:0, srDeviation:0, volumeShare:0, successfulPaymentCount:0, totalPaymentCount:0 }),
-                          successfulPaymentCount: currentProcessorStats.successful,
-                          totalPaymentCount: currentTotalForProcessor,
-                          volumeShare: totalVolumeAcrossProcessors > 0 ? (currentTotalForProcessor / totalVolumeAcrossProcessors) * 100 : 0,
-                      };
-                  });
-                  return { ...prevControls, processorWiseSuccessRates: newPwsr, overallSuccessRate: currentOverallSR };
-              });
-          }
+            allProcessorKeys.forEach(procId => {
+              if (!newPwsr[procId]) {
+                const connectorInfo = merchantConnectors.find(mc => (mc.merchant_connector_id || mc.connector_name) === procId);
+                newPwsr[procId] = {
+                  sr: connectorInfo ? (prevControls.processorWiseSuccessRates[procId]?.sr || 0) : 0,
+                  srDeviation: prevControls.processorWiseSuccessRates[procId]?.srDeviation || 0,
+                  volumeShare: 0, successfulPaymentCount: 0, totalPaymentCount: 0
+                };
+              }
+              const stats = accumulatedProcessorStatsRef.current[procId] || { successful: 0, failed: 0 };
+              totalVolumeAcrossProcessors += (stats.successful + stats.failed);
+            });
+
+            allProcessorKeys.forEach(procId => {
+              const currentProcessorStats = accumulatedProcessorStatsRef.current[procId] || { successful: 0, failed: 0 };
+              const currentTotalForProcessor = currentProcessorStats.successful + currentProcessorStats.failed;
+              newPwsr[procId] = {
+                ...(newPwsr[procId] || { sr: 0, srDeviation: 0, volumeShare: 0, successfulPaymentCount: 0, totalPaymentCount: 0 }),
+                successfulPaymentCount: currentProcessorStats.successful,
+                totalPaymentCount: currentTotalForProcessor,
+                volumeShare: totalVolumeAcrossProcessors > 0 ? (currentTotalForProcessor / totalVolumeAcrossProcessors) * 100 : 0,
+              };
+            });
+            return { ...prevControls, processorWiseSuccessRates: newPwsr, overallSuccessRate: currentOverallSR };
+          });
+        }
       }
-    } catch (error) { 
-        console.error("Unexpected error in processTransactionBatch:", error);
-    } finally { 
-        isProcessingBatchRef.current = false;
-        console.log("PTB EXIT: isProcessingBatchRef set to false.");
+    } catch (error) {
+      console.error("Unexpected error in processTransactionBatch:", error);
+    } finally {
+      isProcessingBatchRef.current = false;
+      console.log("PTB EXIT: isProcessingBatchRef set to false.");
     }
   }, [
     currentControls, simulationState, apiKey, profileId, merchantId, merchantConnectors, connectorToggleStates,
-    processedPaymentsCount, setProcessedPaymentsCount, setSuccessRateHistory, setVolumeHistory, 
-    setOverallSuccessRateHistory, setSimulationState, setCurrentControls, toast, 
+    processedPaymentsCount, setProcessedPaymentsCount, setSuccessRateHistory, setVolumeHistory,
+    setOverallSuccessRateHistory, setSimulationState, setCurrentControls, toast,
     fetchSuccessRateAndSelectConnector, updateSuccessRateWindow // Added dependencies
   ]);
 
   useEffect(() => {
-    if (simulationState === 'running' && !isProcessingBatchRef.current && processedPaymentsCount < (currentControls?.totalPayments || 0) ) {
+    if (simulationState === 'running' && !isProcessingBatchRef.current && processedPaymentsCount < (currentControls?.totalPayments || 0)) {
       simulationIntervalRef.current = setInterval(() => {
         if (!isProcessingBatchRef.current && processedPaymentsCount < (currentControls?.totalPayments || 0) && simulationState === 'running' && !isStoppingRef.current) {
-             processTransactionBatch();
+          processTransactionBatch();
         } else if (simulationIntervalRef.current && (processedPaymentsCount >= (currentControls?.totalPayments || 0) || simulationState !== 'running' || isStoppingRef.current)) {
-            clearInterval(simulationIntervalRef.current);
-            simulationIntervalRef.current = null;
+          clearInterval(simulationIntervalRef.current);
+          simulationIntervalRef.current = null;
         }
       }, SIMULATION_INTERVAL_MS);
     } else {
@@ -908,11 +915,11 @@ export default function HomePage() {
     const previousSimulationState = simulationState; // Capture state before any changes
     console.log(`handleStartSimulation called. Current state: ${previousSimulationState}, forceStart: ${forceStart}`);
 
-    if (!apiKey || !profileId || !merchantId) { 
+    if (!apiKey || !profileId || !merchantId) {
       setIsApiCredentialsModalOpen(true);
       return;
     }
-    
+
     if (forceStart || merchantConnectors.length === 0) {
       const connectors = await fetchMerchantConnectors(merchantId, apiKey);
       if (connectors.length === 0 && !forceStart) {
@@ -920,33 +927,33 @@ export default function HomePage() {
         return;
       }
     }
-    
+
     if (!currentControls && merchantConnectors.length > 0) {
-        const initialPwsr: ControlsState['processorWiseSuccessRates'] = {};
-        const initialPi: ControlsState['processorIncidents'] = {};
-        const initialPm: FormValues['processorMatrix'] = {};
-        merchantConnectors.forEach(c => {
-            const key = c.merchant_connector_id || c.connector_name;
-            initialPwsr[key] = { sr: 0, srDeviation: 0, volumeShare: 0, successfulPaymentCount: 0, totalPaymentCount: 0 };
-            initialPi[key] = null;
-            initialPm[key] = PAYMENT_METHODS.reduce((acc, m) => { acc[m] = false; return acc; }, {} as Record<PaymentMethod, boolean>);
-        });
-        setCurrentControls({
-            totalPayments: 1000, selectedPaymentMethods: [...PAYMENT_METHODS], processorMatrix: initialPm, 
-            structuredRule: null, processorIncidents: initialPi, overallSuccessRate: 0,
-            processorWiseSuccessRates: initialPwsr,
-            // defaultSuccessRate: 90, // Removed
-            currentBlockThresholdDurationInMins: 5, // Old field
-            currentBlockThresholdMaxTotalCount: 10, // Old field
-            minAggregatesSize: 5, // New field default
-            maxAggregatesSize: 10, // New field default
-            numberOfBatches: 100, // New batch processing field
-            batchSize: 10, // New batch processing field
-            connectorWiseFailurePercentage: {}, // Initialize empty
-        });
+      const initialPwsr: ControlsState['processorWiseSuccessRates'] = {};
+      const initialPi: ControlsState['processorIncidents'] = {};
+      const initialPm: FormValues['processorMatrix'] = {};
+      merchantConnectors.forEach(c => {
+        const key = c.merchant_connector_id || c.connector_name;
+        initialPwsr[key] = { sr: 0, srDeviation: 0, volumeShare: 0, successfulPaymentCount: 0, totalPaymentCount: 0 };
+        initialPi[key] = null;
+        initialPm[key] = PAYMENT_METHODS.reduce((acc, m) => { acc[m] = false; return acc; }, {} as Record<PaymentMethod, boolean>);
+      });
+      setCurrentControls({
+        totalPayments: 1000, selectedPaymentMethods: [...PAYMENT_METHODS], processorMatrix: initialPm,
+        structuredRule: null, processorIncidents: initialPi, overallSuccessRate: 0,
+        processorWiseSuccessRates: initialPwsr,
+        // defaultSuccessRate: 90, // Removed
+        currentBlockThresholdDurationInMins: 5, // Old field
+        currentBlockThresholdMaxTotalCount: 10, // Old field
+        minAggregatesSize: 5, // New field default
+        maxAggregatesSize: 10, // New field default
+        numberOfBatches: 100, // New batch processing field
+        batchSize: 10, // New batch processing field
+        connectorWiseFailurePercentage: {}, // Initialize empty
+      });
     } else if (!currentControls) {
-         toast({ title: "Error", description: "Control data not available.", variant: "destructive" });
-         return;
+      toast({ title: "Error", description: "Control data not available.", variant: "destructive" });
+      return;
     }
 
     if (previousSimulationState === 'idle' || forceStart) {
@@ -955,9 +962,9 @@ export default function HomePage() {
     } else {
       console.log("Not resetting simulation state (resuming or already running).");
     }
-    
-    isStoppingRef.current = false; 
-    isProcessingBatchRef.current = false; 
+
+    isStoppingRef.current = false;
+    isProcessingBatchRef.current = false;
     setSimulationState('running');
     // Use previousSimulationState for the toast message to accurately reflect the action taken
     toast({ title: `Simulation ${previousSimulationState === 'idle' || forceStart ? 'Started' : 'Resumed'}`, description: `Processing ${currentControls?.totalPayments || 0} payments.` });
@@ -965,7 +972,7 @@ export default function HomePage() {
 
   const handlePauseSimulation = useCallback(() => {
     if (simulationState === 'running') {
-      isStoppingRef.current = true; 
+      isStoppingRef.current = true;
       setSimulationState('paused');
       if (apiCallAbortControllerRef.current) apiCallAbortControllerRef.current.abort();
       toast({ title: "Simulation Paused" });
@@ -1010,7 +1017,7 @@ export default function HomePage() {
         simulationDurationSteps: overallSuccessRateHistory.length,
         transactionLogs: transactionLogs, // Added the transactionLogs
       };
-      
+
       const result: AISummaryOutput = await summarizeSimulation(summaryInput); // Pass only summaryInput
       setSummaryText(result.summaryText);
     } catch (error: any) {
@@ -1033,7 +1040,7 @@ export default function HomePage() {
       }
     }
   }, [simulationState, processedPaymentsCount, toast, transactionLogs, handleRequestAiSummary]);
-  
+
   // Effect to trigger summary when simulation completes naturally
   useEffect(() => {
     if (
@@ -1044,15 +1051,15 @@ export default function HomePage() {
       transactionLogs.length > 0 &&
       !summaryAttempted // Only attempt if not already attempted for this run
     ) {
-       handleRequestAiSummary();
+      handleRequestAiSummary();
     }
   }, [
-      simulationState, 
-      processedPaymentsCount, 
-      currentControls, 
-      transactionLogs, 
-      handleRequestAiSummary, 
-      summaryAttempted // Add new dependency
+    simulationState,
+    processedPaymentsCount,
+    currentControls,
+    transactionLogs,
+    handleRequestAiSummary,
+    summaryAttempted // Add new dependency
   ]);
 
 
@@ -1062,43 +1069,91 @@ export default function HomePage() {
   return (
     <>
       <AppLayout>
-        <Tabs defaultValue="stats" value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-grow overflow-hidden">
-          <Header
-            activeTab={activeTab} onTabChange={setActiveTab}
-            onStartSimulation={handleStartSimulation} onPauseSimulation={handlePauseSimulation}
-            onStopSimulation={handleStopSimulation} simulationState={simulationState}
+        <Header
+          activeTab={activeTab} onTabChange={setActiveTab}
+          onStartSimulation={handleStartSimulation} onPauseSimulation={handlePauseSimulation}
+          onStopSimulation={handleStopSimulation} simulationState={simulationState}
+        />
+        <div className="flex flex-row flex-grow overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
+          {/* Mini Sidebar */}
+          <MiniSidebar
+            activeSection={activeSection}
+            onSectionChange={(section) => {
+              setActiveSection(section);
+              setSidebarCollapsed(false); // Always expand when a section is selected
+            }}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
           />
-          {/* Main content area split into two columns: Left for Tabs (Stats/Analytics), Right for Logs */}
-          <div className="flex flex-row flex-grow min-h-0 overflow-hidden"> {/* Added overflow-hidden */}
-            {/* Left Pane: Existing Tabs Content */}
-            <div className="w-2/3 flex flex-col overflow-hidden p-0 min-h-0"> {/* Added min-h-0 */}
-              <TabsContent value="stats" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
-                <ScrollArea className="h-full">
-                  <div className="p-2 md:p-4 lg:p-6">
-                    <StatsView
-                      currentControls={currentControls} merchantConnectors={merchantConnectors} 
-                      processedPayments={processedPaymentsCount}
-                      totalSuccessful={accumulatedGlobalStatsRef.current.totalSuccessful}
-                      totalFailed={accumulatedGlobalStatsRef.current.totalFailed}
-                      overallSuccessRateHistory={overallSuccessRateHistory}
-                    />
-                  </div>
-                </ScrollArea>
-              </TabsContent>
-              <TabsContent value="analytics" className="h-full mt-0 data-[state=active]:flex data-[state=active]:flex-col">
-                <ScrollArea className="h-full">
-                  <div className="p-2 md:p-4 lg:p-6">
-                    <AnalyticsGraphsView
-                      successRateHistory={successRateHistory} volumeHistory={volumeHistory}
-                      merchantConnectors={merchantConnectors} connectorToggleStates={connectorToggleStates}
-                    />
-                  </div>
-                </ScrollArea>
-              </TabsContent>
+          {/* Main Sidebar for selected section, only if not collapsed */}
+          {!sidebarCollapsed && (
+            <div className="flex flex-col h-full">
+              <BottomControlsPanel
+                onFormChange={handleControlsChange} merchantConnectors={merchantConnectors}
+                connectorToggleStates={connectorToggleStates} onConnectorToggleChange={handleConnectorToggleChange}
+                apiKey={apiKey} profileId={profileId} merchantId={merchantId}
+                collapsed={sidebarCollapsed}
+                onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
+                activeTab={activeSection}
+              />
             </div>
-
+          )}
+          {/* Main and Logs with draggable splitter */}
+          {/** @ts-expect-error SplitPane children typing workaround */}
+          <SplitPane
+            split="vertical"
+            minSize={340}
+            defaultSize={340}
+            primary="second"
+            maxSize={typeof window !== 'undefined' ? window.innerWidth - 400 : undefined}
+            onChange={size => setMainPaneSize(typeof size === 'number' ? `${size}px` : size)}
+            style={{ position: 'relative', height: '100%', flex: 1 }}
+          >
+            <div className="flex flex-col overflow-hidden h-full">
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
+                <div className="flex items-center justify-start p-4 pb-0">
+                  <TabsList>
+                    <TabsTrigger value="stats">
+                      <svg className="mr-2 h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /></svg>
+                      Stats
+                    </TabsTrigger>
+                    <TabsTrigger value="analytics">
+                      <svg className="mr-2 h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8" /><path d="M14 7h7v7" /></svg>
+                      Analytics
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
+                <TabsContent value="stats" className="flex-1 h-full">
+                  <ScrollArea className="h-full">
+                    <div className="p-2 md:p-4 lg:p-6">
+                      <div className="bg-white dark:bg-card border border-gray-200 dark:border-border rounded-xl shadow-sm p-6 mb-6">
+                        <StatsView
+                          currentControls={currentControls} merchantConnectors={merchantConnectors}
+                          processedPayments={processedPaymentsCount}
+                          totalSuccessful={accumulatedGlobalStatsRef.current.totalSuccessful}
+                          totalFailed={accumulatedGlobalStatsRef.current.totalFailed}
+                          overallSuccessRateHistory={overallSuccessRateHistory}
+                        />
+                      </div>
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+                <TabsContent value="analytics" className="flex-1 h-full">
+                  <ScrollArea className="h-full">
+                    <div className="p-2 md:p-4 lg:p-6">
+                      <div className="bg-white dark:bg-card border border-gray-200 dark:border-border rounded-xl shadow-sm p-6 mb-6">
+                        <AnalyticsGraphsView
+                          successRateHistory={successRateHistory} volumeHistory={volumeHistory}
+                          merchantConnectors={merchantConnectors} connectorToggleStates={connectorToggleStates}
+                        />
+                      </div>
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+              </Tabs>
+            </div>
             {/* Right Pane: New Static Logs View */}
-            <div className="w-1/3 flex flex-col overflow-hidden min-h-0 border-l p-2 md:p-4 lg:p-6">
+            <div className="flex flex-col overflow-hidden min-h-0 border-l p-2 md:p-4 lg:p-6">
               <h2 className="text-lg font-semibold mb-2 flex-shrink-0">Transaction Logs</h2>
               {/* ScrollArea takes remaining space and scrolls internally */}
               <ScrollArea className="flex-grow min-h-0">
@@ -1142,21 +1197,16 @@ export default function HomePage() {
                 )}
               </ScrollArea>
             </div>
-          </div>
-        </Tabs>
+          </SplitPane>
+        </div>
       </AppLayout>
-      <BottomControlsPanel
-        onFormChange={handleControlsChange} merchantConnectors={merchantConnectors}
-        connectorToggleStates={connectorToggleStates} onConnectorToggleChange={handleConnectorToggleChange}
-        apiKey={apiKey} profileId={profileId} merchantId={merchantId}
-      />
       <Dialog open={isApiCredentialsModalOpen} onOpenChange={setIsApiCredentialsModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>API Credentials</DialogTitle></DialogHeader>
           <div className="py-4 space-y-4">
             <div><Label htmlFor="apiKey">API Key</Label><Input id="apiKey" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="Enter API Key" /></div>
-            <div><Label htmlFor="profileId">Profile ID</Label><Input id="profileId" type="text" value={profileId} onChange={(e) => setProfileId(e.target.value)} placeholder="Enter Profile ID"/></div>
-            <div><Label htmlFor="merchantId">Merchant ID</Label><Input id="merchantId" type="text" value={merchantId} onChange={(e) => setMerchantId(e.target.value)} placeholder="Enter Merchant ID"/></div>
+            <div><Label htmlFor="profileId">Profile ID</Label><Input id="profileId" type="text" value={profileId} onChange={(e) => setProfileId(e.target.value)} placeholder="Enter Profile ID" /></div>
+            <div><Label htmlFor="merchantId">Merchant ID</Label><Input id="merchantId" type="text" value={merchantId} onChange={(e) => setMerchantId(e.target.value)} placeholder="Enter Merchant ID" /></div>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setIsApiCredentialsModalOpen(false)}>Cancel</Button>

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Text } from 'recharts';
@@ -18,7 +17,7 @@ const chartColorKeys = ['--chart-1', '--chart-2', '--chart-3', '--chart-4', '--c
 const CustomTooltip = ({ active, payload, label, merchantConnectors }: any) => { 
   if (active && payload && payload.length) {
     return (
-      <div className="p-3 bg-popover border border-border rounded-lg shadow-xl text-popover-foreground text-xs">
+      <div className="p-3 bg-popover border border-border rounded-lg shadow-xs text-popover-foreground text-xs">
         <p className="mb-2 font-semibold text-sm">Time: {label}</p>
         {payload.map((pld: any, index: number) => {
           // pld.name is the processorId (dataKey). We need to resolve it to connector_label.
@@ -46,12 +45,12 @@ const CustomTooltip = ({ active, payload, label, merchantConnectors }: any) => {
 export function SuccessRateOverTimeChart({ data, merchantConnectors, connectorToggleStates }: SuccessRateOverTimeChartProps) {
   if (!data || data.length === 0) {
     return (
-      <Card className="shadow-md">
-        <CardHeader>
+      <Card className="shadow-sm">
+        <CardHeader className="p-6">
           <CardTitle className="flex items-center"><LineChart className="mr-2 h-5 w-5 text-primary" /> Success Rate Over Time</CardTitle>
           <CardDescription>Processor success rates as the simulation progresses.</CardDescription>
         </CardHeader>
-        <CardContent className="h-[300px] flex items-center justify-center">
+        <CardContent className="h-[300px] flex items-center justify-center p-6">
           <p className="text-muted-foreground">No success rate data available yet. Run a simulation.</p>
         </CardContent>
       </Card>
@@ -59,12 +58,12 @@ export function SuccessRateOverTimeChart({ data, merchantConnectors, connectorTo
   }
 
   return (
-    <Card className="shadow-md">
-      <CardHeader>
+    <Card className="shadow-sm">
+      <CardHeader className="p-6">
         <CardTitle className="flex items-center"><LineChart className="mr-2 h-5 w-5 text-primary" /> Success Rate Over Time</CardTitle>
-        <CardDescription>Processor success rates (%) as the simulation progresses.</CardDescription>
+        <CardDescription>Processor success rates as the simulation progresses.</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-6">
         <ResponsiveContainer width="100%" height={300}>
           <AreaChart data={data} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />

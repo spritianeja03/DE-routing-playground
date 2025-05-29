@@ -16,12 +16,12 @@ interface ProcessorSuccessRatesTableProps {
 
 export function ProcessorSuccessRatesTable({ data }: ProcessorSuccessRatesTableProps) {
   return (
-    <Card className="shadow-lg">
-      <CardHeader>
+    <Card>
+      <CardHeader className="pt-6 pl-6 pr-6">
         <CardTitle className="flex items-center"><BarChart3 className="mr-2 h-6 w-6 text-primary" /> Processor-wise Stats</CardTitle>
         <CardDescription>Success rate, successful payments, and total payments per processor.</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-6">
         <Table>
           <TableHeader>
             <TableRow>
