@@ -766,7 +766,7 @@ export function BottomControlsPanel({
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4 pt-4">
-                    {(merchantConnectors || []).map((connector) => {
+                    {(merchantConnectors || []).filter(connector => connector.disabled == false).map((connector) => {
                       const connectorId = connector.connector_name; // Use connector_name as the key
                       // const connectorDisplayName = connector.connector_label || connector.connector_name; // Use connector_name directly
                       // Watch the specific field for its current value to display in the label
