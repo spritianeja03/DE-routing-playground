@@ -11,7 +11,7 @@ import { StatsView } from '@/components/StatsView';
 import { AnalyticsGraphsView } from '@/components/AnalyticsGraphsView';
 // import { ProcessorsTabView } from '@/components/ProcessorsTabView'; // Tab removed
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'; // Added DialogDescription
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react'; // AI Summary Re-added
 import ReactMarkdown from 'react-markdown';
@@ -28,6 +28,7 @@ const SIMULATION_INTERVAL_MS = 50; // Interval between individual payment proces
 const LOCALSTORAGE_API_KEY = 'hyperswitch_apiKey';
 const LOCALSTORAGE_PROFILE_ID = 'hyperswitch_profileId';
 const LOCALSTORAGE_MERCHANT_ID = 'hyperswitch_merchantId';
+const LOCALSTORAGE_GEMINI_API_KEY = 'hyperswitch_geminiApiKey'; // New localStorage key
 
 // Type for the outcome of a single payment processing attempt
 interface SinglePaymentOutcome {
@@ -85,6 +86,9 @@ export default function HomePage() {
   const [isSummarizing, setIsSummarizing] = useState<boolean>(false);
   const [summaryAttempted, setSummaryAttempted] = useState<boolean>(false); // New state
 
+  const [geminiApiKey, setGeminiApiKey] = useState<string>('');
+  const [isGeminiApiKeyModalOpen, setIsGeminiApiKeyModalOpen] = useState<boolean>(false);
+
   const { toast } = useToast();
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -98,8 +102,15 @@ export default function HomePage() {
       const storedApiKey = localStorage.getItem(LOCALSTORAGE_API_KEY);
       const storedProfileId = localStorage.getItem(LOCALSTORAGE_PROFILE_ID);
       const storedMerchantId = localStorage.getItem(LOCALSTORAGE_MERCHANT_ID);
+      const storedGeminiApiKey = localStorage.getItem(LOCALSTORAGE_GEMINI_API_KEY);
 
       let allCredentialsFound = true; // Initialize here
+
+      if (storedGeminiApiKey) {
+        setGeminiApiKey(storedGeminiApiKey);
+      }
+      // We don't gate app functionality on Gemini key at startup, 
+      // only prompt when summary is requested.
 
       if (storedApiKey) {
         setApiKey(storedApiKey);
@@ -549,6 +560,11 @@ export default function HomePage() {
 
     const paymentMethodForAPI = "card";
 
+    // Determine initial card details (will be overridden if SBR selects a connector)
+    // Pass "" initially as connectorName, so it uses global fallbacks if SBR is off or no connector is chosen
+    let cardDetailsForPayment = getCarddetailsForPayment(currentControls, "");
+
+
     const paymentData = {
       amount: 6540,
       currency: "USD",
@@ -566,7 +582,7 @@ export default function HomePage() {
       payment_method: paymentMethodForAPI,
       payment_method_type: "credit",
       payment_method_data: {
-        card: getCarddetailsForPayment(currentControls, ""),
+        card: cardDetailsForPayment, // Use the determined card details
         billing: {
           address: {
             line1: "1467",
@@ -699,20 +715,46 @@ export default function HomePage() {
   const getCarddetailsForPayment = (currentControls: FormValues, connectorNameToUse: string): any => {
     let cardDetailsToUse;
     const randomNumber = Math.random() * 100;
-    let currentFailurePercentage = currentControls.connectorWiseFailurePercentage?.[connectorNameToUse] || -1;
-    console.log(`[FR]: Random number: ${randomNumber}, Current failure percentage for ${connectorNameToUse}: ${currentFailurePercentage}`);
-    if (randomNumber < currentFailurePercentage) {
+    
+    // Determine failure percentage: connector-specific first, then fallback (though -1 implies global won't be used directly here)
+    // The logic is: if connectorNameToUse is provided, use its specific failure rate.
+    // If connectorNameToUse is empty (e.g. SBR off, or no connector chosen by SBR), this implies a scenario
+    // where a global failure rate might apply, but the current structure of connectorWiseFailurePercentage
+    // means we'd need a global entry or a different mechanism for a truly global failure rate not tied to a connector.
+    // For now, if connectorNameToUse is empty, it will effectively use a 0% failure rate unless a global default is explicitly set.
+    // A more robust global fallback for failure percentage might be needed if that's a desired scenario.
+    const failurePercentageForConnector = currentControls.connectorWiseFailurePercentage?.[connectorNameToUse];
+    // If no specific connector is provided, or no specific failure rate is set for it, we might default to 0 or a global setting.
+    // For this implementation, if connectorNameToUse is empty or not in the map, failurePercentageForConnector will be undefined.
+    // We'll treat undefined as "use success card" unless a global failure rate is explicitly defined and used.
+    // The original code used -1 which effectively meant "always success" if no connector was matched.
+    // Let's make it explicit: if no connector name, or no failure % for it, assume 0% failure for card selection.
+    const effectiveFailurePercentage = typeof failurePercentageForConnector === 'number' ? failurePercentageForConnector : 0;
+
+    console.log(`[FR]: Connector: '${connectorNameToUse || 'GLOBAL/NONE'}', Random: ${randomNumber.toFixed(2)}, Effective Fail Rate: ${effectiveFailurePercentage}%`);
+
+    const connectorCards = currentControls.connectorWiseTestCards?.[connectorNameToUse];
+
+    if (randomNumber < effectiveFailurePercentage) {
+      // Use failure card: connector-specific if available, else hardcoded fallback
       cardDetailsToUse = {
-        card_number: currentControls.failureCardNumber || "4000000000000000", card_exp_month: currentControls.failureCardExpMonth || "12",
-        card_exp_year: currentControls.failureCardExpYear || "26", card_holder_name: currentControls.failureCardHolderName || "Jane Roe",
-        card_cvc: currentControls.failureCardCvc || "999",
+        card_number: connectorCards?.failureCard?.cardNumber || "4000000000000002",
+        card_exp_month: connectorCards?.failureCard?.expMonth || "12",
+        card_exp_year: connectorCards?.failureCard?.expYear || "26",
+        card_holder_name: connectorCards?.failureCard?.holderName || "Jane Roe",
+        card_cvc: connectorCards?.failureCard?.cvc || "999",
       };
+      console.log(`[FR]: Using FAILURE card for ${connectorNameToUse || 'NONE (defaulting to hardcoded failure)'}`);
     } else {
+      // Use success card: connector-specific if available, else hardcoded fallback
       cardDetailsToUse = {
-        card_number: currentControls.successCardNumber || "4242424242424242", card_exp_month: currentControls.successCardExpMonth || "10",
-        card_exp_year: currentControls.successCardExpYear || "25", card_holder_name: currentControls.successCardHolderName || "Joseph Doe",
-        card_cvc: currentControls.successCardCvc || "123",
+        card_number: connectorCards?.successCard?.cardNumber || "4242424242424242",
+        card_exp_month: connectorCards?.successCard?.expMonth || "10",
+        card_exp_year: connectorCards?.successCard?.expYear || "25",
+        card_holder_name: connectorCards?.successCard?.holderName || "Joseph Doe",
+        card_cvc: connectorCards?.successCard?.cvc || "123",
       };
+      console.log(`[FR]: Using SUCCESS card for ${connectorNameToUse || 'NONE (defaulting to hardcoded success)'}`);
     }
     return cardDetailsToUse;
   };
@@ -1004,17 +1046,27 @@ export default function HomePage() {
       return;
     }
     if (transactionLogs.length === 0) {
-      toast({ title: "No Data", description: "No transactions logged to summarize." }); // Removed variant: "info"
+      toast({ title: "No Data", description: "No transactions logged to summarize." });
+      return;
+    }
+
+    if (!geminiApiKey) {
+      toast({ title: "Gemini API Key Required", description: "Please enter your Gemini API key to generate the summary.", variant: "default" });
+      setIsGeminiApiKeyModalOpen(true);
       return;
     }
 
     setIsSummaryModalOpen(true);
     setIsSummarizing(true);
     setSummaryText('');
-    setSummaryAttempted(true); // Mark that summary has been attempted/shown for this run
+    setSummaryAttempted(true); 
 
     try {
       // Prepare the input for the Genkit flow
+      // Note: The Genkit flow `summarizeSimulation` is assumed to use an environment variable 
+      // for the Gemini API key (e.g., GOOGLE_GENAI_API_KEY or GEMINI_API_KEY)
+      // as per standard Genkit plugin configuration. We are not passing the key directly here.
+      // The purpose of collecting it is for user awareness and potential future direct use if needed.
       // This will be refined once AISummaryInput is updated to accept raw logs
       const summaryInput: AISummaryInput = {
         totalPaymentsProcessed: processedPaymentsCount,
@@ -1232,6 +1284,43 @@ export default function HomePage() {
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setIsApiCredentialsModalOpen(false)}>Cancel</Button>
             <Button type="button" onClick={handleApiCredentialsSubmit}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Gemini API Key Modal */}
+      <Dialog open={isGeminiApiKeyModalOpen} onOpenChange={setIsGeminiApiKeyModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Gemini API Key</DialogTitle>
+            <DialogDescription>
+              Please enter your Gemini API key to generate the simulation summary. 
+              The key will be stored in your browser's local storage.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-2">
+            <Label htmlFor="geminiApiKeyInput">Gemini API Key</Label>
+            <Input 
+              id="geminiApiKeyInput" 
+              type="password" 
+              value={geminiApiKey} 
+              onChange={(e) => setGeminiApiKey(e.target.value)} 
+              placeholder="Enter Gemini API Key" 
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsGeminiApiKeyModalOpen(false)}>Cancel</Button>
+            <Button type="button" onClick={() => {
+              if (geminiApiKey) {
+                localStorage.setItem(LOCALSTORAGE_GEMINI_API_KEY, geminiApiKey);
+                setIsGeminiApiKeyModalOpen(false);
+                toast({ title: "Gemini API Key Saved", description: "You can now try generating the summary again." });
+                // Optionally, automatically re-trigger summary generation:
+                // handleRequestAiSummary(); 
+              } else {
+                toast({ title: "Error", description: "Please enter a Gemini API key.", variant: "destructive"});
+              }
+            }}>Save & Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
