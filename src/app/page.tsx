@@ -84,6 +84,11 @@ export default function HomePage() {
 
   const [activeSection, setActiveSection] = useState('general');
 
+  // Top-level tab: 'intelligent-routing' or 'least-cost-routing'
+  const [parentTab, setParentTab] = useState<'intelligent-routing' | 'least-cost-routing'>('intelligent-routing');
+  // Content tab: 'stats' or 'analytics', always reset to 'stats' when parentTab changes
+  const [contentTab, setContentTab] = useState<'stats' | 'analytics'>('stats');
+
   useEffect(() => {
     // Load credentials from localStorage on initial mount
     if (typeof window !== 'undefined') {
@@ -123,6 +128,9 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run once on mount
 
+  useEffect(() => {
+    setContentTab('stats');
+  }, [parentTab]);
 
   // Function to fetch success rates and select the best connector
   const fetchSuccessRateAndSelectConnector = useCallback(async (
@@ -1042,144 +1050,142 @@ export default function HomePage() {
     summaryAttempted // Add new dependency
   ]);
 
-
-  const [activeTab, _setActiveTab] = useState("stats");
-  const setActiveTab = (newTab: string) => _setActiveTab(newTab);
-
   return (
     <>
       <AppLayout>
-        <Header
-          activeTab={activeTab} onTabChange={setActiveTab}
-          onStartSimulation={handleStartSimulation} onPauseSimulation={handlePauseSimulation}
-          onStopSimulation={handleStopSimulation} simulationState={simulationState}
-        />
-        <div className="flex flex-row flex-grow overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
-          {/* Mini Sidebar */}
-          <MiniSidebar
-            activeSection={activeSection}
-            onSectionChange={(section) => {
-              setActiveSection(section);
-              setSidebarCollapsed(false); // Always expand when a section is selected
-            }}
-            collapsed={sidebarCollapsed}
-            onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
+        <div className={parentTab === 'least-cost-routing' ? 'theme-least-cost' : 'theme-intelligent'}>
+          <Header
+            activeTab={parentTab}
+            onTabChange={tab => setParentTab(tab as 'intelligent-routing' | 'least-cost-routing')}
+            onStartSimulation={handleStartSimulation} onPauseSimulation={handlePauseSimulation}
+            onStopSimulation={handleStopSimulation} simulationState={simulationState}
           />
-          {/* Main Sidebar for selected section, only if not collapsed */}
-          {!sidebarCollapsed && (
-            <div className="flex flex-col h-full overflow-y-auto"> {/* Changed to overflow-y-auto */}
-              <BottomControlsPanel
-                onFormChange={handleControlsChange} merchantConnectors={merchantConnectors}
-                connectorToggleStates={connectorToggleStates} onConnectorToggleChange={handleConnectorToggleChange}
-                apiKey={apiKey} profileId={profileId} merchantId={merchantId}
-                collapsed={sidebarCollapsed}
-                onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
-                activeTab={activeSection}
-              />
-            </div>
-          )}
-          {/* Main and Logs with draggable splitter */}
-          {/** @ts-expect-error SplitPane children typing workaround */}
-          <SplitPane
-            split="vertical"
-            minSize={340}
-            defaultSize={340}
-            primary="second"
-            maxSize={typeof window !== 'undefined' ? window.innerWidth - 400 : undefined}
-            onChange={size => setMainPaneSize(typeof size === 'number' ? `${size}px` : size)}
-            style={{ position: 'relative', height: '100%', flex: 1 }}
+          <div
+            className={`flex flex-row flex-grow overflow-hidden`}
+            style={{ height: 'calc(100vh - 64px)' }}
           >
-            <div className="flex flex-col overflow-hidden h-full">
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
-                <div className="flex items-center justify-start p-4 pb-0">
-                  <TabsList>
-                    <TabsTrigger value="stats">
-                      <svg className="mr-2 h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /></svg>
-                      Stats
-                    </TabsTrigger>
-                    <TabsTrigger value="analytics">
-                      <svg className="mr-2 h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8" /><path d="M14 7h7v7" /></svg>
-                      Analytics
-                    </TabsTrigger>
-                  </TabsList>
-                </div>
-                <TabsContent value="stats" className="flex-1 h-full">
-                  <ScrollArea className="h-full">
-                    <div className="p-2 md:p-4 lg:p-6">
-                      <div className="bg-white dark:bg-card border border-gray-200 dark:border-border rounded-xl shadow-sm p-6 mb-6">
-                        <StatsView
-                          currentControls={currentControls} merchantConnectors={merchantConnectors}
-                          processedPayments={processedPaymentsCount}
-                          totalSuccessful={accumulatedGlobalStatsRef.current.totalSuccessful}
-                          totalFailed={accumulatedGlobalStatsRef.current.totalFailed}
-                          overallSuccessRateHistory={overallSuccessRateHistory}
-                        />
-                      </div>
-                    </div>
-                  </ScrollArea>
-                </TabsContent>
-                <TabsContent value="analytics" className="flex-1 h-full">
-                  <ScrollArea className="h-full">
-                    <div className="p-2 md:p-4 lg:p-6">
-                      <div className="bg-white dark:bg-card border border-gray-200 dark:border-border rounded-xl shadow-sm p-6 mb-6">
-                        <AnalyticsGraphsView
-                          successRateHistory={successRateHistory} volumeHistory={volumeHistory}
-                          merchantConnectors={merchantConnectors} connectorToggleStates={connectorToggleStates}
-                        />
-                      </div>
-                    </div>
-                  </ScrollArea>
-                </TabsContent>
-              </Tabs>
-            </div>
-            {/* Right Pane: New Static Logs View */}
-            <div className=" flex flex-col h-full min-h-0 border-l p-2 md:p-4 lg:p-6">
-              <h2 className="text-lg font-semibold mb-2 flex-shrink-0">Transaction Logs</h2>
-              {/* Wrapper for ScrollArea to manage flex sizing */}
-              <div className="flex-grow min-h-0">
-                <ScrollArea className="h-full"> {/* ScrollArea takes full height of its new wrapper */}
-                {transactionLogs.length > 0 ? (
-                  transactionLogs.slice().reverse().map((log, index) => (
-                    <div key={log.transactionNumber || index} className="text-xs p-2 mb-2 border rounded-md font-mono break-all bg-card">
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="font-bold text-sm">Transaction #{log.transactionNumber}</span>
-                        <span className="text-gray-500 dark:text-gray-400">
-                          {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 })}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
-                        <div><span className="font-semibold">Processor:</span> {log.connector}</div>
-                        <div><span className="font-semibold">Status:</span> <span className={`${log.status === 'succeeded' || log.status === 'requires_capture' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{log.status}</span></div>
-                        <div>
-                          <span className="font-semibold">Routing:</span>
-                          <span className={`
-                            ${log.routingApproach === 'exploration' ? 'text-blue-600 dark:text-blue-400' : ''}
-                            ${log.routingApproach === 'exploitation' ? 'text-purple-600 dark:text-purple-400' : ''}
-                            ${log.routingApproach === 'unknown' || log.routingApproach === 'N/A' ? 'text-gray-500 dark:text-gray-400' : ''}
-                          `}>
-                            {log.routingApproach}
-                          </span>
+            {/* Mini Sidebar */}
+            <MiniSidebar
+              activeSection={activeSection}
+              onSectionChange={(section) => {
+                setActiveSection(section);
+                setSidebarCollapsed(false);
+              }}
+              collapsed={sidebarCollapsed}
+              onToggleCollapse={() => setSidebarCollapsed(c => !c)}
+            />
+            {/* Main Sidebar for selected section, only if not collapsed */}
+            {!sidebarCollapsed && (
+              <div className="flex flex-col min-h-screen h-auto overflow-y-auto">
+                <BottomControlsPanel
+                  onFormChange={handleControlsChange}
+                  merchantConnectors={merchantConnectors}
+                  connectorToggleStates={connectorToggleStates}
+                  onConnectorToggleChange={handleConnectorToggleChange}
+                  apiKey={apiKey}
+                  profileId={profileId}
+                  merchantId={merchantId}
+                  collapsed={sidebarCollapsed}
+                  onToggleCollapse={() => setSidebarCollapsed(c => !c)}
+                  activeTab={activeSection}
+                  parentTab={parentTab}
+                />
+              </div>
+            )}
+            {/* Main and Logs with draggable splitter */}
+            <SplitPane
+              split="vertical"
+              minSize={340}
+              defaultSize={340}
+              primary="second"
+              maxSize={typeof window !== 'undefined' ? window.innerWidth - 400 : undefined}
+              onChange={size => setMainPaneSize(typeof size === 'number' ? `${size}px` : size)}
+              style={{ position: 'relative', height: '100%', flex: 1 }}
+            >
+              <div className="flex flex-col overflow-hidden h-full">
+                <Tabs value={contentTab} onValueChange={tab => setContentTab(tab as 'stats' | 'analytics')} className="flex flex-col h-full">
+                  <div className="flex items-center justify-start p-4 pb-0">
+                    <TabsList>
+                      <TabsTrigger value="stats">Stats</TabsTrigger>
+                      <TabsTrigger value="analytics">Analytics</TabsTrigger>
+                    </TabsList>
+                  </div>
+                  <TabsContent value="stats" className="flex-1 h-full">
+                    <ScrollArea className="h-full">
+                      <div className="p-2 md:p-4 lg:p-6">
+                        <div className="bg-white dark:bg-card border border-gray-200 dark:border-border rounded-xl shadow-sm p-6 mb-6">
+                          <StatsView
+                            currentControls={currentControls} merchantConnectors={merchantConnectors}
+                            processedPayments={processedPaymentsCount}
+                            totalSuccessful={accumulatedGlobalStatsRef.current.totalSuccessful}
+                            totalFailed={accumulatedGlobalStatsRef.current.totalFailed}
+                            overallSuccessRateHistory={overallSuccessRateHistory}
+                          />
                         </div>
                       </div>
-                      {log.sr_scores && Object.keys(log.sr_scores).length > 0 && (
-                        <div className="mt-1 pt-1 border-t border-slate-200 dark:border-slate-700">
-                          <span className="font-semibold">SR Scores:</span>
-                          <div className="pl-2">
-                            {Object.entries(log.sr_scores).map(([name, score]) => (
-                              <div key={name}>{name}: {score.toFixed(2)}</div>
-                            ))}
+                    </ScrollArea>
+                  </TabsContent>
+                  <TabsContent value="analytics" className="flex-1 h-full">
+                    <ScrollArea className="h-full">
+                      <div className="p-2 md:p-4 lg:p-6">
+                        <div className="bg-white dark:bg-card border border-gray-200 dark:border-border rounded-xl shadow-sm p-6 mb-6">
+                          <AnalyticsGraphsView
+                            successRateHistory={successRateHistory} volumeHistory={volumeHistory}
+                            merchantConnectors={merchantConnectors} connectorToggleStates={connectorToggleStates}
+                          />
+                        </div>
+                      </div>
+                    </ScrollArea>
+                  </TabsContent>
+                </Tabs>
+              </div>
+              <div className="flex flex-col h-full min-h-0 border-l p-2 md:p-4 lg:p-6">
+                <h2 className="text-lg font-semibold mb-2 flex-shrink-0">Transaction Logs</h2>
+                <div className="flex-grow min-h-0">
+                  <ScrollArea className="h-full">
+                    {transactionLogs.length > 0 ? (
+                      transactionLogs.slice().reverse().map((log, index) => (
+                        <div key={log.transactionNumber || index} className="text-xs p-2 mb-2 border rounded-md font-mono break-all bg-card">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="font-bold text-sm">Transaction #{log.transactionNumber}</span>
+                            <span className="text-gray-500 dark:text-gray-400">
+                              {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 })}
+                            </span>
                           </div>
+                          <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+                            <div><span className="font-semibold">Processor:</span> {log.connector}</div>
+                            <div><span className="font-semibold">Status:</span> <span className={`${log.status === 'succeeded' || log.status === 'requires_capture' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{log.status}</span></div>
+                            <div>
+                              <span className="font-semibold">Routing:</span>
+                              <span className={`
+                                ${log.routingApproach === 'exploration' ? 'text-blue-600 dark:text-blue-400' : ''}
+                                ${log.routingApproach === 'exploitation' ? 'text-purple-600 dark:text-purple-400' : ''}
+                                ${log.routingApproach === 'unknown' || log.routingApproach === 'N/A' ? 'text-gray-500 dark:text-gray-400' : ''}
+                              `}>
+                                {log.routingApproach}
+                              </span>
+                            </div>
+                          </div>
+                          {log.sr_scores && Object.keys(log.sr_scores).length > 0 && (
+                            <div className="mt-1 pt-1 border-t border-slate-200 dark:border-slate-700">
+                              <span className="font-semibold">SR Scores:</span>
+                              <div className="pl-2">
+                                {Object.entries(log.sr_scores).map(([name, score]) => (
+                                  <div key={name}>{name}: {score.toFixed(2)}</div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground">Log entries will appear here...</p>
-                )}
-                </ScrollArea>
-              </div> {/* Closing tag for the new wrapper div "flex-grow min-h-0" */}
-            </div>
-          </SplitPane>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Log entries will appear here...</p>
+                    )}
+                  </ScrollArea>
+                </div>
+              </div>
+            </SplitPane>
+          </div>
         </div>
       </AppLayout>
       <Dialog open={isApiCredentialsModalOpen} onOpenChange={setIsApiCredentialsModalOpen}>

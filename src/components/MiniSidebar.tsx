@@ -23,7 +23,7 @@ export const MiniSidebar: React.FC<MiniSidebarProps> = ({ activeSection, onSecti
   }, [isDark]);
 
   return (
-    <div className="bg-white dark:bg-card border-r border-gray-200 dark:border-border rounded-none flex flex-col items-center w-16 py-4 h-full gap-4 justify-between z-30">
+    <div className="bg-white dark:bg-card border-r border-gray-200 dark:border-border rounded-none flex flex-col h-full justify-between items-center w-16 py-4 gap-4 z-30">
       <div className="flex flex-col gap-4">
         <Tooltip.Root delayDuration={0}>
           <Tooltip.Trigger asChild>
@@ -32,7 +32,7 @@ export const MiniSidebar: React.FC<MiniSidebarProps> = ({ activeSection, onSecti
               onClick={() => onSectionChange('general')}
               aria-label="General"
             >
-              <Settings2 className="h-6 w-6" />
+              <Settings2 className={`h-6 w-6 ${activeSection === 'general' ? 'stroke-primary text-primary' : ''}`} />
             </button>
           </Tooltip.Trigger>
           {collapsed && <Tooltip.Content side="right" align="center">General</Tooltip.Content>}
@@ -44,7 +44,7 @@ export const MiniSidebar: React.FC<MiniSidebarProps> = ({ activeSection, onSecti
               onClick={() => onSectionChange('processors')}
               aria-label="Processors"
             >
-              <VenetianMaskIcon className="h-6 w-6" />
+              <VenetianMaskIcon className={`h-6 w-6 ${activeSection === 'processors' ? 'stroke-primary text-primary' : ''}`} />
             </button>
           </Tooltip.Trigger>
           {collapsed && <Tooltip.Content side="right" align="center">Processors</Tooltip.Content>}
@@ -56,7 +56,7 @@ export const MiniSidebar: React.FC<MiniSidebarProps> = ({ activeSection, onSecti
               onClick={() => onSectionChange('routing')}
               aria-label="Routing"
             >
-              <Zap className="h-6 w-6" />
+              <Zap className={`h-6 w-6 ${activeSection === 'routing' ? 'stroke-primary text-primary' : ''}`} />
             </button>
           </Tooltip.Trigger>
           {collapsed && <Tooltip.Content side="right" align="center">Routing</Tooltip.Content>}
@@ -68,13 +68,13 @@ export const MiniSidebar: React.FC<MiniSidebarProps> = ({ activeSection, onSecti
               onClick={() => onSectionChange('test-payment-data')}
               aria-label="Test Payment Data"
             >
-              <TrendingUp className="h-6 w-6" />
+              <TrendingUp className={`h-6 w-6 ${activeSection === 'test-payment-data' ? 'stroke-primary text-primary' : ''}`} />
             </button>
           </Tooltip.Trigger>
           {collapsed && <Tooltip.Content side="right" align="center">Test Payment Data</Tooltip.Content>}
         </Tooltip.Root>
       </div>
-      <div className="flex flex-col gap-4 items-center">
+      <div className="flex flex-col gap-4 items-center mb-2">
         <button
           onClick={onToggleCollapse}
           className="p-2 rounded-xl border border-border bg-muted hover:bg-primary transition-colors"

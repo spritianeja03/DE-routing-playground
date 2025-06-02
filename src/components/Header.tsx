@@ -56,9 +56,14 @@ export function Header({
         </div>
       </div>
 
-      {/* Centered Title */}
-      <div className="flex-grow text-center">
-        <h1 className="text-2xl font-semibold text-foreground">Intelligent Routing Playground</h1>
+      {/* Centered Tabs */}
+      <div className="flex-grow flex justify-center">
+        <Tabs value={activeTab} onValueChange={onTabChange} className="">
+          <TabsList>
+            <TabsTrigger value="intelligent-routing">Intelligent Routing</TabsTrigger>
+            <TabsTrigger value="least-cost-routing">Least Cost Routing</TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
       <div className="flex items-center gap-2">
