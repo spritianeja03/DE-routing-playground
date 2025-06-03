@@ -47,7 +47,7 @@ export function SuccessRateOverTimeChart({ data, merchantConnectors, connectorTo
     return (
       <Card className="shadow-sm">
         <CardHeader className="p-6">
-          <CardTitle className="flex items-center"><LineChart className="mr-2 h-5 w-5 text-primary" /> Success Rate Over Time</CardTitle>
+          <CardTitle className="flex items-center"><LineChart className="mr-2 h-5 w-5 text-primary" /> Daily Savings</CardTitle>
           <CardDescription>Processor success rates as the simulation progresses.</CardDescription>
         </CardHeader>
         <CardContent className="h-[300px] flex items-center justify-center p-6">
@@ -60,7 +60,7 @@ export function SuccessRateOverTimeChart({ data, merchantConnectors, connectorTo
   return (
     <Card className="shadow-sm">
       <CardHeader className="p-6">
-        <CardTitle className="flex items-center"><LineChart className="mr-2 h-5 w-5 text-primary" /> Success Rate Over Time</CardTitle>
+        <CardTitle className="flex items-center"><LineChart className="mr-2 h-5 w-5 text-primary" /> Daily Savings</CardTitle>
         <CardDescription>Processor success rates as the simulation progresses.</CardDescription>
       </CardHeader>
       <CardContent className="p-6">

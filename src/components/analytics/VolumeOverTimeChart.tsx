@@ -101,7 +101,7 @@ export function VolumeOverTimeChart({ data, merchantConnectors, connectorToggleS
     return (
       <Card className="shadow-sm">
         <CardHeader className="p-6">
-          <CardTitle className="flex items-center"><BarChartBig className="mr-2 h-5 w-5 text-primary" /> Volume Over Time</CardTitle>
+          <CardTitle className="flex items-center"><BarChartBig className="mr-2 h-5 w-5 text-primary" /> Daily Volume</CardTitle>
           <CardDescription>Transaction volume per processor as the simulation progresses.</CardDescription>
         </CardHeader>
         <CardContent className="h-[300px] flex items-center justify-center">
@@ -113,7 +113,7 @@ export function VolumeOverTimeChart({ data, merchantConnectors, connectorToggleS
   return (
     <Card className="shadow-sm">
       <CardHeader className="p-6">
-        <CardTitle className="flex items-center"><BarChartBig className="mr-2 h-5 w-5 text-primary" /> Volume Over Time</CardTitle>
+        <CardTitle className="flex items-center"><BarChartBig className="mr-2 h-5 w-5 text-primary" /> Daily Volume</CardTitle>
         <CardDescription>Transaction volume per processor for each time interval.</CardDescription>
       </CardHeader>
       <CardContent>
