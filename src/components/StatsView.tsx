@@ -4,8 +4,6 @@ import { useMemo } from 'react';
 import { OverallSuccessRateDisplay } from './analytics/OverallSuccessRateDisplay';
 import { ProcessorSuccessRatesTable } from './analytics/ProcessorSuccessRatesTable';
 import { TransactionDistributionChart } from './analytics/TransactionDistributionChart';
-import { SuccessRateOverTimeChart } from './analytics/SuccessRateOverTimeChart';
-import { VolumeOverTimeChart } from './analytics/VolumeOverTimeChart';
 import type { FormValues } from '@/components/BottomControlsPanel';
 // import { PROCESSORS } from '@/lib/constants'; // PROCESSORS import removed
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,10 +18,6 @@ interface StatsViewProps {
   totalSuccessful?: number;
   totalFailed?: number;
   overallSuccessRateHistory: OverallSRHistory;
-  parentTab?: 'intelligent-routing' | 'least-cost-routing'; // Add parentTab prop
-  successRateHistory?: any;
-  volumeHistory?: any;
-  connectorToggleStates?: any;
 }
 
 const CHART_COLORS_HSL = {
@@ -43,10 +37,6 @@ export function StatsView({
   totalSuccessful = 0,
   totalFailed = 0,
   overallSuccessRateHistory,
-  parentTab = 'intelligent-routing', // Default to intelligent-routing
-  successRateHistory = [],
-  volumeHistory = [],
-  connectorToggleStates = {},
 }: StatsViewProps) {
   const overallSR = currentControls?.overallSuccessRate ?? 0;
   // const effectiveTps = currentControls?.tps ?? 0; // TPS Removed
@@ -102,26 +92,13 @@ export function StatsView({
       .sort((a,b) => b.value - a.value); 
   }, [currentControls?.processorWiseSuccessRates, merchantConnectors]);
 
-  // Card headings based on parentTab
-  const headings = parentTab === 'least-cost-routing'
-    ? [
-        'Total Amount Processed',
-        'Total Debit Routed Transactions',
-        'Total Savings (%)',
-      ]
-    : [
-        'Total Processed',
-        'Total Successful',
-        'Total Failed',
-      ];
-
   return (
     <div className="space-y-6 flex flex-col">
       {/* Stats Cards in a 2-column grid for wider screens, stack on smaller */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         <Card className="shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-6 pl-6 pr-6">
-            <CardTitle className="text-sm font-medium">{headings[0]}</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Processed</CardTitle>
             <ListChecks className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent className="p-6">
@@ -144,7 +121,7 @@ export function StatsView({
         </Card> */}
         <Card className="shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-6 pl-6 pr-6">
-            <CardTitle className="text-sm font-medium">{headings[1]}</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Successful</CardTitle>
             <CheckCircle2 className="h-5 w-5 text-green-500" />
           </CardHeader>
           <CardContent className="p-6">
@@ -156,7 +133,7 @@ export function StatsView({
         </Card>
         <Card className="shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-6 pl-6 pr-6">
-            <CardTitle className="text-sm font-medium">{headings[2]}</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Failed</CardTitle>
             <XCircle className="h-5 w-5 text-red-500" />
           </CardHeader>
           <CardContent className="p-6">
@@ -168,10 +145,9 @@ export function StatsView({
         </Card>
       </div>
       
-      <SuccessRateOverTimeChart data={successRateHistory} merchantConnectors={merchantConnectors} connectorToggleStates={connectorToggleStates} />
-      <VolumeOverTimeChart data={volumeHistory} merchantConnectors={merchantConnectors} connectorToggleStates={connectorToggleStates} />
+      <OverallSuccessRateDisplay rate={overallSR} history={overallSuccessRateHistory} />
       <TransactionDistributionChart data={transactionDistributionData} />
-      {/* <ProcessorSuccessRatesTable data={processorSRData} /> */}
+      <ProcessorSuccessRatesTable data={processorSRData} />
     </div>
   );
 }

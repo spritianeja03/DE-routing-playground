@@ -1185,63 +1185,41 @@ export default function HomePage() {
               style={{ position: 'relative', height: '100%', flex: 1 }}
             >
               <div className="flex flex-col overflow-hidden h-full">
-                {parentTab !== 'least-cost-routing' ? (
-                  <Tabs value={contentTab} onValueChange={tab => setContentTab(tab as 'stats' | 'analytics')} className="flex flex-col h-full">
-                    <div className="flex items-center justify-start p-4 pb-0">
-                      <TabsList>
-                        <TabsTrigger value="stats">Stats</TabsTrigger>
-                        <TabsTrigger value="analytics">Analytics</TabsTrigger>
-                      </TabsList>
-                    </div>
-                    <TabsContent value="stats" className="flex-1 h-full">
-                      <ScrollArea className="h-full">
-                        <div className="p-6">
+                <Tabs value={contentTab} onValueChange={tab => setContentTab(tab as 'stats' | 'analytics')} className="flex flex-col h-full">
+                  <div className="flex items-center justify-start p-4 pb-0">
+                    <TabsList>
+                      <TabsTrigger value="stats">Stats</TabsTrigger>
+                      <TabsTrigger value="analytics">Analytics</TabsTrigger>
+                    </TabsList>
+                  </div>
+                  <TabsContent value="stats" className="flex-1 h-full">
+                    <ScrollArea className="h-full">
+                      <div className="p-2 md:p-4 lg:p-6">
+                        <div className="bg-white dark:bg-card border border-gray-200 dark:border-border rounded-xl shadow-sm p-6 mb-6">
                           <StatsView
                             currentControls={currentControls} merchantConnectors={merchantConnectors}
                             processedPayments={processedPaymentsCount}
                             totalSuccessful={accumulatedGlobalStatsRef.current.totalSuccessful}
                             totalFailed={accumulatedGlobalStatsRef.current.totalFailed}
                             overallSuccessRateHistory={overallSuccessRateHistory}
-                            parentTab={parentTab}
-                            successRateHistory={successRateHistory}
-                            volumeHistory={volumeHistory}
-                            connectorToggleStates={connectorToggleStates}
                           />
                         </div>
-                      </ScrollArea>
-                    </TabsContent>
-                    <TabsContent value="analytics" className="flex-1 h-full">
-                      <ScrollArea className="h-full">
-                        <div className="p-2 md:p-4 lg:p-6">
-                          <div className="bg-white dark:bg-card border border-gray-200 dark:border-border rounded-xl shadow-sm p-6 mb-6">
-                            <AnalyticsGraphsView
-                              successRateHistory={successRateHistory} volumeHistory={volumeHistory}
-                              merchantConnectors={merchantConnectors} connectorToggleStates={connectorToggleStates}
-                            />
-                          </div>
-                        </div>
-                      </ScrollArea>
-                    </TabsContent>
-                  </Tabs>
-                ) : (
-                  <div className="flex flex-col h-full">
-                    <ScrollArea className="h-full">
-                      <div className="p-6">
-                        <StatsView
-                          currentControls={currentControls} merchantConnectors={merchantConnectors}
-                          processedPayments={processedPaymentsCount}
-                          totalSuccessful={accumulatedGlobalStatsRef.current.totalSuccessful}
-                          totalFailed={accumulatedGlobalStatsRef.current.totalFailed}
-                          overallSuccessRateHistory={overallSuccessRateHistory}
-                          parentTab={parentTab}
-                          successRateHistory={successRateHistory}
-                          volumeHistory={volumeHistory}
-                          connectorToggleStates={connectorToggleStates}
-                        />
                       </div>
                     </ScrollArea>
-                  </div>
-                )}
+                  </TabsContent>
+                  <TabsContent value="analytics" className="flex-1 h-full">
+                    <ScrollArea className="h-full">
+                      <div className="p-2 md:p-4 lg:p-6">
+                        <div className="bg-white dark:bg-card border border-gray-200 dark:border-border rounded-xl shadow-sm p-6 mb-6">
+                          <AnalyticsGraphsView
+                            successRateHistory={successRateHistory} volumeHistory={volumeHistory}
+                            merchantConnectors={merchantConnectors} connectorToggleStates={connectorToggleStates}
+                          />
+                        </div>
+                      </div>
+                    </ScrollArea>
+                  </TabsContent>
+                </Tabs>
               </div>
               <div className="flex flex-col h-full min-h-0 border-l p-2 md:p-4 lg:p-6">
                 <h2 className="text-lg font-semibold mb-2 flex-shrink-0">Transaction Logs</h2>
