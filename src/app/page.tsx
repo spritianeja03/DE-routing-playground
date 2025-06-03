@@ -11,11 +11,10 @@ import { StatsView } from '@/components/StatsView';
 import { AnalyticsGraphsView } from '@/components/AnalyticsGraphsView';
 // import { ProcessorsTabView } from '@/components/ProcessorsTabView'; // Tab removed
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'; // Added DialogDescription
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react'; // AI Summary Re-added
 import ReactMarkdown from 'react-markdown';
-import remarkRehype from 'remark-rehype';
 import type { PaymentMethod, ProcessorMetricsHistory, StructuredRule, ControlsState, OverallSRHistory, OverallSRHistoryDataPoint, TimeSeriesDataPoint, MerchantConnector, TransactionLogEntry, AISummaryInput, AISummaryOutput } from '@/lib/types';
 import { PAYMENT_METHODS, /*RULE_STRATEGY_NODES*/ } from '@/lib/constants'; // RULE_STRATEGY_NODES removed
 import { useToast } from '@/hooks/use-toast';
@@ -28,7 +27,6 @@ const SIMULATION_INTERVAL_MS = 50; // Interval between individual payment proces
 const LOCALSTORAGE_API_KEY = 'hyperswitch_apiKey';
 const LOCALSTORAGE_PROFILE_ID = 'hyperswitch_profileId';
 const LOCALSTORAGE_MERCHANT_ID = 'hyperswitch_merchantId';
-const LOCALSTORAGE_GEMINI_API_KEY = 'hyperswitch_geminiApiKey'; // New localStorage key
 
 // Type for the outcome of a single payment processing attempt
 interface SinglePaymentOutcome {
@@ -86,8 +84,6 @@ export default function HomePage() {
   const [isSummarizing, setIsSummarizing] = useState<boolean>(false);
   const [summaryAttempted, setSummaryAttempted] = useState<boolean>(false); // New state
 
-  const [geminiApiKey, setGeminiApiKey] = useState<string>('');
-  const [isGeminiApiKeyModalOpen, setIsGeminiApiKeyModalOpen] = useState<boolean>(false);
 
   const { toast } = useToast();
 
@@ -107,15 +103,7 @@ export default function HomePage() {
       const storedApiKey = localStorage.getItem(LOCALSTORAGE_API_KEY);
       const storedProfileId = localStorage.getItem(LOCALSTORAGE_PROFILE_ID);
       const storedMerchantId = localStorage.getItem(LOCALSTORAGE_MERCHANT_ID);
-      const storedGeminiApiKey = localStorage.getItem(LOCALSTORAGE_GEMINI_API_KEY);
-
       let allCredentialsFound = true; // Initialize here
-
-      if (storedGeminiApiKey) {
-        setGeminiApiKey(storedGeminiApiKey);
-      }
-      // We don't gate app functionality on Gemini key at startup, 
-      // only prompt when summary is requested.
 
       if (storedApiKey) {
         setApiKey(storedApiKey);
@@ -314,7 +302,7 @@ export default function HomePage() {
       console.error("[UpdateSuccessRateWindow] Fetch Error:", error);
       // toast({ title: "Update SR Window Network Error", description: error.message, variant: "destructive" });
     }
-  }, [toast]); // currentControls is not a direct dependency here, it's passed as an argument
+  }, [toast]);
 
 
   // This useEffect is no longer needed as the initial modal opening is handled by the mount effect
@@ -1048,34 +1036,21 @@ export default function HomePage() {
     }
   }, [simulationState, toast]);
 
-  const handleRequestAiSummary = useCallback(async () => {
-    if (!currentControls) {
-      toast({ title: "Error", description: "Cannot generate summary without simulation data.", variant: "destructive" });
-      return;
-    }
-    if (transactionLogs.length === 0) {
-      toast({ title: "No Data", description: "No transactions logged to summarize." });
-      return;
-    }
-
-    if (!geminiApiKey) {
-      toast({ title: "Gemini API Key Required", description: "Please enter your Gemini API key to generate the summary.", variant: "default" });
-      setIsGeminiApiKeyModalOpen(true);
+  // New function to execute the summary
+  const executeAiSummary = useCallback(async () => {
+    if (!currentControls || transactionLogs.length === 0) {
+      // Should have been checked by handleRequestAiSummary, but good for safety
+      toast({ title: "Error", description: "Missing data for summary.", variant: "destructive" });
       return;
     }
 
     setIsSummaryModalOpen(true);
     setIsSummarizing(true);
     setSummaryText('');
-    setSummaryAttempted(true); 
+    // summaryAttempted is set by handleRequestAiSummary
 
     try {
-      // Prepare the input for the Genkit flow
-      // Note: The Genkit flow `summarizeSimulation` is assumed to use an environment variable 
-      // for the Gemini API key (e.g., GOOGLE_GENAI_API_KEY or GEMINI_API_KEY)
-      // as per standard Genkit plugin configuration. We are not passing the key directly here.
-      // The purpose of collecting it is for user awareness and potential future direct use if needed.
-      // This will be refined once AISummaryInput is updated to accept raw logs
+      console.log("Executing AI summary.");
       const summaryInput: AISummaryInput = {
         totalPaymentsProcessed: processedPaymentsCount,
         targetTotalPayments: currentControls.totalPayments,
@@ -1094,10 +1069,10 @@ export default function HomePage() {
           isActive: isActive !== null,
         })),
         simulationDurationSteps: overallSuccessRateHistory.length,
-        transactionLogs: transactionLogs, // Added the transactionLogs
+        transactionLogs: transactionLogs,
       };
 
-      const result: AISummaryOutput = await summarizeSimulation(summaryInput); // Pass only summaryInput
+      const result: AISummaryOutput = await summarizeSimulation(summaryInput);
       setSummaryText(result.summaryText);
     } catch (error: any) {
       console.error("Error generating AI summary:", error);
@@ -1106,7 +1081,22 @@ export default function HomePage() {
     } finally {
       setIsSummarizing(false);
     }
-  }, [currentControls, processedPaymentsCount, transactionLogs, overallSuccessRateHistory, toast]);
+  }, [currentControls, processedPaymentsCount, transactionLogs, overallSuccessRateHistory, toast, accumulatedGlobalStatsRef, accumulatedProcessorStatsRef, setIsSummaryModalOpen, setIsSummarizing, setSummaryText]);
+
+
+  const handleRequestAiSummary = useCallback(() => {
+    if (!currentControls) {
+      toast({ title: "Error", description: "Cannot generate summary without simulation data.", variant: "destructive" });
+      return;
+    }
+    if (transactionLogs.length === 0) {
+      toast({ title: "No Data", description: "No transactions logged to summarize." });
+      return;
+    }
+
+    setSummaryAttempted(true); // Mark that an attempt to get summary has started
+    executeAiSummary(); // Directly call summary generation
+  }, [currentControls, transactionLogs, toast, setSummaryAttempted, executeAiSummary]);
 
   const handleStopSimulation = useCallback(() => {
     if (simulationState !== 'idle') {
@@ -1184,6 +1174,7 @@ export default function HomePage() {
               </div>
             )}
             {/* Main and Logs with draggable splitter */}
+            {/* @ts-ignore */}
             <SplitPane
               split="vertical"
               minSize={340}
@@ -1294,42 +1285,6 @@ export default function HomePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Gemini API Key Modal */}
-      <Dialog open={isGeminiApiKeyModalOpen} onOpenChange={setIsGeminiApiKeyModalOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Gemini API Key</DialogTitle>
-            <DialogDescription>
-              Please enter your Gemini API key to generate the simulation summary. 
-              The key will be stored in your browser's local storage.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4 space-y-2">
-            <Label htmlFor="geminiApiKeyInput">Gemini API Key</Label>
-            <Input 
-              id="geminiApiKeyInput" 
-              type="password" 
-              value={geminiApiKey} 
-              onChange={(e) => setGeminiApiKey(e.target.value)} 
-              placeholder="Enter Gemini API Key" 
-            />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setIsGeminiApiKeyModalOpen(false)}>Cancel</Button>
-            <Button type="button" onClick={() => {
-              if (geminiApiKey) {
-                localStorage.setItem(LOCALSTORAGE_GEMINI_API_KEY, geminiApiKey);
-                setIsGeminiApiKeyModalOpen(false);
-                toast({ title: "Gemini API Key Saved", description: "You can now try generating the summary again." });
-                // Optionally, automatically re-trigger summary generation:
-                // handleRequestAiSummary(); 
-              } else {
-                toast({ title: "Error", description: "Please enter a Gemini API key.", variant: "destructive"});
-              }
-            }}>Save & Close</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* AI Summary Modal */}
       <Dialog open={isSummaryModalOpen} onOpenChange={setIsSummaryModalOpen}>
@@ -1345,7 +1300,6 @@ export default function HomePage() {
               </div>
             ) : (
               <ReactMarkdown
-                remarkPlugins={[remarkRehype]}
                 components={{
                   p: ({ node, ...props }) => (
                     <p {...props} className="font-sans text-sm whitespace-pre-wrap p-1" />

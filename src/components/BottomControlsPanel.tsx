@@ -749,7 +749,7 @@ export function BottomControlsPanel({
                     <div className="mb-2">
                       <span className="text-base font-medium">Routing Parameters</span>
                     </div>
-                  )}
+                  {'}'}
                 </div>
                 <div className="bg-white dark:bg-card rounded-xl p-2">
                   <div className="mb-2">

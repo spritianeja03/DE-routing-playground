@@ -1,23 +1,13 @@
 import { genkit } from 'genkit';
-import { googleAI } from '@genkit-ai/googleai';
+import { googleAI } from '@genkit-ai/googleai'; // Import the Google AI plugin
 
-const GOOGLE_API_KEY = process.env.GOOGLE_AI_API_KEY;
+// Removed GOOGLE_API_KEY constant and the warning block.
+// The googleAI plugin will automatically use the GOOGLE_API_KEY environment variable.
+// No explicit API key is passed here, relying on Genkit's default environment variable resolution.
 
-if (!GOOGLE_API_KEY) {
-  console.warn(
-    'GOOGLE_AI_API_KEY environment variable not found. ' +
-    'Please create a .env file in the root directory and add GOOGLE_AI_API_KEY="YOUR_API_KEY_HERE", ' +
-    'or set the environment variable in your deployment environment. ' +
-    'The application might not function correctly without it.'
-  );
-  // For stricter local development, you could uncomment the line below to throw an error:
-  // throw new Error('CRITICAL: GOOGLE_AI_API_KEY is not set. Application cannot start.');
-}
 
 export const ai = genkit({
   plugins: [
-    googleAI({ apiKey: GOOGLE_API_KEY }) // The googleAI plugin will use this key.
-                                        // If undefined, it might try default env vars or fail.
+      googleAI()
   ],
-  model: 'googleai/gemini-2.0-flash', // Using the model name you specified
 });
