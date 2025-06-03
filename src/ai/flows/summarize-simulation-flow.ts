@@ -1,12 +1,14 @@
-
 'use server';
 /**
  * @fileOverview A Genkit flow to summarize simulation performance.
  *
  * - summarizeSimulation - A function that generates a natural language summary of a simulation run.
  */
-
-import {ai} from '@/ai/genkit';
+// No direct import of 'generate' is needed; we will call the defined prompt.
+import { googleAI } from '@genkit-ai/googleai'; // For type reference if needed
+import { ai } from '@/ai/genkit'; // The configured Genkit instance
+// Removed unused 'z' import
+// Removed 'defineFlow, generate' import as they are not used directly or come from 'ai'
 import {
   SummarizeSimulationInputSchema,
   type AISummaryInput,
@@ -19,10 +21,14 @@ export async function summarizeSimulation(input: AISummaryInput): Promise<AISumm
   return summarizeSimulationFlow(input);
 }
 
-const prompt = ai.definePrompt({
-  name: 'summarizeSimulationPrompt',
-  input: {schema: SummarizeSimulationInputSchema},
-  output: {schema: SummarizeSimulationOutputSchema},
+// Define the prompt using ai.definePrompt
+const summarizeSimulationUserApiKeyPrompt = ai.definePrompt({
+  name: 'summarizeSimulationUserApiKeyPrompt', // Unique name
+  input: { schema: SummarizeSimulationInputSchema }, // Includes apiKey
+  output: { schema: SummarizeSimulationOutputSchema },
+  // Associate the prompt with the googleAI plugin and specific model by default
+  // This might help the plugin correctly interpret per-call config overrides.
+  model: 'googleai/gemini-1.5-flash-latest', // Reverted to a known working model name
   prompt: `You are an expert payment routing analyst. Analyze the provided simulation data and transaction logs to generate a summary of critical switching triggers.
 
 Overall Simulation Metrics:
@@ -77,19 +83,24 @@ const summarizeSimulationFlow = ai.defineFlow(
     name: 'summarizeSimulationFlow',
     inputSchema: SummarizeSimulationInputSchema,
     outputSchema: SummarizeSimulationOutputSchema,
+    // Removed 'plugins' array from here, as it causes global API key issues
   },
   async (input: AISummaryInput) => {
     try {
-      const {output} = await prompt(input); // Corrected from summarizePrompt to prompt
+      // Call the defined prompt.
+      // The model is set in definePrompt.
+      // The googleAI plugin will automatically use the GOOGLE_API_KEY environment variable.
+      console.log('Calling AI model for simulation summary.');
+      const result = await summarizeSimulationUserApiKeyPrompt(input);
+
+      const output = result.output;
       if (!output) {
-        console.error('AI prompt returned no output for summarizeSimulationFlow.');
+        console.error('AI prompt call returned no output for summarizeSimulationFlow.');
         throw new Error('AI failed to generate a summary (no output).');
       }
       return output;
     } catch (error) {
       console.error('Error calling AI model in summarizeSimulationFlow:', error);
-      // Re-throw the error so it propagates to the client-side catch block
-      // and Next.js knows the server action failed.
       throw new Error(`AI summary generation encountered an error: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
