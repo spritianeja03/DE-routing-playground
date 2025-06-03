@@ -117,6 +117,11 @@ const formSchema = z.object({
   }).optional(),
   numberOfBatches: z.number().min(1).optional(),
   batchSize: z.number().min(1).optional(),
+  eligibleTransactionPercent: z.number().min(0).max(100).optional(),
+  regulatedIssuerTransactionPercent: z.number().min(0).max(100).optional(),
+  debitTransactionsPercent: z.number().min(0).max(100).optional(),
+  minAmount: z.number().min(0).max(10000).optional(),
+  maxAmount: z.number().min(0).max(10000).optional(),
 });
 
 export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule' | 'overallSuccessRate'> & {
@@ -144,6 +149,11 @@ export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule' | 'ov
   maxAggregatesSize?: number; // Ensure it's part of FormValues
   numberOfBatches?: number; // New batch processing field
   batchSize?: number; // New batch processing field
+  eligibleTransactionPercent?: number;
+  regulatedIssuerTransactionPercent?: number;
+  debitTransactionsPercent?: number;
+  minAmount?: number;
+  maxAmount?: number;
 };
 
 interface BottomControlsPanelProps {
@@ -258,6 +268,11 @@ export function BottomControlsPanel({
         CardNetwork: true,
         CardBin: true,
       },
+      eligibleTransactionPercent: 0,
+      regulatedIssuerTransactionPercent: 0,
+      debitTransactionsPercent: 0,
+      minAmount: 0,
+      maxAmount: 10000,
       ...initialValues, // Props override static defaults
       // Removed ...loadInitialCardDetails() as global fields are not in form schema
     },
@@ -406,22 +421,8 @@ export function BottomControlsPanel({
               {activeTab === 'general' && (
                 <ScrollArea className="h-[100%]">
                   <div className="flex flex-col gap-4">
-                    {/* Show only Total Payments for least-cost-routing, show all for intelligent-routing */}
+                    {/* Show calculated Total Payments, Number of Batches, and Batch Size for both modes, but always show for least-cost-routing */}
                     {parentTab === 'least-cost-routing' ? (
-                      <FormField
-                        control={control}
-                        name="totalPayments"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Total Payments</FormLabel>
-                            <FormControl>
-                              <Input type="number" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    ) : (
                       <>
                         <FormField
                           control={control}
@@ -430,7 +431,6 @@ export function BottomControlsPanel({
                             const numberOfBatches = form.watch('numberOfBatches') || 100;
                             const batchSize = form.watch('batchSize') || 10;
                             const calculatedTotal = numberOfBatches * batchSize;
-                            // Update the totalPayments value when numberOfBatches or batchSize changes
                             React.useEffect(() => {
                               field.onChange(calculatedTotal);
                             }, [numberOfBatches, batchSize, calculatedTotal, field]);
@@ -481,21 +481,91 @@ export function BottomControlsPanel({
                             )}
                           />
                         </div>
-                      </>
-                    )}
-                    {parentTab === 'intelligent-routing' && (
-                      <div className="md:col-span-2">
-                        <FormLabel>Payment Methods</FormLabel>
-                        <div className="flex flex-col gap-2">
-                          <div className="flex items-center gap-2">
-                            <Checkbox checked disabled />
-                            <span className="text-muted-foreground">Card (Selected by default)</span>
+                        <div className="md:col-span-2">
+                          <FormLabel>Payment Methods</FormLabel>
+                          <div className="flex flex-col gap-2">
+                            <div className="flex items-center gap-2">
+                              <Checkbox checked disabled />
+                              <span className="text-muted-foreground">Card (Selected by default)</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Currently, "Card" is the only enabled payment method.
+                            </p>
                           </div>
-                          <p className="text-xs text-muted-foreground">
-                            Currently, "Card" is the only enabled payment method.
-                          </p>
                         </div>
-                      </div>
+                      </>
+                    ) : (
+                      <>
+                        <FormField
+                          control={control}
+                          name="totalPayments"
+                          render={({ field }) => {
+                            const numberOfBatches = form.watch('numberOfBatches') || 100;
+                            const batchSize = form.watch('batchSize') || 10;
+                            const calculatedTotal = numberOfBatches * batchSize;
+                            React.useEffect(() => {
+                              field.onChange(calculatedTotal);
+                            }, [numberOfBatches, batchSize, calculatedTotal, field]);
+                            return (
+                              <FormItem>
+                                <FormLabel>Total Payments (Calculated)</FormLabel>
+                                <FormControl>
+                                  <Input 
+                                    type="number" 
+                                    value={calculatedTotal} 
+                                    disabled 
+                                    className="bg-muted" 
+                                  />
+                                </FormControl>
+                                <FormDescription className="text-xs">
+                                  {numberOfBatches} batches × {batchSize} payments/batch = {calculatedTotal} total
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            );
+                          }}
+                        />
+                        <div className="flex flex-col gap-4">
+                          <FormField
+                            control={control}
+                            name="numberOfBatches"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Number of Batches</FormLabel>
+                                <FormControl>
+                                  <Input type="number" placeholder="e.g., 100" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={control}
+                            name="batchSize"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Batch Size</FormLabel>
+                                <FormControl>
+                                  <Input type="number" placeholder="e.g., 10" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <FormLabel>Payment Methods</FormLabel>
+                          <div className="flex flex-col gap-2">
+                            <div className="flex items-center gap-2">
+                              <Checkbox checked disabled />
+                              <span className="text-muted-foreground">Card (Selected by default)</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Currently, "Card" is the only enabled payment method.
+                            </p>
+                          </div>
+                        </div>
+                      </>
                     )}
                     {/* Payment Request Payload Example Section */}
                     <div className="bg-white dark:bg-card rounded-xl shadow-xs border border-gray-200 dark:border-border p-4 mb-4 w-full overflow-x-auto relative">
@@ -620,380 +690,494 @@ export function BottomControlsPanel({
                 </ScrollArea>
               )}
               {activeTab === 'processors' && (
-                <div className="bg-white dark:bg-card rounded-xl p-2 flex flex-col flex-grow"> {/* Added flex flex-col flex-grow */}
-                  <CardHeader><CardTitle className="text-base">Processor ↔ PM Matrix</CardTitle></CardHeader>
-                  <CardContent className="flex flex-col gap-4 flex-grow overflow-y-auto"> {/* Added flex-grow overflow-y-auto */}
-                    <div className="flex flex-col gap-2">
-                      {(merchantConnectors || []).map(connector => {
-                        const connectorId = connector.merchant_connector_id || connector.connector_name;
-                        const connectorDisplayName = connector.connector_label || connector.connector_name;
-                        return (
-                          <div key={connectorId} className="border p-2 rounded-md flex items-center justify-between">
-                            <Label htmlFor={`toggle-pm-${connectorId}`} className="font-medium text-sm truncate" title={connectorDisplayName}>
-                              {connectorDisplayName}
-                            </Label>
-                            <Switch
-                              id={`toggle-pm-${connectorId}`}
-                              checked={connectorToggleStates[connectorId] ?? false}
-                              onCheckedChange={(newState) => onConnectorToggleChange(connectorId, newState)}
-                              size="sm"
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <FormDescription className="text-xs mt-2">
-                      Toggle connectors on/off. This status is reflected in the simulation.
-                    </FormDescription>
-                  </CardContent>
-                </div>
+                parentTab === 'least-cost-routing' ? (
+                  <div className="flex flex-col gap-4">
+                    <h2 className="text-xl font-bold mb-2">Debit networks</h2>
+                    {['Star', 'Pulse', 'Accel', 'Nyce'].map((network) => (
+                      <div key={network} className="flex items-center justify-between border rounded-lg px-4 py-3 bg-white dark:bg-card">
+                        <span className="font-medium text-lg">{network}</span>
+                        <Switch checked={true} onCheckedChange={() => {}} />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-white dark:bg-card rounded-xl p-2 flex flex-col flex-grow"> {/* Added flex flex-col flex-grow */}
+                    <CardHeader><CardTitle className="text-base">Processor ↔ PM Matrix</CardTitle></CardHeader>
+                    <CardContent className="flex flex-col gap-4 flex-grow overflow-y-auto"> {/* Added flex-grow overflow-y-auto */}
+                      <div className="flex flex-col gap-2">
+                        {(merchantConnectors || []).map(connector => {
+                          const connectorId = connector.merchant_connector_id || connector.connector_name;
+                          const connectorDisplayName = connector.connector_label || connector.connector_name;
+                          return (
+                            <div key={connectorId} className="border p-2 rounded-md flex items-center justify-between">
+                              <Label htmlFor={`toggle-pm-${connectorId}`} className="font-medium text-sm truncate" title={connectorDisplayName}>
+                                {connectorDisplayName}
+                              </Label>
+                              <Switch
+                                id={`toggle-pm-${connectorId}`}
+                                checked={connectorToggleStates[connectorId] ?? false}
+                                onCheckedChange={(newState) => onConnectorToggleChange(connectorId, newState)}
+                                size="sm"
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <FormDescription className="text-xs mt-2">
+                        Toggle connectors on/off. This status is reflected in the simulation.
+                      </FormDescription>
+                    </CardContent>
+                  </div>
+                )
               )}
               {activeTab === 'routing' && (
-                <div className="flex flex-col gap-8">
-                  <div>
-                    <div className="pb-3">
-                      <div className="flex items-center">
-                        <Settings2 className="mr-2 h-5 w-5 text-primary" />
-                        <span className="text-lg font-semibold">Routing Parameters</span>
-                      </div>
-                      <div className="text-xs text-muted-foreground pt-2">Select and configure intelligent routing strategies. Fields are shown if a strategy is enabled.</div>
-                    </div>
-                    <div className="bg-white dark:bg-card rounded-xl p-2">
-                      <FormField
-                        control={control}
-                        name="isSuccessBasedRoutingEnabled"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-row items-center justify-between rounded-lg">
-                            <FormLabel className="text-base font-normal">Success Based Routing</FormLabel>
-                            <FormControl>
-                              <Switch
-                                checked={field.value || false}
-                                onCheckedChange={(newCheckedState) => {
-                                  handleSuccessBasedRoutingToggle(newCheckedState);
-                                }}
-                              />
-                            </FormControl>
-                          </FormItem>
-                        )}
+                parentTab === 'least-cost-routing' ? (
+                  <div className="flex flex-col gap-8">
+                    <h2 className="text-xl font-bold mb-4">Debit Routing Parameters</h2>
+                    {/* Debit Transactions Slider */}
+                    <div className="mb-6">
+                      <div className="font-semibold text-lg mb-1">Debit Transactions: {form.watch('debitTransactionsPercent') ?? 0}%</div>
+                      <Slider
+                        value={[form.watch('debitTransactionsPercent') ?? 0]}
+                        min={0}
+                        max={100}
+                        step={1}
+                        onValueChange={value => form.setValue('debitTransactionsPercent', value[0])}
                       />
+                      <div className="text-muted-foreground text-sm mt-1">% of all transactions that are debit</div>
                     </div>
-                    {form.watch("isSuccessBasedRoutingEnabled") && (
-                      <div className="flex flex-col gap-6 border-t pt-6 mt-6">
+                    {/* Existing Sliders */}
+                    <div className="mb-6">
+                      <div className="font-semibold text-lg mb-1">Eligible Transaction %: {form.watch('eligibleTransactionPercent') ?? 0}%</div>
+                      <Slider
+                        value={[form.watch('eligibleTransactionPercent') ?? 0]}
+                        min={0}
+                        max={100}
+                        step={1}
+                        onValueChange={value => form.setValue('eligibleTransactionPercent', value[0])}
+                      />
+                      <div className="text-muted-foreground text-sm mt-1">% of traffic having co-badged cards</div>
+                    </div>
+                    <div className="mb-6">
+                      <div className="font-semibold text-lg mb-1">Regulated Issuer Transaction %: {form.watch('regulatedIssuerTransactionPercent') ?? 0}%</div>
+                      <Slider
+                        value={[form.watch('regulatedIssuerTransactionPercent') ?? 0]}
+                        min={0}
+                        max={100}
+                        step={1}
+                        onValueChange={value => form.setValue('regulatedIssuerTransactionPercent', value[0])}
+                      />
+                      <div className="text-muted-foreground text-sm mt-1">% of traffic having regulated co-badged cards</div>
+                    </div>
+                    {/* Min and Max Amount Range Slider with Inputs */}
+                    <div className="mb-6">
+                      <div className="font-semibold text-lg mb-1">Amount Range</div>
+                      <div className="flex items-center gap-4 mb-2">
+                        <div className="flex items-center gap-2">
+                          <span>Min</span>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={form.watch('maxAmount') ?? 1000}
+                            value={form.watch('minAmount') ?? 0}
+                            onChange={e => {
+                              const min = Math.max(0, Math.min(Number(e.target.value), form.watch('maxAmount') ?? 1000));
+                              form.setValue('minAmount', min);
+                            }}
+                            className="w-24 text-center"
+                          />
+                        </div>
+                        <span className="text-xl font-bold">-</span>
+                        <div className="flex items-center gap-2">
+                          <span>Max</span>
+                          <Input
+                            type="number"
+                            min={form.watch('minAmount') ?? 0}
+                            max={1000}
+                            value={form.watch('maxAmount') ?? 1000}
+                            onChange={e => {
+                              const max = Math.min(1000, Math.max(Number(e.target.value), form.watch('minAmount') ?? 0));
+                              form.setValue('maxAmount', max);
+                            }}
+                            className="w-24 text-center"
+                          />
+                        </div>
+                      </div>
+                      <Slider
+                        value={[
+                          form.watch('minAmount') ?? 0,
+                          form.watch('maxAmount') ?? 1000
+                        ]}
+                        min={0}
+                        max={1000}
+                        step={1}
+                        onValueChange={([min, max]) => {
+                          form.setValue('minAmount', Math.min(min, max));
+                          form.setValue('maxAmount', Math.max(min, max));
+                        }}
+                      />
+                      <div className="text-muted-foreground text-sm mt-1">Enter or select min and max amount for debit routing</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-8">
+                    <div>
+                      <div className="pb-3">
+                        <div className="flex items-center">
+                          <Settings2 className="mr-2 h-5 w-5 text-primary" />
+                          <span className="text-lg font-semibold">Routing Parameters</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground pt-2">Select and configure intelligent routing strategies. Fields are shown if a strategy is enabled.</div>
+                      </div>
+                      <div className="bg-white dark:bg-card rounded-xl p-2">
                         <FormField
                           control={control}
-                          name="explorationPercent"
+                          name="isSuccessBasedRoutingEnabled"
                           render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-xs">Exploration Percent: {field.value}%</FormLabel>
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg">
+                              <FormLabel className="text-base font-normal">Success Based Routing</FormLabel>
                               <FormControl>
-                                <Slider
-                                  defaultValue={[field.value || 20]}
-                                  min={0} max={100} step={1}
-                                  onValueChange={(value: number[]) => { field.onChange(value[0]); }}
+                                <Switch
+                                  checked={field.value || false}
+                                  onCheckedChange={(newCheckedState) => {
+                                    handleSuccessBasedRoutingToggle(newCheckedState);
+                                  }}
                                 />
                               </FormControl>
-                              <FormDescription className="text-xs">Percentage of traffic for exploring new routes.</FormDescription>
-                              <FormMessage />
                             </FormItem>
                           )}
                         />
-                        <div className="bg-white dark:bg-card rounded-xl p-2">
-                          <h4 className="text-sm font-medium mb-2">Success Rate Window Parameters</h4>
+                      </div>
+                      {form.watch("isSuccessBasedRoutingEnabled") && (
+                        <div className="flex flex-col gap-6 border-t pt-6 mt-6">
                           <FormField
                             control={control}
-                            name="minAggregatesSize"
+                            name="explorationPercent"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel className="text-xs">Minimum Bucket Count (min_aggregates_size)</FormLabel>
+                                <FormLabel className="text-xs">Exploration Percent: {field.value}%</FormLabel>
                                 <FormControl>
-                                  <Input type="number" placeholder="e.g., 5" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} min="0" className="bg-gray-50 dark:bg-muted border border-gray-200 dark:border-border text-gray-900 dark:text-white rounded-md px-3 py-2" />
+                                  <Slider
+                                    defaultValue={[field.value || 20]}
+                                    min={0} max={100} step={1}
+                                    onValueChange={(value: number[]) => { field.onChange(value[0]); }}
+                                  />
                                 </FormControl>
-                                <FormDescription className="text-xs">Min. aggregate data points for SR calculation (for /fetch).</FormDescription>
+                                <FormDescription className="text-xs">Percentage of traffic for exploring new routes.</FormDescription>
                                 <FormMessage />
                               </FormItem>
                             )}
                           />
+                          <div className="bg-white dark:bg-card rounded-xl p-2">
+                            <h4 className="text-sm font-medium mb-2">Success Rate Window Parameters</h4>
+                            <FormField
+                              control={control}
+                              name="minAggregatesSize"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="text-xs">Minimum Bucket Count (min_aggregates_size)</FormLabel>
+                                  <FormControl>
+                                    <Input type="number" placeholder="e.g., 5" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} min="0" className="bg-gray-50 dark:bg-muted border border-gray-200 dark:border-border text-gray-900 dark:text-white rounded-md px-3 py-2" />
+                                  </FormControl>
+                                  <FormDescription className="text-xs">Min. aggregate data points for SR calculation (for /fetch).</FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={control}
+                              name="maxAggregatesSize"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="text-xs">Payment Count for Each Bucket (max_aggregates_size)</FormLabel>
+                                  <FormControl>
+                                    <Input type="number" placeholder="e.g., 10" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} min="0" className="bg-gray-50 dark:bg-muted border border-gray-200 dark:border-border text-gray-900 dark:text-white rounded-md px-3 py-2" />
+                                  </FormControl>
+                                  <FormDescription className="text-xs">Max. aggregate data points in a window (for /update).</FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={control}
+                              name="currentBlockThresholdMaxTotalCount"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="text-xs">Current Block Threshold (max_total_count)</FormLabel>
+                                  <FormControl>
+                                    <Input type="number" placeholder="e.g., 5" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} min="0"/>
+                                  </FormControl>
+                                  <FormDescription className="text-xs">Max total count for current block threshold.</FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="bg-white dark:bg-card rounded-xl p-2">
+                      <div className="mb-2">
+                        <span className="text-base font-medium">Routing Parameters</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground mb-4">Select parameters to consider for routing decisions.</div>
+                      <div className="flex flex-col gap-3 pt-2">
+                        {(['PaymentMethod', 'PaymentMethodType', 'AuthenticationType', 'Currency', 'Country', 'CardNetwork', 'CardBin'] as const).map((param) => (
                           <FormField
+                            key={param}
                             control={control}
-                            name="maxAggregatesSize"
+                            name={`selectedRoutingParams.${param}`}
                             render={({ field }) => (
-                              <FormItem>
-                                <FormLabel className="text-xs">Payment Count for Each Bucket (max_aggregates_size)</FormLabel>
+                              <FormItem className="flex flex-row items-center space-x-2">
                                 <FormControl>
-                                  <Input type="number" placeholder="e.g., 10" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} min="0" className="bg-gray-50 dark:bg-muted border border-gray-200 dark:border-border text-gray-900 dark:text-white rounded-md px-3 py-2" />
+                                  <Checkbox
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                    id={`routing-param-${param}`}
+                                  />
                                 </FormControl>
-                                <FormDescription className="text-xs">Max. aggregate data points in a window (for /update).</FormDescription>
-                                <FormMessage />
+                                <Label htmlFor={`routing-param-${param}`} className="text-base font-normal cursor-pointer">
+                                  {param.replace(/([A-Z])/g, ' $1').trim()}
+                                </Label>
                               </FormItem>
                             )}
                           />
-                          <FormField
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )
+              )}
+            </form>
+          </Form>
+        </ScrollArea>
+      </div>
+      {activeTab === 'test-payment-data' && (
+        parentTab === 'least-cost-routing' ? (
+          <div className="flex flex-col gap-6">
+            <h2 className="text-xl font-bold mb-4">Connector-Specific Test Cards</h2>
+            <div className="border rounded-lg p-4 bg-muted/10">
+              <div className="font-semibold mb-2">Not Co-badged Card</div>
+              <div className="mb-1 text-sm">Joseph Doe</div>
+              <div className="mb-1 text-sm">4111112014267661</div>
+              <div className="mb-1 text-sm">12/30 737</div>
+            </div>
+            <div className="border rounded-lg p-4 bg-muted/10">
+              <div className="font-semibold mb-2">Regulated Co-badged Card</div>
+              <div className="mb-1 text-sm">Joseph Doe</div>
+              <div className="mb-1 text-sm">4400002000000004</div>
+              <div className="mb-1 text-sm">03/30 737</div>
+            </div>
+            <div className="border rounded-lg p-4 bg-muted/10">
+              <div className="font-semibold mb-2">Unregulated Co-badged Card</div>
+              <div className="mb-1 text-sm">Joseph Doe</div>
+              <div className="mb-1 text-sm">5002510000000013</div>
+              <div className="mb-1 text-sm">03/30 737</div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-6"> {/* Adjusted gap */}
+            {/* Separate Section for Failure Percentages */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Connector Failure Percentages</CardTitle>
+                <CardDescription className="text-xs">
+                  Set the likelihood of a transaction failing for each connector.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-4">
+                {(merchantConnectors || []).filter(connector => connector.disabled == false).map((connector) => {
+                  const connectorId = connector.connector_name; // Use connector_name as the key
+                  // Watch the specific field for its current value to display in the label
+                  const watchedFailureRate = form.watch(`connectorWiseFailurePercentage.${connectorId}`) ?? 0;
+                  return (
+                    <FormField
+                      control={control}
+                      name={`connectorWiseFailurePercentage.${connectorId}`}
+                      key={connectorId}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm">
+                            {connector.connector_name} Failure Rate: {watchedFailureRate}%
+                          </FormLabel>
+                          <FormControl>
+                            <Slider
+                              value={[field.value ?? 0]}
+                              min={0} max={100} step={1}
+                              onValueChange={(value: number[]) => field.onChange(value[0])}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  );
+                })}
+                {(!merchantConnectors || merchantConnectors.length === 0) && (
+                  <p className="text-xs text-muted-foreground">No connectors loaded to configure failure percentages.</p>
+                )}
+              </CardContent>
+            </Card>
+            {/* Accordion for Test Card Details */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Connector-Specific Test Cards</CardTitle>
+                <CardDescription className="text-xs">
+                  Configure test card details for each connector.
+                  These will override global test card details if specified.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Accordion type="multiple" className="w-full">
+                  {(merchantConnectors || []).map((connector) => {
+                    const connectorId = connector.connector_name; // Use connector_name as the key
+                    return (
+                      <AccordionItem value={connectorId} key={connectorId}>
+                        <AccordionTrigger>
+                          <span className="font-medium">{connector.connector_name}</span>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-6 p-1">
+                            {/* Success Card Details for this Connector */}
+                            <div className="space-y-3 border p-3 rounded-md bg-muted/20">
+                              <h4 className="text-sm font-semibold text-green-600">Success Card</h4>
+                              <FormField
                                 control={control}
-                                name="currentBlockThresholdMaxTotalCount"
+                                name={`connectorWiseTestCards.${connectorId}.successCard.holderName`}
                                 render={({ field }) => (
                                   <FormItem>
-                                    <FormLabel className="text-xs">Current Block Threshold (max_total_count)</FormLabel>
-                                    <FormControl>
-                                      <Input type="number" placeholder="e.g., 5" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} min="0"/>
-                                    </FormControl>
-                                    <FormDescription className="text-xs">Max total count for current block threshold.</FormDescription>
-                                    <FormMessage />
+                                    <FormLabel className="text-xs">Name on card</FormLabel>
+                                    <FormControl><Input placeholder="Default: Joseph Doe" {...field} className="bg-background text-xs h-8" /></FormControl>
                                   </FormItem>
                                 )}
                               />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="bg-white dark:bg-card rounded-xl p-2">
-                    <div className="mb-2">
-                      <span className="text-base font-medium">Routing Parameters</span>
-                    </div>
-                  {'}'}
-                </div>
-                <div className="bg-white dark:bg-card rounded-xl p-2">
-                  <div className="mb-2">
-                    <span className="text-base font-medium">Routing Parameters</span>
-                  </div>
-                  <div className="text-xs text-muted-foreground mb-4">Select parameters to consider for routing decisions.</div>
-                    <div className="flex flex-col gap-3 pt-2">
-                      {(['PaymentMethod', 'PaymentMethodType', 'AuthenticationType', 'Currency', 'Country', 'CardNetwork', 'CardBin'] as const).map((param) => (
-                        <FormField
-                          key={param}
-                          control={control}
-                          name={`selectedRoutingParams.${param}`}
-                          render={({ field }) => (
-                            <FormItem className="flex flex-row items-center space-x-2">
-                              <FormControl>
-                                <Checkbox
-                                  checked={field.value}
-                                  onCheckedChange={field.onChange}
-                                  id={`routing-param-${param}`}
+                              <FormField
+                                control={control}
+                                name={`connectorWiseTestCards.${connectorId}.successCard.cardNumber`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel className="text-xs">Card number</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        placeholder="Default: 4242..."
+                                        maxLength={19}
+                                        value={formatCardNumber(field.value || '')}
+                                        onChange={e => field.onChange(formatCardNumber(e.target.value))}
+                                        className="bg-background text-xs h-8"
+                                      />
+                                    </FormControl>
+                                  </FormItem>
+                                )}
+                              />
+                              <div className="grid grid-cols-2 gap-3">
+                                <FormField
+                                  control={control}
+                                  name={`connectorWiseTestCards.${connectorId}.successCard.expMonth`}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel className="text-xs">MM</FormLabel>
+                                      <FormControl><Input placeholder="10" maxLength={2} {...field} className="bg-background text-xs h-8" /></FormControl>
+                                    </FormItem>
+                                  )}
                                 />
-                              </FormControl>
-                              <Label htmlFor={`routing-param-${param}`} className="text-base font-normal cursor-pointer">
-                                {param.replace(/([A-Z])/g, ' $1').trim()}
-                              </Label>
-                            </FormItem>
-                          )}
-                        />
-                      ))}
-                    </div>
-                </div>
-              </div>
-            )}
-            {activeTab === 'test-payment-data' && (
-              <div className="flex flex-col gap-6"> {/* Adjusted gap */}
-                {/* Separate Section for Failure Percentages */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Connector Failure Percentages</CardTitle>
-                    <CardDescription className="text-xs">
-                      Set the likelihood of a transaction failing for each connector.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4 pt-4">
-                    {(merchantConnectors || []).filter(connector => connector.disabled == false).map((connector) => {
-                      const connectorId = connector.connector_name; // Use connector_name as the key
-                      // const connectorDisplayName = connector.connector_label || connector.connector_name; // Use connector_name directly
-                      // Watch the specific field for its current value to display in the label
-                      const watchedFailureRate = form.watch(`connectorWiseFailurePercentage.${connectorId}`) ?? 0;
-
-                      return (
-                        <FormField
-                          control={control}
-                          name={`connectorWiseFailurePercentage.${connectorId}`}
-                          key={connectorId}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-sm">
-                                {connector.connector_name} Failure Rate: {watchedFailureRate}%
-                              </FormLabel>
-                              <FormControl>
-                                <Slider
-                                  value={[field.value ?? 0]}
-                                  min={0} max={100} step={1}
-                                  onValueChange={(value: number[]) => field.onChange(value[0])}
+                                <FormField
+                                  control={control}
+                                  name={`connectorWiseTestCards.${connectorId}.successCard.expYear`}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel className="text-xs">YY</FormLabel>
+                                      <FormControl><Input placeholder="25" maxLength={2} {...field} className="bg-background text-xs h-8" /></FormControl>
+                                    </FormItem>
+                                  )}
                                 />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      );
-                    })}
-                    {(!merchantConnectors || merchantConnectors.length === 0) && (
-                      <p className="text-xs text-muted-foreground">No connectors loaded to configure failure percentages.</p>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Accordion for Test Card Details */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Connector-Specific Test Cards</CardTitle>
-                    <CardDescription className="text-xs">
-                      Configure test card details for each connector.
-                      These will override global test card details if specified.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Accordion type="multiple" className="w-full">
-                      {(merchantConnectors || []).map((connector) => {
-                        const connectorId = connector.connector_name; // Use connector_name as the key
-                        // const connectorDisplayName = connector.connector_label || connector.connector_name; // Use connector_name directly
-
-                        return (
-                          <AccordionItem value={connectorId} key={connectorId}>
-                            <AccordionTrigger>
-                              <span className="font-medium">{connector.connector_name}</span>
-                            </AccordionTrigger>
-                            <AccordionContent>
-                              <div className="space-y-6 p-1">
-                                {/* Success Card Details for this Connector */}
-                                <div className="space-y-3 border p-3 rounded-md bg-muted/20">
-                                  <h4 className="text-sm font-semibold text-green-600">Success Card</h4>
-                                  <FormField
-                                    control={control}
-                                    name={`connectorWiseTestCards.${connectorId}.successCard.holderName`}
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel className="text-xs">Name on card</FormLabel>
-                                        <FormControl><Input placeholder="Default: Joseph Doe" {...field} className="bg-background text-xs h-8" /></FormControl>
-                                      </FormItem>
-                                    )}
-                                  />
-                                  <FormField
-                                    control={control}
-                                    name={`connectorWiseTestCards.${connectorId}.successCard.cardNumber`}
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel className="text-xs">Card number</FormLabel>
-                                        <FormControl>
-                                          <Input
-                                            placeholder="Default: 4242..."
-                                            maxLength={19}
-                                            value={formatCardNumber(field.value || '')}
-                                            onChange={e => field.onChange(formatCardNumber(e.target.value))}
-                                            className="bg-background text-xs h-8"
-                                          />
-                                        </FormControl>
-                                      </FormItem>
-                                    )}
-                                  />
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <FormField
-                                      control={control}
-                                      name={`connectorWiseTestCards.${connectorId}.successCard.expMonth`}
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel className="text-xs">MM</FormLabel>
-                                          <FormControl><Input placeholder="10" maxLength={2} {...field} className="bg-background text-xs h-8" /></FormControl>
-                                        </FormItem>
-                                      )}
-                                    />
-                                    <FormField
-                                      control={control}
-                                      name={`connectorWiseTestCards.${connectorId}.successCard.expYear`}
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel className="text-xs">YY</FormLabel>
-                                          <FormControl><Input placeholder="25" maxLength={2} {...field} className="bg-background text-xs h-8" /></FormControl>
-                                        </FormItem>
-                                      )}
-                                    />
-                                  </div>
-                                  <FormField
-                                    control={control}
-                                    name={`connectorWiseTestCards.${connectorId}.successCard.cvc`}
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel className="text-xs">CVC</FormLabel>
-                                        <FormControl><Input placeholder="123" maxLength={4} {...field} className="bg-background text-xs h-8 w-20" /></FormControl>
-                                      </FormItem>
-                                    )}
-                                  />
-                                </div>
-
-                                {/* Failure Card Details for this Connector */}
-                                <div className="space-y-3 border p-3 rounded-md bg-muted/20">
-                                  <h4 className="text-sm font-semibold text-red-600">Failure Card</h4>
-                                  <FormField
-                                    control={control}
-                                    name={`connectorWiseTestCards.${connectorId}.failureCard.holderName`}
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel className="text-xs">Name on card</FormLabel>
-                                        <FormControl><Input placeholder="Default: Jane Roe" {...field} className="bg-background text-xs h-8" /></FormControl>
-                                      </FormItem>
-                                    )}
-                                  />
-                                  <FormField
-                                    control={control}
-                                    name={`connectorWiseTestCards.${connectorId}.failureCard.cardNumber`}
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel className="text-xs">Card number</FormLabel>
-                                        <FormControl>
-                                          <Input
-                                            placeholder="Default: 4000..."
-                                            maxLength={19}
-                                            value={formatCardNumber(field.value || '')}
-                                            onChange={e => field.onChange(formatCardNumber(e.target.value))}
-                                            className="bg-background text-xs h-8"
-                                          />
-                                        </FormControl>
-                                      </FormItem>
-                                    )}
-                                  />
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <FormField
-                                      control={control}
-                                      name={`connectorWiseTestCards.${connectorId}.failureCard.expMonth`}
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel className="text-xs">MM</FormLabel>
-                                          <FormControl><Input placeholder="12" maxLength={2} {...field} className="bg-background text-xs h-8" /></FormControl>
-                                        </FormItem>
-                                      )}
-                                    />
-                                    <FormField
-                                      control={control}
-                                      name={`connectorWiseTestCards.${connectorId}.failureCard.expYear`}
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel className="text-xs">YY</FormLabel>
-                                          <FormControl><Input placeholder="26" maxLength={2} {...field} className="bg-background text-xs h-8" /></FormControl>
-                                        </FormItem>
-                                      )}
-                                    />
-                                  </div>
-                                  <FormField
-                                    control={control}
-                                    name={`connectorWiseTestCards.${connectorId}.failureCard.cvc`}
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel className="text-xs">CVC</FormLabel>
-                                        <FormControl><Input placeholder="999" maxLength={4} {...field} className="bg-background text-xs h-8 w-20" /></FormControl>
-                                      </FormItem>
-                                    )}
-                                  />
-                                </div>
                               </div>
-                            </AccordionContent>
-                          </AccordionItem>
-                        );
-                      })}
-                    </Accordion>
-                  </CardContent>
-                </Card>
-                {/* Global Test Card Sections Removed */}
-              </div>
-            )}
-          </form>
-        </Form>
-      </ScrollArea>
-    </div>
+                              <FormField
+                                control={control}
+                                name={`connectorWiseTestCards.${connectorId}.successCard.cvc`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel className="text-xs">CVC</FormLabel>
+                                    <FormControl><Input placeholder="123" maxLength={4} {...field} className="bg-background text-xs h-8 w-20" /></FormControl>
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                            {/* Failure Card Details for this Connector */}
+                            <div className="space-y-3 border p-3 rounded-md bg-muted/20">
+                              <h4 className="text-sm font-semibold text-red-600">Failure Card</h4>
+                              <FormField
+                                control={control}
+                                name={`connectorWiseTestCards.${connectorId}.failureCard.holderName`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel className="text-xs">Name on card</FormLabel>
+                                    <FormControl><Input placeholder="Default: Jane Roe" {...field} className="bg-background text-xs h-8" /></FormControl>
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={control}
+                                name={`connectorWiseTestCards.${connectorId}.failureCard.cardNumber`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel className="text-xs">Card number</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        placeholder="Default: 4000..."
+                                        maxLength={19}
+                                        value={formatCardNumber(field.value || '')}
+                                        onChange={e => field.onChange(formatCardNumber(e.target.value))}
+                                        className="bg-background text-xs h-8"
+                                      />
+                                    </FormControl>
+                                  </FormItem>
+                                )}
+                              />
+                              <div className="grid grid-cols-2 gap-3">
+                                <FormField
+                                  control={control}
+                                  name={`connectorWiseTestCards.${connectorId}.failureCard.expMonth`}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel className="text-xs">MM</FormLabel>
+                                      <FormControl><Input placeholder="12" maxLength={2} {...field} className="bg-background text-xs h-8" /></FormControl>
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={control}
+                                  name={`connectorWiseTestCards.${connectorId}.failureCard.expYear`}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel className="text-xs">YY</FormLabel>
+                                      <FormControl><Input placeholder="26" maxLength={2} {...field} className="bg-background text-xs h-8" /></FormControl>
+                                    </FormItem>
+                                  )}
+                                />
+                              </div>
+                              <FormField
+                                control={control}
+                                name={`connectorWiseTestCards.${connectorId}.failureCard.cvc`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel className="text-xs">CVC</FormLabel>
+                                    <FormControl><Input placeholder="999" maxLength={4} {...field} className="bg-background text-xs h-8 w-20" /></FormControl>
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    );
+                  })}
+                </Accordion>
+              </CardContent>
+            </Card>
+            {/* Global Test Card Sections Removed */}
+          </div>
+        )
+      )}
     </div>
   );
 }
