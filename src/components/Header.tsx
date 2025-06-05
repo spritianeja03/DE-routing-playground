@@ -61,7 +61,7 @@ export function Header({
         <Tabs value={activeTab} onValueChange={onTabChange} className="">
           <TabsList>
             <TabsTrigger value="intelligent-routing">Intelligent Routing</TabsTrigger>
-            <TabsTrigger value="least-cost-routing">Least Cost Routing</TabsTrigger>
+            {/* <TabsTrigger value="least-cost-routing">Least Cost Routing</TabsTrigger> */}
           </TabsList>
         </Tabs>
       </div>

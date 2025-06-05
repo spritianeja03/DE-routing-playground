@@ -258,6 +258,8 @@ export function BottomControlsPanel({
         CardNetwork: true,
         CardBin: true,
       },
+      numberOfBatches: 100, // Default value for numberOfBatches
+      batchSize: 10, // Default value for batchSize
       ...initialValues, // Props override static defaults
       // Removed ...loadInitialCardDetails() as global fields are not in form schema
     },
@@ -288,7 +290,6 @@ export function BottomControlsPanel({
       });
       // The volume split concept might be implicitly 100% to this strategy now,
       // or it's handled by the backend when this strategy is chosen by the payment request.
-      // We can add a toast for that if it's still a relevant user-facing concept.
       // toast({ title: "Volume Split Info", description: "Volume split is now 100% to dynamic routing when active." });
     } else {
       setSuccessBasedAlgorithmId(null);
@@ -311,7 +312,11 @@ export function BottomControlsPanel({
             processorMatrix: dynamicDefaults.matrix, 
             processorIncidents: dynamicDefaults.incidents,
             processorWiseSuccessRates: dynamicDefaults.rates,
-            connectorWiseFailurePercentage: dynamicDefaults.connectorWiseFailurePercentage,
+            connectorWiseFailurePercentage: {
+              ...dynamicDefaults.connectorWiseFailurePercentage, // Base defaults
+              ...(initialValues?.connectorWiseFailurePercentage || {}), // Initial values from parent (if any)
+              ...currentFormValues.connectorWiseFailurePercentage, // User's current changes (highest priority)
+            },
             connectorWiseTestCards: dynamicDefaults.connectorWiseTestCardsInit, // Add to reset
         });
 
@@ -745,12 +750,6 @@ export function BottomControlsPanel({
                       </div>
                     )}
                   </div>
-                  <div className="bg-white dark:bg-card rounded-xl p-2">
-                    <div className="mb-2">
-                      <span className="text-base font-medium">Routing Parameters</span>
-                    </div>
-                  {'}'}
-                </div>
                 <div className="bg-white dark:bg-card rounded-xl p-2">
                   <div className="mb-2">
                     <span className="text-base font-medium">Routing Parameters</span>

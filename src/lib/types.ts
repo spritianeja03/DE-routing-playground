@@ -121,7 +121,10 @@ export const SummarizeSimulationInputSchema = z.object({
 export type AISummaryInput = z.infer<typeof SummarizeSimulationInputSchema>;
 
 export const SummarizeSimulationOutputSchema = z.object({
-  summaryText: z.string().describe('A concise, human-readable summary of the simulation run, highlighting key outcomes and notable events like incidents or significant performance of certain processors.'),
+  summaryText: z.string().describe(
+    `Summarise the simulation results using the transaction logs, calling out the key transition areas where processors were switched dynamically.
+    Also compare the exploration vs exploitation ROUTING approaches.`
+  ),
 });
 export type AISummaryOutput = z.infer<typeof SummarizeSimulationOutputSchema>;
 

@@ -211,10 +211,10 @@ export default function HomePage() {
 
       if (data.labels_with_score && data.labels_with_score.length > 0) {
         // Sort connectors by score in descending order
-        const sortedConnectors = data.labels_with_score.sort((a: any, b: any) => b.score - a.score);
-        const bestConnector = sortedConnectors[0]; // Pick the first one (highest score)
+        // const sortedConnectors = data.labels_with_score.sort((a: any, b: any) => b.score - a.score);
+        const bestConnector = data.labels_with_score[0]; // Pick the first one (highest score)
 
-        console.log(`[FetchSuccessRate] Selected connector: ${bestConnector.label} with score ${bestConnector.score} (after sorting)`);
+        console.log(`[FetchSuccessRate] Selected connector: ${bestConnector.label} with score ${bestConnector.score}`);
         return { selectedConnector: bestConnector.label, routingApproach: routingApproachForLog, srScores: srScoresForLog };
       } else {
         console.warn("[FetchSuccessRate] No scores returned or empty list.");
