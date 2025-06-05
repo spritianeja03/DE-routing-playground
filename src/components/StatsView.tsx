@@ -146,7 +146,7 @@ export function StatsView({
       </div>
       
       <OverallSuccessRateDisplay rate={overallSR} history={overallSuccessRateHistory} />
-      <TransactionDistributionChart data={transactionDistributionData} />
+      <TransactionDistributionChart data={transactionDistributionData} merchantConnectors={merchantConnectors} />
       <ProcessorSuccessRatesTable data={processorSRData} />
     </div>
   );

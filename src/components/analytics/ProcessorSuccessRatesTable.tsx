@@ -20,7 +20,7 @@ export function ProcessorSuccessRatesTable({ data }: ProcessorSuccessRatesTableP
         <CardDescription>Success and failure data per connector, with detailed breakdown.</CardDescription>
       </CardHeader>
       <CardContent className="p-6">
-        <Accordion type="single" collapsible className="w-full">
+        <Accordion type="multiple" className="w-full">
           {data.map((item) => {
             const failedPaymentCount = item.totalPaymentCount - item.successfulPaymentCount;
             const failureRate = item.totalPaymentCount > 0 ? (failedPaymentCount / item.totalPaymentCount) * 100 : 0;
@@ -36,26 +36,20 @@ export function ProcessorSuccessRatesTable({ data }: ProcessorSuccessRatesTableP
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="p-2 space-y-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="font-medium">Failure Percentage:</span>
-                      <span className={failureRate > 60 ? "text-red-500" : failureRate > 30 ? "text-yellow-500" : "text-green-500"}>
-                        {failureRate.toFixed(1)}%
-                      </span>
-                    </div>
                     <div className="pt-2"> {/* This div acts as a container for the "cards" */}
                       <h4 className="text-sm font-semibold mb-2">Detailed Stats:</h4>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs p-2 border rounded-md bg-muted/40">
                         <div>
-                          <div className="font-medium">Total Payments:</div>
-                          <div className="text-right">{item.totalPaymentCount.toLocaleString()}</div>
+                          <div className="font-medium text-center">Total Payments:</div>
+                          <div className="text-center">{item.totalPaymentCount.toLocaleString()}</div>
                         </div>
                         <div>
-                          <div className="font-medium text-green-600">Successful Payments:</div>
-                          <div className="text-right text-green-600">{item.successfulPaymentCount.toLocaleString()}</div>
+                          <div className="font-medium text-green-600 text-center">Successful Payments:</div>
+                          <div className="text-green-600 text-center">{item.successfulPaymentCount.toLocaleString()}</div>
                         </div>
                         <div>
-                          <div className="font-medium text-red-600">Failed Payments:</div>
-                          <div className="text-right text-red-600">{failedPaymentCount.toLocaleString()}</div>
+                          <div className="font-medium text-red-600 text-center">Failed Payments:</div>
+                          <div className="text-red-600 text-center">{failedPaymentCount.toLocaleString()}</div>
                         </div>
                       </div>
                     </div>

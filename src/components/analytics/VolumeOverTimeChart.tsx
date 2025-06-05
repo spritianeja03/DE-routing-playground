@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useMemo } from 'react'; // Added useMemo
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'; // Removed Text, not used
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { BarChartBig } from 'lucide-react';
@@ -97,6 +98,14 @@ export function VolumeOverTimeChart({ data, merchantConnectors, connectorToggleS
   const chartData = processDiscreteVolumeData(data);
   const uniqueProcessorIds = getAllProcessorIds(data); // Get processor IDs from original data to ensure all are included
 
+  const processorColorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    uniqueProcessorIds.forEach((processorId, i) => {
+      map.set(processorId, `hsl(var(${chartColorKeys[i % chartColorKeys.length]}))`);
+    });
+    return map;
+  }, [uniqueProcessorIds]);
+
   if (!chartData || chartData.length === 0) {
     return (
       <Card className="shadow-sm">
@@ -156,8 +165,8 @@ export function VolumeOverTimeChart({ data, merchantConnectors, connectorToggleS
                   type="monotone"
                   dataKey={processorId}
                   name={displayName} // Use resolved displayName for Legend
-                  stroke={`hsl(var(${chartColorKeys[index % chartColorKeys.length]}))`}
-                  fill={`hsl(var(${chartColorKeys[index % chartColorKeys.length]}))`}
+                  stroke={processorColorMap.get(processorId)}
+                  fill={processorColorMap.get(processorId)}
                   fillOpacity={0.2}
                   strokeWidth={2}
                   dot={{ r: 1, strokeWidth: 1 }}
