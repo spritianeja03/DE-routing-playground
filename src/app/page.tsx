@@ -668,6 +668,7 @@ export default function HomePage() {
     }
     return null; // Ensure a return statement for all code paths
   }
+
   const fetchMerchantConnectors = async (currentMerchantId: string, currentApiKey: string): Promise<MerchantConnector[]> => {
     console.log("fetchMerchantConnectors called with Merchant ID:", currentMerchantId);
     if (!currentMerchantId || !currentApiKey) {
@@ -786,19 +787,26 @@ export default function HomePage() {
       toast({ title: "API Credentials Required", description: "Please enter all API credentials.", variant: "destructive" });
       return;
     }
-    // Save to localStorage
-    if (typeof window !== 'undefined') {
+    const localStoragemerchnatId = localStorage.getItem(LOCALSTORAGE_MERCHANT_ID);
+    
+    if(localStoragemerchnatId === merchantId){
+      setIsApiCredentialsModalOpen(false);
+      fetchMerchantConnectors(merchantId, apiKey);
+    }
+    else{
+      setIsApiCredentialsModalOpen(false);
+      fetchMerchantConnectors(merchantId, apiKey);
+      const decisionEngineMerchantId = await createMerchantIdForDecisionEngine(merchantId);
+      console.log(">>>Merchant ID for Decision Engine:", decisionEngineMerchantId);
+      if (decisionEngineMerchantId) {
+        createSrRuleForDecisonEngine(decisionEngineMerchantId);
+      }
+    }
+    
+
       localStorage.setItem(LOCALSTORAGE_API_KEY, apiKey);
       localStorage.setItem(LOCALSTORAGE_PROFILE_ID, profileId);
       localStorage.setItem(LOCALSTORAGE_MERCHANT_ID, merchantId);
-    }
-    setIsApiCredentialsModalOpen(false);
-    fetchMerchantConnectors(merchantId, apiKey);
-    const decisionEngineMerchantId = await createMerchantIdForDecisionEngine(merchantId);
-    console.log(">>>Merchant ID for Decision Engine:", decisionEngineMerchantId);
-    if (decisionEngineMerchantId) {
-      createSrRuleForDecisonEngine(decisionEngineMerchantId);
-    }
     
   };
 
