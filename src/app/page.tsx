@@ -228,6 +228,184 @@ export default function HomePage() {
     }
   }, [toast]);
 
+  const decideGateway = useCallback(async (
+    currentControls: FormValues,
+    activeConnectorLabels: string[], // Changed to expect an array of connector_name
+    currentApiKey: string, // Still needed for other API calls, but not for this one as per user
+    currentMerchantId: string,
+    paymentId: string // Added paymentId to the parameters
+  ): Promise<{ selectedConnector: string | null; routingApproach: TransactionLogEntry['routingApproach']; srScores: Record<string, number> | undefined }> => {
+    if (!currentControls || activeConnectorLabels.length === 0 || !currentMerchantId) { // Removed currentApiKey from check as it's not used here
+      console.warn("[decideGateway] Missing required parameters (controls, labels, or merchantId).");
+      return { selectedConnector: null, routingApproach: 'unknown', srScores: undefined };
+    }
+
+
+    const payload = {
+      merchantId: currentMerchantId,
+      eligibleGatewayList: activeConnectorLabels,
+      rankingAlgorithm: "SR_BASED_ROUTING",
+      eliminationEnabled: true,
+      paymentInfo: {
+        paymentId: paymentId,
+        amount: 100.50,
+        currency: "USD",
+        customerId: "CUST12345",
+        udfs: null,
+        preferredGateway: null,
+        paymentType: "ORDER_PAYMENT",
+        metadata: null,
+        internalMetadata: null,
+        isEmi: false,
+        emiBank: null,
+        emiTenure: null,
+        paymentMethodType: "UPI",
+        paymentMethod: "UPI_PAY",
+        paymentSource: null,
+        authType: null,
+        cardIssuerBankName: null,
+        cardIsin: null,
+        cardType: null,
+        cardSwitchProvider: null
+      }
+    };
+
+    console.log("[decideGateway] Payload:", JSON.stringify(payload, null, 2));
+
+    try {
+      const response = await fetch('/api/hs-proxy/decide-gateway', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-feature': 'decision-engine'
+        },
+        body: JSON.stringify(payload),
+      });
+
+      let routingApproachForLog: TransactionLogEntry['routingApproach'] = 'unknown';
+
+      const data = await response.json();
+      console.log("[decideGateway] Response Data:", data);
+
+      console.log("gateway_priority_map for decision_engine :", data.gateway_priority_map);
+
+      let gatewayPriorityArray: Array<{ label: string; score: number }> = [];
+      if (data.gateway_priority_map && typeof data.gateway_priority_map === 'object' && !Array.isArray(data.gateway_priority_map)) {
+        for (const gatewayName in data.gateway_priority_map) {
+          if (Object.prototype.hasOwnProperty.call(data.gateway_priority_map, gatewayName)) {
+            const score = data.gateway_priority_map[gatewayName];
+            if (typeof score === 'number') {
+              gatewayPriorityArray.push({ label: gatewayName, score: parseFloat(score.toFixed(2)) });
+            }
+          }
+        }
+      }
+      // console.log("[decideGateway] Converted gatewayPriorityArray:", gatewayPriorityArray);
+
+      let srScoresForLog: Record<string, number> | undefined = undefined;
+      if (gatewayPriorityArray.length > 0) {
+        srScoresForLog = gatewayPriorityArray.reduce((acc: Record<string, number>, item) => {
+          acc[item.label] = item.score;
+          return acc;
+        }, {});
+      }
+
+      if (data.routing_approach === 'SR_SELECTION_V3_ROUTING') {
+        routingApproachForLog = 'exploitation';
+      } else {
+        routingApproachForLog = 'exploration'; // Or any other appropriate default/mapping
+      }
+      console.log(`[decideGateway] Determined routing approach: ${routingApproachForLog}`);
+
+      if (data.decided_gateway && srScoresForLog && srScoresForLog[data.decided_gateway] !== undefined) {
+        const bestConnectorName = data.decided_gateway;
+        const bestConnectorScore = srScoresForLog[bestConnectorName];
+
+        console.log(`[decideGateway] Selected connector: ${bestConnectorName} with score ${bestConnectorScore}`);
+        return { selectedConnector: bestConnectorName, routingApproach: routingApproachForLog, srScores: srScoresForLog };
+      } else if (data.decided_gateway) {
+        console.warn(`[decideGateway] decided_gateway '${data.decided_gateway}' not found in processed scores or scores are missing.`);
+        // Return the decided_gateway name; srScoresForLog might be incomplete or the specific score missing
+        return { selectedConnector: data.decided_gateway, routingApproach: routingApproachForLog, srScores: srScoresForLog };
+      } else {
+        console.warn("[decideGateway] No decided_gateway returned or gateway_priority_map was empty/invalid.");
+        toast({ title: "Decide Gateway Info", description: "No connector decided or scores missing." });
+        return { selectedConnector: null, routingApproach: routingApproachForLog, srScores: srScoresForLog };
+      }
+    } catch (error: any) {
+      console.error("[decideGateway] Fetch Error:", error);
+      toast({ title: "Decide Gateway Network Error", description: error.message, variant: "destructive" });
+      return { selectedConnector: null, routingApproach: 'unknown', srScores: undefined };
+    }
+  }, [toast]);
+
+
+  const updateGatewayScore = useCallback(async (
+    currentMerchantId: string,
+    connectorNameForApi: string, // This should be the connector_name
+    paymentSuccessStatus: boolean,
+    controls: FormValues | null, // Pass currentControls to access config values
+    paymentId: string
+  ) => {
+    if (!currentMerchantId || !connectorNameForApi) {
+      console.warn("[UpdateSuccessRateWindow] Missing profileId or connectorName.");
+      return;
+    }
+    if (!controls) {
+      console.warn("[UpdateSuccessRateWindow] Missing controls data, cannot construct config.");
+      return;
+    }
+
+    const apiStatus = paymentSuccessStatus ? "CHARGED" : "DECLINED";
+    const payload = {
+      merchantId: currentMerchantId,
+      gateway: connectorNameForApi,
+      gatewayReferenceId: null,
+      status: apiStatus,
+      paymentId: paymentId,
+      enforceDynamicRoutingFailure: null
+    };
+
+    console.log("[UpdateSuccessRateWindow] Payload:", JSON.stringify(payload, null, 2));
+
+    try {
+      const response = await fetch('/api/hs-proxy/update-gateway-score', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-feature': 'decision-engine'
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Failed to update success rate window" }));
+        console.error("[UpdateSuccessRateWindow] API Error:", errorData.message || `HTTP ${response.status}`);
+        // toast({ title: "Update SR Window Error", description: errorData.message || `HTTP ${response.status}`, variant: "destructive" });
+      } else {
+        const responseDataText = await response.text();
+        if (responseDataText.trim() === "Success") {
+          console.log(`[UpdateSuccessRateWindow] API reported success for connector ${connectorNameForApi}. Response: "Success"`);
+        } else {
+          try {
+            const updateData = responseDataText ? JSON.parse(responseDataText) : null;
+            // Assuming if it's JSON, it might have a different structure or message field
+            if (updateData && updateData.message === "Success") { // Or any other field indicating success in JSON
+              console.log(`[UpdateSuccessRateWindow] API reported success (JSON) for connector ${connectorNameForApi}. Full response:`, updateData);
+            } else {
+              console.warn(`[UpdateSuccessRateWindow] API reported non-success or unexpected JSON for connector ${connectorNameForApi}. Full response:`, updateData || responseDataText);
+            }
+          } catch (jsonParseError) {
+            console.error(`[UpdateSuccessRateWindow] Failed to parse JSON response for ${connectorNameForApi}, and not plain "Success". HTTP Status: ${response.status}. Response text:`, responseDataText, jsonParseError);
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error("[UpdateSuccessRateWindow] Fetch Error:", error);
+      // toast({ title: "Update SR Window Network Error", description: error.message, variant: "destructive" });
+    }
+  }, [toast]);
+
   const updateSuccessRateWindow = useCallback(async (
     currentProfileId: string,
     connectorNameForApi: string, // This should be the connector_name
@@ -277,6 +455,7 @@ export default function HomePage() {
         // toast({ title: "Update SR Window Error", description: errorData.message || `HTTP ${response.status}`, variant: "destructive" });
       } else {
         const responseDataText = await response.text(); // Get text first to avoid issues with empty/non-JSON
+        console.log(`[UpdateSuccessRateWindow] Response text for ${connectorNameForApi}:`, responseDataText);
         try {
           const updateData = responseDataText ? JSON.parse(responseDataText) : null;
           if (updateData && typeof updateData.status === 'number') {
@@ -377,6 +556,37 @@ export default function HomePage() {
     });
   }, []);
 
+  const createMerchantIdForDecisionEngine = async (currentMerchantId: string): Promise<string | null> => {
+    if (!currentMerchantId) {
+      console.warn("[createMerchantIdForDecisionEngine] Missing currentMerchantId.");
+      return null;
+    }
+    try {
+      const response = await fetch('/api/hs-proxy/merchant-account/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-feature': 'decision-engine'
+        },
+        body: JSON.stringify({
+          merchant_id: currentMerchantId,
+        }),
+      });
+
+      const data = await response.json();
+      console.log("[merchant created for decision engine] Response Data:", data);
+      if (data.ok) {
+        console.log("[merchant create] Merchant account created successfully.");
+        return currentMerchantId; // Return the merchant ID if creation is successful
+      }
+    } catch (error) {
+      console.error("[merchant create] Error creating merchant account:", error);
+      toast({ title: "Merchant Account Creation Error", description: String(error), variant: "destructive" });
+    } finally {
+      setIsLoadingMerchantConnectors(false);
+    }
+    return null; // Ensure a return statement for all code paths
+  }
   const fetchMerchantConnectors = async (currentMerchantId: string, currentApiKey: string): Promise<MerchantConnector[]> => {
     console.log("fetchMerchantConnectors called with Merchant ID:", currentMerchantId);
     if (!currentMerchantId || !currentApiKey) {
@@ -503,6 +713,7 @@ export default function HomePage() {
     }
     setIsApiCredentialsModalOpen(false);
     fetchMerchantConnectors(merchantId, apiKey);
+    createMerchantIdForDecisionEngine(merchantId);
   };
 
   const resetSimulationState = () => {
@@ -560,9 +771,11 @@ export default function HomePage() {
     // Pass "" initially as connectorName, so it uses global fallbacks if SBR is off or no connector is chosen
     let cardDetailsForPayment = getCarddetailsForPayment(currentControls, "");
 
+    const paymentId = `PAY${Math.floor(Math.random() * 100000)}`; // Generate a random payment ID for testing
 
     const paymentData = {
       amount: 6540,
+      payment_id: paymentId,
       currency: "USD",
       confirm: true,
       profile_id: profileId,
@@ -606,12 +819,21 @@ export default function HomePage() {
       .filter(mc => connectorToggleStates[mc.merchant_connector_id || mc.connector_name])
       .map(mc => mc.connector_name);
 
+    
+
     if (activeConnectorLabels.length > 0 && profileId) {
-      const { selectedConnector, routingApproach: approach, srScores: scores } = await fetchSuccessRateAndSelectConnector(
+      // const { selectedConnector, routingApproach: approach, srScores: scores } = await fetchSuccessRateAndSelectConnector(
+      //   currentControls,
+      //   activeConnectorLabels,
+      //   apiKey,
+      //   profileId
+      // );
+      const { selectedConnector, routingApproach: approach, srScores: scores } = await decideGateway(
         currentControls,
         activeConnectorLabels,
         apiKey,
-        profileId
+        merchantId,
+        paymentId
       );
       returnedConnectorLabel = selectedConnector;
       routingApproach = approach;
@@ -663,6 +885,7 @@ export default function HomePage() {
       );
 
       // Create log entry
+      let payment_id = responseData.payment_id;
       let loggedConnectorName = connectorHeader || responseData.connector_name || responseData.merchant_connector_id || 'unknown';
       if (paymentStatusHeader || responseData.status) {
         transactionCounterRef.current += 1;
@@ -689,14 +912,21 @@ export default function HomePage() {
         if (mc) routedProcessorId = mc.merchant_connector_id || mc.connector_name;
         else routedProcessorId = loggedConnectorName;
       }
-
+      
       // Update success rate window
-      if (profileId && loggedConnectorName !== 'unknown') {
+      // if (profileId && loggedConnectorName !== 'unknown') {
+      //   const foundConnector = merchantConnectors.find(mc =>
+      //     mc.connector_name === loggedConnectorName || mc.merchant_connector_id === loggedConnectorName
+      //   );
+      //   const connectorNameForUpdate = foundConnector ? foundConnector.connector_name : loggedConnectorName;
+      //   await updateSuccessRateWindow(profileId, connectorNameForUpdate, isSuccess, currentControls);
+      // }
+      if (merchantId && loggedConnectorName !== 'unknown') {
         const foundConnector = merchantConnectors.find(mc =>
           mc.connector_name === loggedConnectorName || mc.merchant_connector_id === loggedConnectorName
         );
         const connectorNameForUpdate = foundConnector ? foundConnector.connector_name : loggedConnectorName;
-        await updateSuccessRateWindow(profileId, connectorNameForUpdate, isSuccess, currentControls);
+        await updateGatewayScore(merchantId, connectorNameForUpdate, isSuccess, currentControls, payment_id);
       }
     } catch (error: any) {
       if (error.name !== 'AbortError') {
@@ -706,12 +936,12 @@ export default function HomePage() {
     }
 
     return { isSuccess, routedProcessorId, logEntry };
-  }, [currentControls, apiKey, profileId, merchantConnectors, connectorToggleStates, fetchSuccessRateAndSelectConnector, updateSuccessRateWindow]);
+  }, [currentControls, apiKey, profileId, merchantConnectors, connectorToggleStates, fetchSuccessRateAndSelectConnector, updateSuccessRateWindow,updateGatewayScore,decideGateway]);
 
   const getCarddetailsForPayment = (currentControls: FormValues, connectorNameToUse: string): any => {
     let cardDetailsToUse;
     const randomNumber = Math.random() * 100;
-    
+
     // Determine failure percentage: connector-specific first, then fallback (though -1 implies global won't be used directly here)
     // The logic is: if connectorNameToUse is provided, use its specific failure rate.
     // If connectorNameToUse is empty (e.g. SBR off, or no connector chosen by SBR), this implies a scenario
@@ -813,7 +1043,7 @@ export default function HomePage() {
                 if (error.name === 'AbortError') throw error; // Re-throw AbortError to stop batch
                 console.error(`Error processing payment ${paymentIndex}:`, error);
                 // Return a structure consistent with SinglePaymentOutcome for failed/errored payments
-                return { isSuccess: false, routedProcessorId: null, logEntry: null }; 
+                return { isSuccess: false, routedProcessorId: null, logEntry: null };
               })
           )
         );
@@ -838,7 +1068,7 @@ export default function HomePage() {
               batchSpecificProcessorStats[result.routedProcessorId].failed++;
             }
           }
-          
+
           // Update overall cumulative stats (accumulatedProcessorStatsRef and accumulatedGlobalStatsRef)
           if (result.routedProcessorId) {
             if (!accumulatedProcessorStatsRef.current[result.routedProcessorId]) {
@@ -873,7 +1103,7 @@ export default function HomePage() {
 
       // The redundant loop and declaration for batchSpecificProcessorStats that was here has been removed.
       // batchSpecificProcessorStats is now declared and populated correctly within the single batchResults.forEach loop inside the try block.
-      
+
       if (paymentsProcessedThisBatch > 0) {
         setProcessedPaymentsCount(prev => {
           const newTotalProcessed = prev + paymentsProcessedThisBatch;
@@ -894,12 +1124,12 @@ export default function HomePage() {
           // Calculate discrete (per-batch) success rates and cumulative volumes
           merchantConnectors.forEach(connector => {
             const key = connector.merchant_connector_id || connector.connector_name;
-            
+
             // Discrete success rate for the batch
             const batchStats = batchSpecificProcessorStats[key] || { successful: 0, failed: 0 };
             const batchTotalForProcessor = batchStats.successful + batchStats.failed;
             newSuccessRateDataPoint[key] = batchTotalForProcessor > 0 ? (batchStats.successful / batchTotalForProcessor) * 100 : 0;
-            
+
             // Cumulative volume (original logic)
             const cumulativeStats = accumulatedProcessorStatsRef.current[key] || { successful: 0, failed: 0 };
             const cumulativeTotalForProcessor = cumulativeStats.successful + cumulativeStats.failed;
@@ -962,7 +1192,7 @@ export default function HomePage() {
 
   useEffect(() => {
     console.log("useEffect: Mounting, checking API credentials.");
-    if(simulationState == 'running') {
+    if (simulationState == 'running') {
       processTransactionBatch();
     }
   }, [simulationState, processTransactionBatch]);
