@@ -305,7 +305,7 @@ export default function HomePage() {
       let srScoresForLog: Record<string, number> | undefined = undefined;
       if (gatewayPriorityArray.length > 0) {
         srScoresForLog = gatewayPriorityArray.reduce((acc: Record<string, number>, item) => {
-          acc[item.label] = item.score;
+          acc[item.label] = item.score * 100;
           return acc;
         }, {});
       }
@@ -556,11 +556,14 @@ export default function HomePage() {
     });
   }, []);
 
-  const createMerchantIdForDecisionEngine = async (currentMerchantId: string): Promise<string | null> => {
+  const createMerchantIdForDecisionEngine = async (currentMerchantId: string): Promise<string | void> => {
     if (!currentMerchantId) {
-      console.warn("[createMerchantIdForDecisionEngine] Missing currentMerchantId.");
-      return null;
+      console.warn("[createMerchantIdForDecisionEngine] Missing currentMerchantId. Cannot create decision engine merchant ID.");
+      return; 
     }
+
+    setIsLoadingMerchantConnectors(true); 
+
     try {
       const response = await fetch('/api/hs-proxy/merchant-account/create', {
         method: 'POST',
@@ -573,15 +576,93 @@ export default function HomePage() {
         }),
       });
 
+      let data: any = {}; // Initialize data to an empty object
+      try {
+        data = await response.json(); // Attempt to parse JSON for logging
+      } catch (e) {
+        console.warn("[createMerchantIdForDecisionEngine] Failed to parse JSON response body, or body was empty.", e);
+        // data remains {}
+      }
+      
+      console.log("[createMerchantIdForDecisionEngine] API Response Status:", response.status, "Response Data:", data);
+
+      if (response.ok) { // Primary check: HTTP status indicates success (e.g., 200-299)
+        console.log(`[createMerchantIdForDecisionEngine] Merchant account creation API call successful (HTTP ${response.status}).`);
+        
+        // Optional: Further check based on expected body content like data.ok
+        if (data && data.ok === true) {
+             console.log("[createMerchantIdForDecisionEngine] Confirmation: data.ok is true.");
+             toast({ title: "Decision Engine Setup", description: "Merchant account for decision engine confirmed.", variant: "default" }); // Changed "success" to "default"
+        } else if (data && data.ok === false) {
+            console.warn("[createMerchantIdForDecisionEngine] Warning: HTTP call successful, but response body indicates data.ok is false. Body:", data);
+            toast({ title: "Decision Engine Setup", description: "Merchant account for decision engine initiated (API reported specific status).", variant: "default" });
+        } else {
+            console.log("[createMerchantIdForDecisionEngine] Info: HTTP call successful. Response body did not contain 'ok' field or it was not boolean. Body:", data);
+            toast({ title: "Decision Engine Setup", description: "Merchant account for decision engine initiated.", variant: "default" });
+        }
+        return currentMerchantId; // Return the merchant ID as string
+      } else {
+        // HTTP error (e.g., 4xx, 5xx)
+        const errorMessage = data?.message || data?.error?.message || `API Error HTTP ${response.status}`;
+        console.error(`[createMerchantIdForDecisionEngine] API Error HTTP ${response.status}:`, errorMessage, "Full data:", data);
+        toast({ title: "Decision Engine Setup Failed", description: errorMessage, variant: "destructive" });
+        // Implicitly returns undefined
+      }
+    } catch (error: any) { // Catch network errors or other unexpected issues
+      console.error("[createMerchantIdForDecisionEngine] Exception during API call:", error);
+      toast({ title: "Network Error", description: `Failed to set up decision engine merchant: ${error.message}`, variant: "destructive" });
+      // Implicitly returns undefined
+    } finally {
+      setIsLoadingMerchantConnectors(false);
+    }
+    // If function reaches here, it means an error occurred or response.ok was false,
+    // and currentMerchantId was not returned. So, it returns undefined.
+  }
+
+  const createSrRuleForDecisonEngine = async (currentMerchantId: string): Promise<string | null> => {
+    if (!currentMerchantId) {
+      console.warn("[createSrRuleForDecisonEngine] Missing currentMerchantId.");
+      return null;
+    }
+    const payload = {
+      merchant_id: currentMerchantId,
+      config: {
+        type: "successRate",
+        data: {
+          defaultLatencyThreshold: 90,
+          defaultSuccessRate: 0.5,
+          defaultBucketSize: 200,
+          defaultHedgingPercent: 5,
+          subLevelInputConfig: [
+            {
+              paymentMethodType: "upi",
+              paymentMethod: "upi_collect",
+              bucketSize: 250,
+              hedgingPercent: 1
+            }
+          ]
+        }
+      }
+    }
+    try {
+      const response = await fetch('/api/hs-proxy/rule/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-feature': 'decision-engine'
+        },
+        body: JSON.stringify(payload),
+      });
+
       const data = await response.json();
-      console.log("[merchant created for decision engine] Response Data:", data);
+      console.log("[SR Rule for decision engine] Response Data:", data);
       if (data.ok) {
-        console.log("[merchant create] Merchant account created successfully.");
-        return currentMerchantId; // Return the merchant ID if creation is successful
+        console.log("[SR Rule create] SR rule created successfully.");
+        toast({ title: "[Rule creation for Decision engine]", description: "Rule created successfully." });
       }
     } catch (error) {
-      console.error("[merchant create] Error creating merchant account:", error);
-      toast({ title: "Merchant Account Creation Error", description: String(error), variant: "destructive" });
+      console.error("[SR Rule create] Error creating SR rule:", error);
+      toast({ title: "SR Rule Creation Error", description: String(error), variant: "destructive" });
     } finally {
       setIsLoadingMerchantConnectors(false);
     }
@@ -700,7 +781,7 @@ export default function HomePage() {
     }
   };
 
-  const handleApiCredentialsSubmit = () => {
+  const handleApiCredentialsSubmit = async () => {
     if (!apiKey || !profileId || !merchantId) {
       toast({ title: "API Credentials Required", description: "Please enter all API credentials.", variant: "destructive" });
       return;
@@ -713,7 +794,12 @@ export default function HomePage() {
     }
     setIsApiCredentialsModalOpen(false);
     fetchMerchantConnectors(merchantId, apiKey);
-    createMerchantIdForDecisionEngine(merchantId);
+    const decisionEngineMerchantId = await createMerchantIdForDecisionEngine(merchantId);
+    console.log(">>>Merchant ID for Decision Engine:", decisionEngineMerchantId);
+    if (decisionEngineMerchantId) {
+      createSrRuleForDecisonEngine(decisionEngineMerchantId);
+    }
+    
   };
 
   const resetSimulationState = () => {

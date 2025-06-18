@@ -86,6 +86,7 @@ const formSchema = z.object({
   currentBlockThresholdMaxTotalCount: z.number().min(0).max(10000).optional(), // Retain for now, but will be replaced by maxAggregatesSize for API
   minAggregatesSize: z.number().min(0).optional(), // New field for min_aggregates_size
   maxAggregatesSize: z.number().min(0).optional(), // New field for max_aggregates_size
+  bucketSize: z.number().min(0).optional(), // New field for bucketSize
   isSuccessBasedRoutingEnabled: z.boolean().optional(),
   // Global Test Payment Data Fields are removed from schema
   connectorWiseFailurePercentage: z.record(z.string(), z.number()), // Connector-wise failure percentage
@@ -704,7 +705,7 @@ export function BottomControlsPanel({
                         />
                         <div className="bg-white dark:bg-card rounded-xl p-2">
                           <h4 className="text-sm font-medium mb-2">Success Rate Window Parameters</h4>
-                          <FormField
+                          {/* <FormField
                             control={control}
                             name="minAggregatesSize"
                             render={({ field }) => (
@@ -717,8 +718,8 @@ export function BottomControlsPanel({
                                 <FormMessage />
                               </FormItem>
                             )}
-                          />
-                          <FormField
+                          /> */}
+                          {/* <FormField
                             control={control}
                             name="maxAggregatesSize"
                             render={({ field }) => (
@@ -731,8 +732,8 @@ export function BottomControlsPanel({
                                 <FormMessage />
                               </FormItem>
                             )}
-                          />
-                          <FormField
+                          /> */}
+                          {/* <FormField
                                 control={control}
                                 name="currentBlockThresholdMaxTotalCount"
                                 render={({ field }) => (
@@ -745,7 +746,21 @@ export function BottomControlsPanel({
                                     <FormMessage />
                                   </FormItem>
                                 )}
-                              />
+                              /> */}
+                              <FormField
+                            control={control}
+                            name="bucketSize"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs">Bucket Size (bucketSize)</FormLabel>
+                                <FormControl>
+                                  <Input type="number" placeholder="e.g., 5" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} min="0" className="bg-gray-50 dark:bg-muted border border-gray-200 dark:border-border text-gray-900 dark:text-white rounded-md px-3 py-2" />
+                                </FormControl>
+                                <FormDescription className="text-xs">Bucket size for SR calculation (for /fetch).</FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
                         </div>
                       </div>
                     )}
