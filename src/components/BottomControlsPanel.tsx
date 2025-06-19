@@ -694,7 +694,7 @@ export function BottomControlsPanel({
                               <FormLabel className="text-xs">Exploration Percent: {field.value}%</FormLabel>
                               <FormControl>
                                 <Slider
-                                  defaultValue={[field.value || 20]}
+                                  value={[field.value || 20]} // Changed from defaultValue to value
                                   min={0} max={100} step={1}
                                   onValueChange={(value: number[]) => { field.onChange(value[0]); }}
                                 />
@@ -704,7 +704,7 @@ export function BottomControlsPanel({
                             </FormItem>
                           )}
                         />
-                        <FormField
+                        {/* <FormField
                           control={control}
                           name="bucketSize"
                           render={({ field }) => (
@@ -717,7 +717,7 @@ export function BottomControlsPanel({
                               <FormMessage />
                             </FormItem>
                           )}
-                        />
+                        /> */}
                         <div className="bg-white dark:bg-card rounded-xl p-2">
                           <h4 className="text-sm font-medium mb-2">Success Rate Window Parameters</h4>
                           {/* <FormField
