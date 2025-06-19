@@ -125,6 +125,7 @@ export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule' | 'ov
   overallSuccessRate?: number;
   isSuccessBasedRoutingEnabled?: boolean; // Corrected to match form schema
   explorationPercent?: number; // Ensure it's part of FormValues if not automatically inferred
+  bucketSize?: number; // Added bucketSize
   connectorWiseTestCards?: Record<string, {
     successCard?: {
       cardNumber?: string;
@@ -699,6 +700,20 @@ export function BottomControlsPanel({
                                 />
                               </FormControl>
                               <FormDescription className="text-xs">Percentage of traffic for exploring new routes.</FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={control}
+                          name="bucketSize"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Bucket Size</FormLabel>
+                              <FormControl>
+                                <Input type="number" placeholder="e.g., 200" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} min="0" className="bg-gray-50 dark:bg-muted border border-gray-200 dark:border-border text-gray-900 dark:text-white rounded-md px-3 py-2" />
+                              </FormControl>
+                              <FormDescription className="text-xs">Size of the buckets for success rate calculation.</FormDescription>
                               <FormMessage />
                             </FormItem>
                           )}

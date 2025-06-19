@@ -87,10 +87,70 @@ export default function HomePage() {
 
   const { toast } = useToast();
 
+  const updateRuleConfiguration = useCallback(async (
+    merchantId: string,
+    explorationPercent: number,
+    bucketSize: number
+  ) => {
+    if (!merchantId) {
+      console.warn("[updateRuleConfiguration] Missing merchantId.");
+      return;
+    }
+
+    const payload = {
+      merchant_id: merchantId,
+      config: {
+        type: "successRate",
+        data: {
+          defaultLatencyThreshold: 90,
+          defaultSuccessRate: 0.5,
+          defaultBucketSize: bucketSize,
+          defaultHedgingPercent: 5,
+          subLevelInputConfig: [
+            {
+              // paymentMethodType: "card",
+              paymentMethod: "card",
+              bucketSize: bucketSize,
+              hedgingPercent: explorationPercent // Assuming explorationPercent is 0-100, convert to 0-1
+            }
+          ]
+        }
+      }
+    };
+
+    console.log("[updateRuleConfiguration] Payload:", JSON.stringify(payload, null, 2));
+
+    try {
+      const response = await fetch('/api/hs-proxy/rule/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-feature': 'decision-engine'
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Failed to update rule configuration." }));
+        console.error("[updateRuleConfiguration] API Error:", errorData.message || `HTTP ${response.status}`);
+        toast({ title: "Rule Update Error", description: errorData.message || `HTTP ${response.status}`, variant: "destructive" });
+      } else {
+        const responseData = await response.json();
+        console.log("[updateRuleConfiguration] Response Data:", responseData);
+        toast({ title: "Rule Configuration Updated", description: "Success Rate Configuration updated successfully." });
+      }
+    } catch (error: any) {
+      console.error("[updateRuleConfiguration] Fetch Error:", error);
+      toast({ title: "Rule Update Network Error", description: error.message, variant: "destructive" });
+    }
+  }, [toast]);
+
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mainPaneSize, setMainPaneSize] = useState('50%');
 
   const [activeSection, setActiveSection] = useState('general');
+
+  const prevControlsRef = useRef<FormValues | null>(null);
 
   // Top-level tab: 'intelligent-routing' or 'least-cost-routing'
   const [parentTab, setParentTab] = useState<'intelligent-routing' | 'least-cost-routing'>('intelligent-routing');
@@ -138,6 +198,34 @@ export default function HomePage() {
   useEffect(() => {
     setContentTab('stats');
   }, [parentTab]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      if (currentControls && merchantId) {
+        const prevControls = prevControlsRef.current;
+        const currentExplorationPercent = currentControls.explorationPercent;
+        const currentBucketSize = currentControls.bucketSize;
+
+        const prevExplorationPercent = prevControls?.explorationPercent;
+        const prevBucketSize = prevControls?.bucketSize;
+
+        // Only call updateRuleConfiguration if explorationPercent or bucketSize have actually changed
+        if (
+          currentExplorationPercent !== undefined &&
+          currentBucketSize !== undefined &&
+          (currentExplorationPercent !== prevExplorationPercent || currentBucketSize !== prevBucketSize)
+        ) {
+          console.log("Exploration percentage or bucket size changed. Updating rule configuration.");
+          updateRuleConfiguration(merchantId, currentExplorationPercent, currentBucketSize);
+        }
+      }
+      prevControlsRef.current = currentControls;
+    }, 900); // Debounce for 500ms
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [currentControls, merchantId, updateRuleConfiguration]);
 
   // Function to fetch success rates and select the best connector
   const fetchSuccessRateAndSelectConnector = useCallback(async (
