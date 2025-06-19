@@ -333,7 +333,7 @@ export default function HomePage() {
       merchantId: currentMerchantId,
       eligibleGatewayList: activeConnectorLabels,
       rankingAlgorithm: "SR_BASED_ROUTING",
-      eliminationEnabled: true,
+      eliminationEnabled: false,
       paymentInfo: {
         paymentId: paymentId,
         amount: 100.50,
@@ -444,7 +444,7 @@ export default function HomePage() {
       return;
     }
 
-    const apiStatus = paymentSuccessStatus ? "CHARGED" : "DECLINED";
+    const apiStatus = paymentSuccessStatus ? "CHARGED" : "FAILURE";
     const payload = {
       merchantId: currentMerchantId,
       gateway: connectorNameForApi,
