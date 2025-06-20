@@ -125,6 +125,7 @@ export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule' | 'ov
   overallSuccessRate?: number;
   isSuccessBasedRoutingEnabled?: boolean; // Corrected to match form schema
   explorationPercent?: number; // Ensure it's part of FormValues if not automatically inferred
+  bucketSize?: number; // Added bucketSize
   connectorWiseTestCards?: Record<string, {
     successCard?: {
       cardNumber?: string;
@@ -693,7 +694,7 @@ export function BottomControlsPanel({
                               <FormLabel className="text-xs">Exploration Percent: {field.value}%</FormLabel>
                               <FormControl>
                                 <Slider
-                                  defaultValue={[field.value || 20]}
+                                  value={[field.value || 20]} // Changed from defaultValue to value
                                   min={0} max={100} step={1}
                                   onValueChange={(value: number[]) => { field.onChange(value[0]); }}
                                 />
@@ -703,6 +704,20 @@ export function BottomControlsPanel({
                             </FormItem>
                           )}
                         />
+                        {/* <FormField
+                          control={control}
+                          name="bucketSize"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Bucket Size</FormLabel>
+                              <FormControl>
+                                <Input type="number" placeholder="e.g., 200" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} min="0" className="bg-gray-50 dark:bg-muted border border-gray-200 dark:border-border text-gray-900 dark:text-white rounded-md px-3 py-2" />
+                              </FormControl>
+                              <FormDescription className="text-xs">Size of the buckets for success rate calculation.</FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        /> */}
                         <div className="bg-white dark:bg-card rounded-xl p-2">
                           <h4 className="text-sm font-medium mb-2">Success Rate Window Parameters</h4>
                           {/* <FormField
