@@ -50,11 +50,10 @@ export interface ControlsState {
     totalPaymentCount: number;      // Actual count
   }>;
   // New Intelligent Routing Parameters
-  minAggregatesSize: number;
-  maxAggregatesSize: number;
-  currentBlockThresholdMaxTotalCount: number;
-  volumeSplit: number;
-  isSuccessBasedRoutingEnabled?: boolean; // Renamed for consistency
+  // minAggregatesSize: number;
+  // maxAggregatesSize: number;
+  // currentBlockThresholdMaxTotalCount: number;
+  // volumeSplit: number;
   // Batch processing parameters
   numberOfBatches?: number;
   batchSize?: number;
@@ -146,6 +145,6 @@ export interface TransactionLogEntry {
   status: string; // e.g., "succeeded", "failed", "pending"
   connector: string; // The connector used for the transaction
   timestamp: number; // epoch milliseconds, to help with sequencing and time-based analysis
-  routingApproach?: 'exploration' | 'exploitation' | 'unknown' | 'N/A'; // Added routing approach
+  routingApproach?: 'exploration' | 'exploitation' | 'default' | 'unknown' | 'N/A'; // Added routing approach
   sr_scores?: Record<string, number>; // Added sr_scores
 }

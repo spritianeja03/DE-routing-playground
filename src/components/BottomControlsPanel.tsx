@@ -82,15 +82,13 @@ const formSchema = z.object({
     successfulPaymentCount: z.number().min(0), // Actual count
     totalPaymentCount: z.number().min(0),      // Actual count
   })),
-  currentBlockThresholdDurationInMins: z.number().min(0).optional(), // Retain for now, but will be replaced by minAggregatesSize for API
-  currentBlockThresholdMaxTotalCount: z.number().min(0).max(10000).optional(), // Retain for now, but will be replaced by maxAggregatesSize for API
-  minAggregatesSize: z.number().min(0).optional(), // New field for min_aggregates_size
-  maxAggregatesSize: z.number().min(0).optional(), // New field for max_aggregates_size
-  bucketSize: z.number().min(0).optional(), // New field for bucketSize
-  isSuccessBasedRoutingEnabled: z.boolean().optional(),
-  // Global Test Payment Data Fields are removed from schema
-  connectorWiseFailurePercentage: z.record(z.string(), z.number()), // Connector-wise failure percentage
-  explorationPercent: z.number().min(0).max(100).optional(), // Added explorationPercent
+  // currentBlockThresholdDurationInMins: z.number().min(0).optional(), // Retain for now, but will be replaced by minAggregatesSize for API
+  // currentBlockThresholdMaxTotalCount: z.number().min(0).max(10000).optional(), // Retain for now, but will be replaced by maxAggregatesSize for API
+  // minAggregatesSize: z.number().min(0).optional(), // New field for min_aggregates_size
+  // maxAggregatesSize: z.number().min(0).optional(), // New field for max_aggregates_size
+  bucketSize: z.number().min(0).optional(), 
+  connectorWiseFailurePercentage: z.record(z.string(), z.number()), 
+  explorationPercent: z.number().min(0).max(100).optional(), 
   connectorWiseTestCards: z.record(z.string(), z.object({
     successCard: z.object({
       cardNumber: z.string().optional(),
@@ -123,7 +121,6 @@ const formSchema = z.object({
 export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule' | 'overallSuccessRate'> & {
   structuredRule: StructuredRule | null;
   overallSuccessRate?: number;
-  isSuccessBasedRoutingEnabled?: boolean; // Corrected to match form schema
   explorationPercent?: number; // Ensure it's part of FormValues if not automatically inferred
   bucketSize?: number; // Added bucketSize
   connectorWiseTestCards?: Record<string, {
@@ -160,7 +157,6 @@ interface BottomControlsPanelProps {
   collapsed?: boolean;
   onToggleCollapse: () => void;
   activeTab: string;
-  parentTab?: 'intelligent-routing' | 'least-cost-routing';
 }
 
 function formatCardNumber(value: string) {
@@ -181,9 +177,8 @@ export function BottomControlsPanel({
   merchantId, 
   collapsed = false,
   onToggleCollapse,
-  activeTab,
-  parentTab = 'intelligent-routing',
-}: BottomControlsPanelProps & { activeTab: string; parentTab?: 'intelligent-routing' | 'least-cost-routing' }) {
+  activeTab
+}: BottomControlsPanelProps & { activeTab: string}) {
   const { toast } = useToast();
   const [successBasedAlgorithmId, setSuccessBasedAlgorithmId] = useState<string | null>(null);
   // const [activeRoutingAlgorithm, setActiveRoutingAlgorithm] = useState<any | null>(null); // Removed
@@ -238,11 +233,10 @@ export function BottomControlsPanel({
       processorMatrix: dynamicDefaults.matrix,
       processorIncidents: dynamicDefaults.incidents,
       processorWiseSuccessRates: dynamicDefaults.rates,
-      currentBlockThresholdDurationInMins: 60, // Default for old field
-      currentBlockThresholdMaxTotalCount: 20, // Default for old field
-      minAggregatesSize: 5, // Default for new field
-      maxAggregatesSize: 10, // Default for new field
-      isSuccessBasedRoutingEnabled: true, // Default to true
+      // currentBlockThresholdDurationInMins: 60, // Default for old field
+      // currentBlockThresholdMaxTotalCount: 20, // Default for old field
+      // minAggregatesSize: 5, // Default for new field
+      // maxAggregatesSize: 10, // Default for new field
       ruleConditionField: undefined,
       ruleConditionOperator: undefined,
       ruleConditionValue: undefined,
@@ -275,32 +269,6 @@ export function BottomControlsPanel({
   // }, [form]);
 
   // Removed useEffect for fetchActiveRouting
-
-  const handleSuccessBasedRoutingToggle = (enable: boolean) => {
-    // Directly update form state and show toast, no API calls.
-    form.setValue('isSuccessBasedRoutingEnabled', enable, { shouldDirty: true, shouldValidate: true });
-
-    if (enable) {
-      // The API calls for toggle and volume split are removed.
-      // We can still set successBasedAlgorithmId to a placeholder or null if it's used elsewhere,
-      // or remove its state management if it's no longer needed.
-      // For now, let's assume it's not critical if the API isn't called.
-      setSuccessBasedAlgorithmId(null); // Or some other indicator if needed
-      toast({
-        title: "Success Based Routing Enabled",
-        description: "Configure parameters for success-based routing.",
-      });
-      // The volume split concept might be implicitly 100% to this strategy now,
-      // or it's handled by the backend when this strategy is chosen by the payment request.
-      // toast({ title: "Volume Split Info", description: "Volume split is now 100% to dynamic routing when active." });
-    } else {
-      setSuccessBasedAlgorithmId(null);
-      toast({
-        title: "Success Based Routing Disabled",
-        description: "Routing will fallback to other configurations or defaults.",
-      });
-    }
-  };
 
   const [selectedIncidentProcessor, setSelectedIncidentProcessor] = useState<string>('');
   const [incidentDuration, setIncidentDuration] = useState<number>(10);
@@ -414,84 +382,67 @@ export function BottomControlsPanel({
                 <ScrollArea className="h-[100%]">
                   <div className="flex flex-col gap-4">
                     {/* Show only Total Payments for least-cost-routing, show all for intelligent-routing */}
-                    {parentTab === 'least-cost-routing' ? (
+                    <>
                       <FormField
                         control={control}
                         name="totalPayments"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Total Payments</FormLabel>
-                            <FormControl>
-                              <Input type="number" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
+                        render={({ field }) => {
+                          const numberOfBatches = form.watch('numberOfBatches') || 100;
+                          const batchSize = form.watch('batchSize') || 10;
+                          const calculatedTotal = numberOfBatches * batchSize;
+                          // Update the totalPayments value when numberOfBatches or batchSize changes
+                          React.useEffect(() => {
+                            field.onChange(calculatedTotal);
+                          }, [numberOfBatches, batchSize, calculatedTotal, field]);
+                          return (
+                            <FormItem>
+                              <FormLabel>Total Payments (Calculated)</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  value={calculatedTotal}
+                                  disabled
+                                  className="bg-muted"
+                                />
+                              </FormControl>
+                              <FormDescription className="text-xs">
+                                {numberOfBatches} batches × {batchSize} payments/batch = {calculatedTotal} total
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          );
+                        }}
                       />
-                    ) : (
-                      <>
+                      <div className="flex flex-col gap-4">
                         <FormField
                           control={control}
-                          name="totalPayments"
-                          render={({ field }) => {
-                            const numberOfBatches = form.watch('numberOfBatches') || 100;
-                            const batchSize = form.watch('batchSize') || 10;
-                            const calculatedTotal = numberOfBatches * batchSize;
-                            // Update the totalPayments value when numberOfBatches or batchSize changes
-                            React.useEffect(() => {
-                              field.onChange(calculatedTotal);
-                            }, [numberOfBatches, batchSize, calculatedTotal, field]);
-                            return (
-                              <FormItem>
-                                <FormLabel>Total Payments (Calculated)</FormLabel>
-                                <FormControl>
-                                  <Input 
-                                    type="number" 
-                                    value={calculatedTotal} 
-                                    disabled 
-                                    className="bg-muted" 
-                                  />
-                                </FormControl>
-                                <FormDescription className="text-xs">
-                                  {numberOfBatches} batches × {batchSize} payments/batch = {calculatedTotal} total
-                                </FormDescription>
-                                <FormMessage />
-                              </FormItem>
-                            );
-                          }}
+                          name="numberOfBatches"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Number of Batches</FormLabel>
+                              <FormControl>
+                                <Input type="number" placeholder="e.g., 100" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
                         />
-                        <div className="flex flex-col gap-4">
-                          <FormField
-                            control={control}
-                            name="numberOfBatches"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Number of Batches</FormLabel>
-                                <FormControl>
-                                  <Input type="number" placeholder="e.g., 100" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={control}
-                            name="batchSize"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Batch Size</FormLabel>
-                                <FormControl>
-                                  <Input type="number" placeholder="e.g., 10" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                      </>
-                    )}
-                    {parentTab === 'intelligent-routing' && (
-                      <div className="md:col-span-2">
+                        <FormField
+                          control={control}
+                          name="batchSize"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Batch Size</FormLabel>
+                              <FormControl>
+                                <Input type="number" placeholder="e.g., 10" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </>
+                    <div className="md:col-span-2">
                         <FormLabel>Payment Methods</FormLabel>
                         <div className="flex flex-col gap-2">
                           <div className="flex items-center gap-2">
@@ -502,8 +453,7 @@ export function BottomControlsPanel({
                             Currently, "Card" is the only enabled payment method.
                           </p>
                         </div>
-                      </div>
-                    )}
+                    </div>
                     {/* Payment Request Payload Example Section */}
                     <div className="bg-white dark:bg-card rounded-xl shadow-xs border border-gray-200 dark:border-border p-4 mb-4 w-full overflow-x-auto relative">
                       <div className="text-sm font-semibold mb-2 flex items-center justify-between">
@@ -665,27 +615,7 @@ export function BottomControlsPanel({
                       </div>
                       <div className="text-xs text-muted-foreground pt-2">Select and configure intelligent routing strategies. Fields are shown if a strategy is enabled.</div>
                     </div>
-                    <div className="bg-white dark:bg-card rounded-xl p-2">
-                      <FormField
-                        control={control}
-                        name="isSuccessBasedRoutingEnabled"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-row items-center justify-between rounded-lg">
-                            <FormLabel className="text-base font-normal">Success Based Routing</FormLabel>
-                            <FormControl>
-                              <Switch
-                                checked={field.value || false}
-                                onCheckedChange={(newCheckedState) => {
-                                  handleSuccessBasedRoutingToggle(newCheckedState);
-                                }}
-                              />
-                            </FormControl>
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                    {form.watch("isSuccessBasedRoutingEnabled") && (
-                      <div className="flex flex-col gap-6 border-t pt-6 mt-6">
+                    <div className="flex flex-col gap-6 border-t pt-6 mt-6">
                         <FormField
                           control={control}
                           name="explorationPercent"
@@ -778,7 +708,6 @@ export function BottomControlsPanel({
                           />
                         </div>
                       </div>
-                    )}
                   </div>
                 <div className="bg-white dark:bg-card rounded-xl p-2">
                   <div className="mb-2">
