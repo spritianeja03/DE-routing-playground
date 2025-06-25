@@ -542,10 +542,6 @@ export default function HomePage() {
           totalPayments: 100,
           selectedPaymentMethods: [...PAYMENT_METHODS],
           structuredRule: null,
-          // currentBlockThresholdDurationInMins: 15, 
-          // currentBlockThresholdMaxTotalCount: 5,  
-          // minAggregatesSize: 5, 
-          // maxAggregatesSize: 10,
           processorMatrix: {},
           processorIncidents: {},
           processorWiseSuccessRates: {},
@@ -651,10 +647,6 @@ export default function HomePage() {
           totalPayments: 1000, selectedPaymentMethods: [...PAYMENT_METHODS], processorMatrix: {},
           processorIncidents: {}, overallSuccessRate: 0, processorWiseSuccessRates: {},
           structuredRule: null,
-          // currentBlockThresholdDurationInMins: 5, // Old field
-          // currentBlockThresholdMaxTotalCount: 10, // Old field
-          // minAggregatesSize: 5, // New field default
-          // maxAggregatesSize: 10, // New field default
           numberOfBatches: 100, 
           batchSize: 10, 
         } as FormValues;
@@ -675,13 +667,11 @@ export default function HomePage() {
     paymentIndex: number,
     signal: AbortSignal
   ): Promise<SinglePaymentOutcome> => {
-    if (!currentControls || !apiKey || !profileId || !merchantId) { // Added merchantId check
+    if (!currentControls || !apiKey || !profileId || !merchantId) { 
       throw new Error('Missing required configuration: currentControls, apiKey, profileId, or merchantId');
     }
 
-    const paymentMethodForAPI = "card";
-    // Generate paymentId early as it's needed by decideGateway and paymentData
-    const paymentId = `PAY${Math.floor(Math.random() * 100000)}_${paymentIndex}`; 
+    const paymentId = `PAY${Math.floor(Math.random() * 100000)}_${paymentIndex}`;
 
     let connectorNameToUseForCardSR: string = ""; // Default to empty string (global/0% failure unless "" is configured)
     let routingApproach: TransactionLogEntry['routingApproach'] = 'N/A';
@@ -705,209 +695,72 @@ export default function HomePage() {
       srScores = decisionResult.srScores;
 
       if (returnedConnectorLabel) {
-        const matchedConnector = merchantConnectors.find(mc => mc.connector_name === returnedConnectorLabel);
-        if (matchedConnector) {
-          connectorNameToUseForCardSR = matchedConnector.connector_name;
-        } else {
-          // SBR returned a label, but it's not in our merchantConnectors list.
-          console.warn(`[ProcessSinglePayment] SBR: Connector label '${returnedConnectorLabel}' from decideGateway not found in local merchantConnectors. Using SR of first active connector if available.`);
-          if (activeConnectorLabels.length > 0) { // Fallback to first active if match fails
-            connectorNameToUseForCardSR = activeConnectorLabels[0];
-          }
-          // If no active connectors, connectorNameToUseForCardSR remains ""
-        }
+        // Use the connector returned by decideGateway
+        connectorNameToUseForCardSR = returnedConnectorLabel;
       } else {
-        // SBR is on, but decideGateway returned no connector.
-        console.warn(`[ProcessSinglePayment] SBR: decideGateway returned no connector. Using SR of first active connector if available.`);
-        if (activeConnectorLabels.length > 0) { // Fallback to first active if decideGateway returns null
+        // decideGateway didn't return a connector, fallback to first active connector
+        console.warn("[ProcessSinglePayment] SBR: No connector returned from decideGateway. Using first active connector if available.");
+        if (activeConnectorLabels.length > 0) {
           connectorNameToUseForCardSR = activeConnectorLabels[0];
         }
         // If no active connectors, connectorNameToUseForCardSR remains ""
       }
     } else {
-      // SBR is on, but cannot call decideGateway due to missing prerequisites.
-      console.warn(`[ProcessSinglePayment] SBR: Cannot call decideGateway (missing prerequisites: active connectors, profileId, merchantId, or apiKey). Using SR of first active connector if available.`);
-      if (activeConnectorLabels.length > 0) { // Fallback if decideGateway cannot be called
-          connectorNameToUseForCardSR = activeConnectorLabels[0];
+      // Cannot call decideGateway due to missing prerequisites
+      console.warn("[ProcessSinglePayment] SBR: Cannot call decideGateway (missing prerequisites). Using first active connector if available.");
+      if (activeConnectorLabels.length > 0) {
+        connectorNameToUseForCardSR = activeConnectorLabels[0];
       }
-      // else connectorNameToUseForCardSR remains ""
-    }
-    // If SBR is OFF, connectorNameToUseForCardSR remains "" (defaulting to 0% failure unless "" is specifically configured in connectorWiseFailurePercentage).
-
-    // Determine card details using the resolved connector name (or "" if it remains the default)
-    const cardDetailsForPayment = getCarddetailsForPayment(currentControls, connectorNameToUseForCardSR);
-
-    const paymentData = {
-      amount: 6540,
-      payment_id: paymentId, // Use the generated paymentId
-      currency: "USD",
-      confirm: true,
-      profile_id: profileId,
-      capture_method: "automatic",
-      authentication_type: "no_three_ds",
-      customer: {
-        id: `cus_sim_${Date.now()}_${paymentIndex}`,
-        name: "John Doe",
-        email: "customer@example.com",
-        phone: "9999999999",
-        phone_country_code: "+1"
-      },
-      payment_method: paymentMethodForAPI,
-      payment_method_type: "credit",
-      payment_method_data: {
-        card: cardDetailsForPayment, // Use card details determined by the new logic
-        billing: {
-          address: {
-            line1: "1467",
-            line2: "Harrison Street",
-            line3: "Harrison Street",
-            city: "San Francisco",
-            state: "California",
-            zip: "94122",
-            country: "US",
-            first_name: "Joseph",
-            last_name: "Doe"
-          },
-          phone: { number: "8056594427", country_code: "+91" },
-          email: "guest@example.com"
-        }
-      },
-    };
-
-
-    // Apply .routing object to paymentData if SBR was enabled and resulted in a specific connector selection
-    if (returnedConnectorLabel) {
-        const matchedConnectorForRoutingObject = merchantConnectors.find(mc => mc.connector_name === returnedConnectorLabel);
-        if (matchedConnectorForRoutingObject) { // Ensure connector is valid before adding routing object
-             (paymentData as any).routing = {
-                type: "single",
-                data: {
-                    connector: matchedConnectorForRoutingObject.connector_name,
-                    merchant_connector_id: matchedConnectorForRoutingObject.merchant_connector_id
-                }
-            };
-        }
+      // If no active connectors, connectorNameToUseForCardSR remains ""
     }
 
-    // Make payment request
     let isSuccess = false;
     let routedProcessorId: string | null = null;
     let logEntry: TransactionLogEntry | null = null;
 
     try {
-      const response = await fetch('/api/hs-proxy/payments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'api-key': apiKey
-        },
-        body: JSON.stringify(paymentData),
-        signal,
-      });
-
-      const paymentStatusHeader = response.headers.get('x-simulation-payment-status');
-      const connectorHeader = response.headers.get('x-simulation-payment-connector');
-      const responseData = await response.json();
-
-      isSuccess = response.ok && (
-        responseData.status === 'succeeded' ||
-        responseData.status === 'requires_capture' ||
-        responseData.status === 'processing'
-      );
-
-      // Create log entry
-      let payment_id = responseData.payment_id;
-      let loggedConnectorName = connectorHeader || responseData.connector_name || responseData.merchant_connector_id || 'unknown';
-      if (paymentStatusHeader || responseData.status) {
-        transactionCounterRef.current += 1;
-        logEntry = {
-          transactionNumber: transactionCounterRef.current,
-          status: paymentStatusHeader || responseData.status,
-          connector: loggedConnectorName,
-          timestamp: Date.now(),
-          routingApproach,
-          sr_scores: srScores,
-        };
+      if (signal.aborted) {
+        throw new DOMException('Aborted', 'AbortError');
       }
 
-      // Determine routedProcessorId
-      if (responseData.connector_name) {
-        const mc = merchantConnectors.find(m => m.connector_name === responseData.connector_name);
-        if (mc) routedProcessorId = mc.merchant_connector_id || mc.connector_name;
-      } else if (responseData.merchant_connector_id) {
-        routedProcessorId = responseData.merchant_connector_id;
-      }
+      const randomNumber = Math.random() * 100;
+      const failurePercentageForConnector = currentControls.connectorWiseFailurePercentage?.[connectorNameToUseForCardSR];
+      const effectiveFailurePercentage = typeof failurePercentageForConnector === 'number' ? failurePercentageForConnector : 0;
 
-      if (!routedProcessorId && loggedConnectorName !== 'unknown') {
-        const mc = merchantConnectors.find(m => m.connector_name === loggedConnectorName);
-        if (mc) routedProcessorId = mc.merchant_connector_id || mc.connector_name;
-        else routedProcessorId = loggedConnectorName;
-      }
-      
+      isSuccess = randomNumber >= effectiveFailurePercentage;
+
+      const status = isSuccess ? 'succeeded' : 'failed';
+
+      routedProcessorId = connectorNameToUseForCardSR;
+
+      let loggedConnectorName = routedProcessorId || 'unknown';
+
+      transactionCounterRef.current += 1;
+      logEntry = {
+        transactionNumber: transactionCounterRef.current,
+        status: status,
+        connector: loggedConnectorName,
+        timestamp: Date.now(),
+        routingApproach,
+        sr_scores: srScores,
+      };
+
       if (merchantId && loggedConnectorName !== 'unknown') {
         const foundConnector = merchantConnectors.find(mc =>
           mc.connector_name === loggedConnectorName || mc.merchant_connector_id === loggedConnectorName
         );
         const connectorNameForUpdate = foundConnector ? foundConnector.connector_name : loggedConnectorName;
-        await updateGatewayScore(merchantId, connectorNameForUpdate, isSuccess, currentControls, payment_id);
+        await updateGatewayScore(merchantId, connectorNameForUpdate, isSuccess, currentControls, paymentId);
       }
     } catch (error: any) {
       if (error.name !== 'AbortError') {
-        console.error("Error during payment API call:", error);
+        console.error("Error during payment simulation:", error);
       }
       throw error;
     }
 
     return { isSuccess, routedProcessorId, logEntry };
   }, [currentControls, apiKey, profileId, merchantId, merchantConnectors, connectorToggleStates, updateGatewayScore, decideGateway]);
-
-  const getCarddetailsForPayment = (currentControls: FormValues, connectorNameToUse: string): any => {
-    let cardDetailsToUse;
-    const randomNumber = Math.random() * 100;
-
-    // Determine failure percentage: connector-specific first, then fallback (though -1 implies global won't be used directly here)
-    // The logic is: if connectorNameToUse is provided, use its specific failure rate.
-    // If connectorNameToUse is empty (e.g. SBR off, or no connector chosen by SBR), this implies a scenario
-    // where a global failure rate might apply, but the current structure of connectorWiseFailurePercentage
-    // means we'd need a global entry or a different mechanism for a truly global failure rate not tied to a connector.
-    // For now, if connectorNameToUse is empty, it will effectively use a 0% failure rate unless a global default is explicitly set.
-    // A more robust global fallback for failure percentage might be needed if that's a desired scenario.
-    const failurePercentageForConnector = currentControls.connectorWiseFailurePercentage?.[connectorNameToUse];
-    // If no specific connector is provided, or no specific failure rate is set for it, we might default to 0 or a global setting.
-    // For this implementation, if connectorNameToUse is empty or not in the map, failurePercentageForConnector will be undefined.
-    // We'll treat undefined as "use success card" unless a global failure rate is explicitly defined and used.
-    // The original code used -1 which effectively meant "always success" if no connector was matched.
-    // Let's make it explicit: if no connector name, or no failure % for it, assume 0% failure for card selection.
-    const effectiveFailurePercentage = typeof failurePercentageForConnector === 'number' ? failurePercentageForConnector : 0;
-
-    console.log(`[FR]: Connector: '${connectorNameToUse || 'GLOBAL/NONE'}', Random: ${randomNumber.toFixed(2)}, Effective Fail Rate: ${effectiveFailurePercentage}%`);
-
-    const connectorCards = currentControls.connectorWiseTestCards?.[connectorNameToUse];
-
-    if (randomNumber < effectiveFailurePercentage) {
-      // Use failure card: connector-specific if available, else hardcoded fallback
-      cardDetailsToUse = {
-        card_number: connectorCards?.failureCard?.cardNumber || "4000000000000002",
-        card_exp_month: connectorCards?.failureCard?.expMonth || "12",
-        card_exp_year: connectorCards?.failureCard?.expYear || "26",
-        card_holder_name: connectorCards?.failureCard?.holderName || "Jane Roe",
-        card_cvc: connectorCards?.failureCard?.cvc || "999",
-      };
-      console.log(`[FR]: Using FAILURE card for ${connectorNameToUse || 'NONE (defaulting to hardcoded failure)'}`);
-    } else {
-      // Use success card: connector-specific if available, else hardcoded fallback
-      cardDetailsToUse = {
-        card_number: connectorCards?.successCard?.cardNumber || "4242424242424242",
-        card_exp_month: connectorCards?.successCard?.expMonth || "10",
-        card_exp_year: connectorCards?.successCard?.expYear || "25",
-        card_holder_name: connectorCards?.successCard?.holderName || "Joseph Doe",
-        card_cvc: connectorCards?.successCard?.cvc || "123",
-      };
-      console.log(`[FR]: Using SUCCESS card for ${connectorNameToUse || 'NONE (defaulting to hardcoded success)'}`);
-    }
-    return cardDetailsToUse;
-  };
 
   const processTransactionBatch = useCallback(async () => {
     console.log(
@@ -925,7 +778,6 @@ export default function HomePage() {
           isStoppingRef.current = true;
           setSimulationState('paused');
           setIsApiCredentialsModalOpen(true);
-          toast({ title: "Credentials Missing", description: "Enter API Key, Profile ID, and Merchant ID.", variant: "destructive" });
         }
         return;
       }
@@ -935,7 +787,6 @@ export default function HomePage() {
           console.log("PTB: Target reached (early check), stopping.");
           isStoppingRef.current = true;
           setSimulationState('idle');
-          toast({ title: "Simulation Completed", description: `All ${currentControls.totalPayments} payments processed.`, duration: 5000 });
         }
         return;
       }
@@ -1032,7 +883,6 @@ export default function HomePage() {
             console.log("PTB: Target reached in setProcessedPaymentsCount, setting to idle.");
             isStoppingRef.current = true;
             setSimulationState('idle');
-            toast({ title: "Simulation Completed", description: `All ${currentControls.totalPayments} payments processed.`, duration: 5000 });
           }
           return newTotalProcessed;
         });
@@ -1107,7 +957,7 @@ export default function HomePage() {
   }, [
     currentControls, simulationState, apiKey, profileId, merchantId, merchantConnectors, connectorToggleStates,
     processedPaymentsCount, setProcessedPaymentsCount, setSuccessRateHistory, setVolumeHistory,
-    setOverallSuccessRateHistory, setSimulationState, setCurrentControls, toast,
+    setOverallSuccessRateHistory, setSimulationState, setCurrentControls,
   ]);
 
   useEffect(() => {
@@ -1116,6 +966,25 @@ export default function HomePage() {
       processTransactionBatch();
     }
   }, [simulationState, processTransactionBatch]);
+
+  useEffect(() => {
+    if (simulationState === 'paused' && isApiCredentialsModalOpen) {
+      toast({ title: "Credentials Missing", description: "Enter API Key, Profile ID, and Merchant ID.", variant: "destructive" });
+    }
+  }, [simulationState, isApiCredentialsModalOpen, toast]);
+
+  const prevSimulationStateRef = useRef<string>();
+  useEffect(() => {
+    if (
+      prevSimulationStateRef.current === 'running' &&
+      simulationState === 'idle' &&
+      currentControls &&
+      processedPaymentsCount >= currentControls.totalPayments
+    ) {
+      toast({ title: "Simulation Completed", description: `All ${currentControls.totalPayments} payments processed.`, duration: 5000 });
+    }
+    prevSimulationStateRef.current = simulationState;
+  }, [simulationState, processedPaymentsCount, currentControls, toast]);
 
   const handleStartSimulation = useCallback(async (forceStart = false) => {
     const previousSimulationState = simulationState; // Capture state before any changes
@@ -1148,11 +1017,6 @@ export default function HomePage() {
         totalPayments: 1000, selectedPaymentMethods: [...PAYMENT_METHODS], processorMatrix: initialPm,
         structuredRule: null, processorIncidents: initialPi, overallSuccessRate: 0,
         processorWiseSuccessRates: initialPwsr,
-        // defaultSuccessRate: 90, // Removed
-        // currentBlockThresholdDurationInMins: 5, // Old field
-        // currentBlockThresholdMaxTotalCount: 10, // Old field
-        // minAggregatesSize: 5, // New field default
-        // maxAggregatesSize: 10, // New field default
         numberOfBatches: 100, 
         batchSize: 10, 
         connectorWiseFailurePercentage: {}, // Initialize empty

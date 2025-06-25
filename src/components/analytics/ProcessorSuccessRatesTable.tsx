@@ -25,7 +25,7 @@ export function ProcessorSuccessRatesTable({ data }: ProcessorSuccessRatesTableP
             const failedPaymentCount = item.totalPaymentCount - item.successfulPaymentCount;
             const failureRate = item.totalPaymentCount > 0 ? (failedPaymentCount / item.totalPaymentCount) * 100 : 0;
             return (
-              <AccordionItem value={item.processor} key={item.processor}>
+              <AccordionItem value={item.processorId} key={item.processorId}>
                 <AccordionTrigger>
                   <div className="flex justify-between w-full pr-4">
                     <span>{item.processor}</span>

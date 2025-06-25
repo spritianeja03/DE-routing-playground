@@ -60,6 +60,7 @@ export function StatsView({
         const calculatedSr = totalPayments > 0 ? (successfulPayments / totalPayments) * 100 : 0;
 
         return {
+          processorId: processorId, // Keep original ID for keying
           processor: processorName,
           sr: calculatedSr, 
           successfulPaymentCount: successfulPayments,

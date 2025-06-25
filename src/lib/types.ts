@@ -61,6 +61,7 @@ export interface ControlsState {
 
 
 export interface ProcessorSuccessRate {
+  processorId: string;
   processor: string;
   sr: number; // Observed SR
   successfulPaymentCount: number;
