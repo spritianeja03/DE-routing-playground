@@ -12,7 +12,7 @@ interface MiniSidebarProps {
 
 export const MiniSidebar: React.FC<MiniSidebarProps> = ({ activeSection, onSectionChange, collapsed, onToggleCollapse }) => {
   // Theme toggle state
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
     if (isDark) {
@@ -92,4 +92,4 @@ export const MiniSidebar: React.FC<MiniSidebarProps> = ({ activeSection, onSecti
       </div>
     </div>
   );
-}; 
+};
