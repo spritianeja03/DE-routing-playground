@@ -1,6 +1,5 @@
 "use client"
 
-import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { PieChart as PieChartIcon } from 'lucide-react'; // Renamed to avoid conflict
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts"; // Removed Text
@@ -118,13 +117,12 @@ export function TransactionDistributionChart({ data, merchantConnectors }: Trans
           </ResponsiveContainer>
         ) : (
           <div className="text-center py-10">
-             <Image
+             <img
                 src="https://placehold.co/300x150.png?text=No+Distribution+Data"
                 alt="Distribution Chart Placeholder"
                 width={300}
                 height={150}
                 className="rounded-md shadow-sm opacity-50"
-                data-ai-hint="pie chart"
             />
             <p className="mt-2 text-sm text-muted-foreground">Chart data will appear here after simulation.</p>
           </div>
