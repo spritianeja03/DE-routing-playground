@@ -31,7 +31,20 @@ interface SinglePaymentOutcome {
 }
 
 export default function HomePage() {
-  const [currentControls, setCurrentControls] = useState<FormValues | null>(null);
+  const [currentControls, setCurrentControls] = useState<FormValues | null>({
+    totalPayments: 100,
+    selectedPaymentMethods: [...PAYMENT_METHODS],
+    structuredRule: null,
+    processorMatrix: {},
+    processorIncidents: {},
+    processorWiseSuccessRates: {},
+    isSuccessBasedRoutingEnabled: true,
+    explorationPercent: 20,
+    bucketSize: 200,
+    overallSuccessRate: 0,
+    connectorWiseFailurePercentage: {},
+    batchSize: 1,
+  });
   const [simulationState, setSimulationState] = useState<'idle' | 'running' | 'paused'>('idle');
   const [processedPaymentsCount, setProcessedPaymentsCount] = useState<number>(0);
   const [currentBatchNumber, setCurrentBatchNumber] = useState<number>(0);
@@ -100,7 +113,7 @@ export default function HomePage() {
     console.log("[updateRuleConfiguration] Payload:", JSON.stringify(payload, null, 2));
 
     try {
-      const response = await fetch('https://sandbox.hyperswitch.io/rule/update', {
+      const response = await fetch('/api/hs-proxy/rule/update', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -166,10 +179,10 @@ export default function HomePage() {
       const connectorWiseFailurePercentage: FormValues['connectorWiseFailurePercentage'] = {};
 
       (connectorsData || []).forEach((connector) => {
-        const key = connector.merchant_connector_id || connector.connector_name;
+        const key = connector.connector_name;
         if (key) {
           initialToggleStates[key] = !(connector.disabled === true);
-          initialProcessorWiseSuccessRates[key] = { sr: 0, srDeviation: 0, volumeShare: 0, successfulPaymentCount: 0, totalPaymentCount: 0 };
+          initialProcessorWiseSuccessRates[connector.merchant_connector_id] = { sr: 0, srDeviation: 0, volumeShare: 0, successfulPaymentCount: 0, totalPaymentCount: 0 };
           initialProcessorIncidents[key] = null;
           initialProcessorMatrix[key] = PAYMENT_METHODS.reduce((acc, method) => {
             acc[method] = false; return acc;
@@ -240,7 +253,7 @@ export default function HomePage() {
 
   useEffect(() => {
     const handler = setTimeout(() => {
-      if (currentControls && merchantId) {
+      if (currentControls && merchantId && prevControlsRef.current) {
         const prevControls = prevControlsRef.current;
         const currentExplorationPercent = currentControls.explorationPercent;
         const currentBucketSize = currentControls.bucketSize;
@@ -407,17 +420,15 @@ export default function HomePage() {
       let srScoresForLog: Record<string, number> | undefined = undefined;
       if (gatewayPriorityArray.length > 0) {
         srScoresForLog = gatewayPriorityArray.reduce((acc: Record<string, number>, item) => {
-          acc[item.label] = item.score * 100;
+          acc[item.label] = parseFloat((item.score * 100).toFixed(2));
           return acc;
         }, {});
       }
 
       let routingApproachForLog: TransactionLogEntry['routingApproach'] = 'unknown';
-      if (data.routing_approach === 'SR_SELECTION_V3_ROUTING') {
-        routingApproachForLog = 'exploitation';
-      } else {
-        routingApproachForLog = 'exploration';
-      }
+      routingApproachForLog = data.routing_approach === 'SR_SELECTION_V3_ROUTING' ? 'exploitation' 
+                   : data.routing_approach === 'SR_V3_HEDGING' ? 'exploration'
+                   : 'default';
 
       if (data.decided_gateway) {
         return { selectedConnector: data.decided_gateway, routingApproach: routingApproachForLog, srScores: srScoresForLog };
@@ -484,7 +495,7 @@ export default function HomePage() {
 
     const paymentId = `PAY${Math.floor(Math.random() * 100000)}_${paymentIndex}`;
     const activeConnectorLabels = merchantConnectors
-      .filter(mc => connectorToggleStates[mc.merchant_connector_id || mc.connector_name])
+      .filter(mc => connectorToggleStates[mc.connector_name])
       .map(mc => mc.connector_name);
 
     const decisionResult = await decideGateway(
@@ -495,6 +506,14 @@ export default function HomePage() {
     );
 
     const { selectedConnector, routingApproach, srScores } = decisionResult;
+
+    const failurePercentage = currentControls.connectorWiseFailurePercentage?.[selectedConnector || ''] ?? 0;
+    const shouldFail = Math.random() * 100 < failurePercentage;
+
+    const successCardNumber = currentControls.connectorWiseSuccessCard?.[selectedConnector || ''] || "4242424242424242";
+    const failureCardNumber = currentControls.connectorWiseFailureCard?.[selectedConnector || ''] || "4000000000000002";
+
+    const cardNumber = shouldFail ? failureCardNumber : successCardNumber;
 
     const paymentData = {
       amount: 6540,
@@ -508,7 +527,7 @@ export default function HomePage() {
       payment_method: "card",
       payment_method_type: "credit",
       payment_method_data: {
-        card: { card_number: "4242424242424242", card_exp_month: "10", card_exp_year: "25", card_holder_name: "Joseph Doe", card_cvc: "123" },
+        card: { card_number: cardNumber, card_exp_month: "10", card_exp_year: "25", card_holder_name: "Joseph Doe", card_cvc: "123" },
         billing: { address: { line1: "1467", line2: "Harrison Street", city: "San Francisco", state: "California", zip: "94122", country: "US", first_name: "Joseph", last_name: "Doe" }, phone: { number: "8056594427", country_code: "+91" }, email: "guest@example.com" }
       },
       routing: selectedConnector ? { type: "single", data: { connector: selectedConnector, merchant_connector_id: merchantConnectors.find(mc => mc.connector_name === selectedConnector)?.merchant_connector_id } } : undefined,
@@ -531,17 +550,17 @@ export default function HomePage() {
       const loggedConnectorName = response.headers.get('x-simulation-payment-connector') || responseData.connector_name || responseData.merchant_connector_id || 'unknown';
       
       transactionCounterRef.current += 1;
+      const mc = merchantConnectors.find(m => m.connector_name === loggedConnectorName || m.merchant_connector_id === loggedConnectorName);
+      routedProcessorId = mc ? mc.connector_name : loggedConnectorName;
+
       logEntry = {
         transactionNumber: transactionCounterRef.current,
         status: responseData.status,
-        connector: loggedConnectorName,
+        connector: routedProcessorId || 'unknown',
         timestamp: Date.now(),
         routingApproach,
         sr_scores: srScores,
       };
-
-      const mc = merchantConnectors.find(m => m.connector_name === loggedConnectorName || m.merchant_connector_id === loggedConnectorName);
-      routedProcessorId = mc ? (mc.merchant_connector_id || mc.connector_name) : loggedConnectorName;
 
       if (merchantId && routedProcessorId && typeof routedProcessorId === 'string' && routedProcessorId !== 'unknown') {
         await updateGatewayScore(merchantId, routedProcessorId, isSuccess, currentControls, paymentId);
@@ -619,7 +638,7 @@ export default function HomePage() {
       const newVolumeDataPoint: TimeSeriesDataPoint = { time: currentTime };
 
       merchantConnectors.forEach(connector => {
-        const key = connector.merchant_connector_id || connector.connector_name;
+        const key = connector.connector_name;
         const batchStats = batchSpecificProcessorStats[key] || { successful: 0, failed: 0 };
         const batchTotal = batchStats.successful + batchStats.failed;
         newSuccessRateDataPoint[key] = batchTotal > 0 ? (batchStats.successful / batchTotal) * 100 : 0;
@@ -641,7 +660,9 @@ export default function HomePage() {
         Object.values(accumulatedProcessorStatsRef.current).forEach(stats => totalVolume += (stats.successful + stats.failed));
         
         Object.keys(newPwsr).forEach(procId => {
-          const stats = accumulatedProcessorStatsRef.current[procId] || { successful: 0, failed: 0 };
+          const connector = merchantConnectors.find(c => c.merchant_connector_id === procId || c.connector_name === procId);
+          const key = connector ? connector.connector_name : procId;
+          const stats = accumulatedProcessorStatsRef.current[key] || { successful: 0, failed: 0 };
           const totalForProc = stats.successful + stats.failed;
           newPwsr[procId] = {
             ...newPwsr[procId],
@@ -695,17 +716,113 @@ export default function HomePage() {
     toast({ title: "Simulation Stopped" });
   }, [toast]);
 
+  const createSrRule = useCallback(async (merchantId: string, explorationPercent: number, bucketSize: number) => {
+    const payload = {
+      merchant_id: merchantId,
+      config: {
+        type: "successRate",
+        data: {
+          defaultLatencyThreshold: 90,
+          defaultSuccessRate: 0.5,
+          defaultBucketSize: 200,
+          defaultHedgingPercent: 5,
+          subLevelInputConfig: [
+            {
+              paymentMethod: "card",
+              bucketSize: bucketSize,
+              hedgingPercent: explorationPercent
+            }
+          ]
+        }
+      }
+    };
+
+    try {
+      const response = await fetch('/api/hs-proxy/rule/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-feature': 'decision-engine'
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Failed to create SR rule." }));
+        console.error("[createSrRule] API Error:", errorData.message || `HTTP ${response.status}`);
+        toast({ title: "SR Rule Creation Error", description: errorData.message || `HTTP ${response.status}`, variant: "destructive" });
+      } else {
+        const responseData = await response.json();
+        console.log("[createSrRule] Response Data:", responseData);
+        toast({ title: "SR Rule Created", description: "SR Rule created successfully." });
+      }
+    } catch (error: any) {
+      console.error("[createSrRule] Fetch Error:", error);
+      toast({ title: "SR Rule Creation Network Error", description: error.message, variant: "destructive" });
+    }
+  }, [toast]);
+
+  const createMerchant = useCallback(async (merchantId: string, controls: FormValues | null) => {
+    try {
+      const response = await fetch('/api/hs-proxy/merchant-account/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-feature': 'decision-engine'
+        },
+        body: JSON.stringify({ merchant_id: merchantId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Failed to create merchant." }));
+        console.error("[createMerchant] API Error:", errorData.message || `HTTP ${response.status}`);
+        toast({ title: "Merchant Creation Error", description: errorData.message || `HTTP ${response.status}`, variant: "destructive" });
+      } else {
+        const responseData = await response.json();
+        console.log("[createMerchant] Response Data:", responseData);
+        toast({ title: "Merchant Created", description: "Merchant created successfully." });
+        if (controls?.explorationPercent !== undefined && controls?.bucketSize !== undefined) {
+          await createSrRule(merchantId, controls.explorationPercent, controls.bucketSize);
+        }
+      }
+    } catch (error: any) {
+      console.error("[createMerchant] Fetch Error:", error);
+      toast({ title: "Merchant Creation Network Error", description: error.message, variant: "destructive" });
+    }
+  }, [toast, createSrRule]);
+
+  const checkMerchantExists = useCallback(async (merchantId: string) => {
+    try {
+      const response = await fetch(`/api/hs-proxy/merchant-account/${merchantId}`, {
+        method: 'GET',
+        headers: {
+          'x-feature': 'decision-engine'
+        },
+      });
+      return response.ok;
+    } catch (error) {
+      console.error("[checkMerchantExists] Fetch Error:", error);
+      return false;
+    }
+  }, []);
+
   const handleApiCredentialsSubmit = useCallback(async () => {
     if (!apiKey || !profileId || !merchantId) {
       toast({ title: "API Credentials Required", variant: "destructive" });
       return;
     }
+
+    const merchantExists = await checkMerchantExists(merchantId);
+    if (!merchantExists) {
+      await createMerchant(merchantId, currentControls);
+    }
+
     localStorage.setItem(LOCALSTORAGE_API_KEY, apiKey);
     localStorage.setItem(LOCALSTORAGE_PROFILE_ID, profileId);
     localStorage.setItem(LOCALSTORAGE_MERCHANT_ID, merchantId);
     setIsApiCredentialsModalOpen(false);
     await fetchMerchantConnectors(merchantId, apiKey);
-  }, [apiKey, profileId, merchantId, toast, fetchMerchantConnectors]);
+  }, [apiKey, profileId, merchantId, toast, fetchMerchantConnectors, createMerchant, checkMerchantExists, currentControls]);
 
   const resetSimulationState = () => {
     setProcessedPaymentsCount(0);

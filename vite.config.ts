@@ -27,6 +27,38 @@ export default defineConfig({
           'Access-Control-Allow-Origin': '*',
         }
       },
+      '/api/hs-proxy/merchant-account/create': {
+        target: 'https://sandbox.hyperswitch.io',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/hs-proxy/, ''),
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+        }
+      },
+      '/api/hs-proxy/rule/create': {
+        target: 'https://sandbox.hyperswitch.io',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/hs-proxy/, ''),
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+        }
+      },
+      '/api/hs-proxy/merchant-account/': {
+        target: 'https://sandbox.hyperswitch.io',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/hs-proxy/, ''),
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+        }
+      },
+      '/api/hs-proxy/rule/update': {
+        target: 'https://sandbox.hyperswitch.io',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/hs-proxy/, ''),
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+        }
+      },
     },
   },
   define: {

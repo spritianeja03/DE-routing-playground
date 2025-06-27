@@ -58,7 +58,12 @@ export interface ControlsState {
   // Batch processing parameters
   numberOfBatches?: number;
   batchSize?: number;
+  connectorWiseFailurePercentage?: Record<string, number>;
+  connectorWiseSuccessCard?: Record<string, string>;
+  connectorWiseFailureCard?: Record<string, string>;
 }
+
+export interface FormValues extends ControlsState {}
 
 
 export interface ProcessorSuccessRate {
@@ -146,6 +151,6 @@ export interface TransactionLogEntry {
   status: string; // e.g., "succeeded", "failed", "pending"
   connector: string; // The connector used for the transaction
   timestamp: number; // epoch milliseconds, to help with sequencing and time-based analysis
-  routingApproach?: 'exploration' | 'exploitation' | 'unknown' | 'N/A'; // Added routing approach
+  routingApproach?: 'exploration' | 'exploitation' | 'default' | 'unknown' | 'N/A'; // Added routing approach
   sr_scores?: Record<string, number>; // Added sr_scores
 }

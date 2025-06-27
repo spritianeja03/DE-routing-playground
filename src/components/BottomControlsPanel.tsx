@@ -91,22 +91,8 @@ const formSchema = z.object({
   // Global Test Payment Data Fields are removed from schema
   connectorWiseFailurePercentage: z.record(z.string(), z.number()), // Connector-wise failure percentage
   explorationPercent: z.number().min(0).max(100).optional(), // Added explorationPercent
-  connectorWiseTestCards: z.record(z.string(), z.object({
-    successCard: z.object({
-      cardNumber: z.string().optional(),
-      expMonth: z.string().optional(),
-      expYear: z.string().optional(),
-      holderName: z.string().optional(),
-      cvc: z.string().optional(),
-    }).optional(),
-    failureCard: z.object({
-      cardNumber: z.string().optional(),
-      expMonth: z.string().optional(),
-      expYear: z.string().optional(),
-      holderName: z.string().optional(),
-      cvc: z.string().optional(),
-    }).optional(),
-  })).optional(),
+  connectorWiseSuccessCard: z.record(z.string(), z.string().optional()).optional(),
+  connectorWiseFailureCard: z.record(z.string(), z.string().optional()).optional(),
   selectedRoutingParams: z.object({
     PaymentMethod: z.boolean().optional(),
     PaymentMethodType: z.boolean().optional(),
@@ -126,22 +112,8 @@ export type FormValues = Omit<z.infer<typeof formSchema>, 'structuredRule' | 'ov
   isSuccessBasedRoutingEnabled?: boolean; // Corrected to match form schema
   explorationPercent?: number; // Ensure it's part of FormValues if not automatically inferred
   bucketSize?: number; // Added bucketSize
-  connectorWiseTestCards?: Record<string, {
-    successCard?: {
-      cardNumber?: string;
-      expMonth?: string;
-      expYear?: string;
-      holderName?: string;
-      cvc?: string;
-    };
-    failureCard?: {
-      cardNumber?: string;
-      expMonth?: string;
-      expYear?: string;
-      holderName?: string;
-      cvc?: string;
-    };
-  }>;
+  connectorWiseSuccessCard?: Record<string, string>;
+  connectorWiseFailureCard?: Record<string, string>;
   minAggregatesSize?: number; // Ensure it's part of FormValues
   maxAggregatesSize?: number; // Ensure it's part of FormValues
   numberOfBatches?: number; // New batch processing field
@@ -193,7 +165,8 @@ export function BottomControlsPanel({
     const incidents: ProcessorIncidentStatus = {};
     const rates: ControlsState['processorWiseSuccessRates'] = {};
     const connectorWiseFailurePercentage: Record<string, number> = {};
-    const connectorWiseTestCardsInit: FormValues['connectorWiseTestCards'] = {};
+    const connectorWiseSuccessCard: Record<string, string> = {};
+    const connectorWiseFailureCard: Record<string, string> = {};
     
     const globalStoredCards = loadGlobalCardDetailsFromStorage(); // Load global stored cards once
 
@@ -208,26 +181,11 @@ export function BottomControlsPanel({
       if(connector.disabled == false) {
         // Ensure connector.connector_name is used as the key for failure percentage
         connectorWiseFailurePercentage[connector.connector_name] = 50;
+        connectorWiseSuccessCard[connector.connector_name] = "4242424242424242";
+        connectorWiseFailureCard[connector.connector_name] = "4000000000000002";
       }
-      // Initialize test cards for each connector using global stored cards or hardcoded defaults
-      connectorWiseTestCardsInit![key] = {
-        successCard: {
-          cardNumber: globalStoredCards.successCardNumber || "4242424242424242",
-          expMonth: globalStoredCards.successCardExpMonth || "10",
-          expYear: globalStoredCards.successCardExpYear || "25",
-          holderName: globalStoredCards.successCardHolderName || "Joseph Doe",
-          cvc: globalStoredCards.successCardCvc || "123",
-        },
-        failureCard: {
-          cardNumber: globalStoredCards.failureCardNumber || "4000000000000002",
-          expMonth: globalStoredCards.failureCardExpMonth || "12",
-          expYear: globalStoredCards.failureCardExpYear || "26",
-          holderName: globalStoredCards.failureCardHolderName || "Jane Roe",
-          cvc: globalStoredCards.failureCardCvc || "999",
-        }
-      };
     });
-    return { matrix, incidents, rates, connectorWiseFailurePercentage, connectorWiseTestCardsInit };
+    return { matrix, incidents, rates, connectorWiseFailurePercentage, connectorWiseSuccessCard, connectorWiseFailureCard };
   }, [merchantConnectors]);
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -249,7 +207,8 @@ export function BottomControlsPanel({
       ruleActionProcessorId: undefined,
       // Global Test Payment Data Defaults are removed
       connectorWiseFailurePercentage: dynamicDefaults.connectorWiseFailurePercentage,
-      connectorWiseTestCards: dynamicDefaults.connectorWiseTestCardsInit, // Initialize here
+      connectorWiseSuccessCard: dynamicDefaults.connectorWiseSuccessCard,
+      connectorWiseFailureCard: dynamicDefaults.connectorWiseFailureCard,
       explorationPercent: 20, // Default value for explorationPercent
       selectedRoutingParams: {
         PaymentMethod: true,
@@ -319,7 +278,8 @@ export function BottomControlsPanel({
               ...(initialValues?.connectorWiseFailurePercentage || {}), // Initial values from parent (if any)
               ...currentFormValues.connectorWiseFailurePercentage, // User's current changes (highest priority)
             },
-            connectorWiseTestCards: dynamicDefaults.connectorWiseTestCardsInit, // Add to reset
+            connectorWiseSuccessCard: dynamicDefaults.connectorWiseSuccessCard,
+            connectorWiseFailureCard: dynamicDefaults.connectorWiseFailureCard,
         });
 
         const firstConnectorId = merchantConnectors[0].merchant_connector_id || merchantConnectors[0].connector_name;
@@ -335,7 +295,8 @@ export function BottomControlsPanel({
             processorIncidents: {},
             processorWiseSuccessRates: {},
             connectorWiseFailurePercentage: {},
-            connectorWiseTestCards: {}, // Add to reset
+            connectorWiseSuccessCard: {},
+            connectorWiseFailureCard: {},
             ruleActionProcessorId: undefined,
         });
         setSelectedIncidentProcessor('');
@@ -862,16 +823,13 @@ export function BottomControlsPanel({
                   <CardHeader>
                     <CardTitle className="text-base">Connector-Specific Test Cards</CardTitle>
                     <CardDescription className="text-xs">
-                      Configure test card details for each connector.
-                      These will override global test card details if specified.
+                      Configure test card numbers for each connector.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <Accordion type="multiple" className="w-full">
                       {(merchantConnectors || []).map((connector) => {
-                        const connectorId = connector.connector_name; // Use connector_name as the key
-                        // const connectorDisplayName = connector.connector_label || connector.connector_name; // Use connector_name directly
-
+                        const connectorId = connector.connector_name;
                         return (
                           <AccordionItem value={connectorId} key={connectorId}>
                             <AccordionTrigger>
@@ -879,135 +837,40 @@ export function BottomControlsPanel({
                             </AccordionTrigger>
                             <AccordionContent>
                               <div className="space-y-6 p-1">
-                                {/* Success Card Details for this Connector */}
-                                <div className="space-y-3 border p-3 rounded-md bg-muted/20">
-                                  <h4 className="text-sm font-semibold text-green-600">Success Card</h4>
-                                  <FormField
-                                    control={control}
-                                    name={`connectorWiseTestCards.${connectorId}.successCard.holderName`}
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel className="text-xs">Name on card</FormLabel>
-                                        <FormControl><Input placeholder="Default: Joseph Doe" {...field} className="bg-background text-xs h-8" /></FormControl>
-                                      </FormItem>
-                                    )}
-                                  />
-                                  <FormField
-                                    control={control}
-                                    name={`connectorWiseTestCards.${connectorId}.successCard.cardNumber`}
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel className="text-xs">Card number</FormLabel>
-                                        <FormControl>
-                                          <Input
-                                            placeholder="Default: 4242..."
-                                            maxLength={19}
-                                            value={formatCardNumber(field.value || '')}
-                                            onChange={e => field.onChange(formatCardNumber(e.target.value))}
-                                            className="bg-background text-xs h-8"
-                                          />
-                                        </FormControl>
-                                      </FormItem>
-                                    )}
-                                  />
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <FormField
-                                      control={control}
-                                      name={`connectorWiseTestCards.${connectorId}.successCard.expMonth`}
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel className="text-xs">MM</FormLabel>
-                                          <FormControl><Input placeholder="10" maxLength={2} {...field} className="bg-background text-xs h-8" /></FormControl>
-                                        </FormItem>
-                                      )}
-                                    />
-                                    <FormField
-                                      control={control}
-                                      name={`connectorWiseTestCards.${connectorId}.successCard.expYear`}
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel className="text-xs">YY</FormLabel>
-                                          <FormControl><Input placeholder="25" maxLength={2} {...field} className="bg-background text-xs h-8" /></FormControl>
-                                        </FormItem>
-                                      )}
-                                    />
-                                  </div>
-                                  <FormField
-                                    control={control}
-                                    name={`connectorWiseTestCards.${connectorId}.successCard.cvc`}
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel className="text-xs">CVC</FormLabel>
-                                        <FormControl><Input placeholder="123" maxLength={4} {...field} className="bg-background text-xs h-8 w-20" /></FormControl>
-                                      </FormItem>
-                                    )}
-                                  />
-                                </div>
-
-                                {/* Failure Card Details for this Connector */}
-                                <div className="space-y-3 border p-3 rounded-md bg-muted/20">
-                                  <h4 className="text-sm font-semibold text-red-600">Failure Card</h4>
-                                  <FormField
-                                    control={control}
-                                    name={`connectorWiseTestCards.${connectorId}.failureCard.holderName`}
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel className="text-xs">Name on card</FormLabel>
-                                        <FormControl><Input placeholder="Default: Jane Roe" {...field} className="bg-background text-xs h-8" /></FormControl>
-                                      </FormItem>
-                                    )}
-                                  />
-                                  <FormField
-                                    control={control}
-                                    name={`connectorWiseTestCards.${connectorId}.failureCard.cardNumber`}
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel className="text-xs">Card number</FormLabel>
-                                        <FormControl>
-                                          <Input
-                                            placeholder="Default: 4000..."
-                                            maxLength={19}
-                                            value={formatCardNumber(field.value || '')}
-                                            onChange={e => field.onChange(formatCardNumber(e.target.value))}
-                                            className="bg-background text-xs h-8"
-                                          />
-                                        </FormControl>
-                                      </FormItem>
-                                    )}
-                                  />
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <FormField
-                                      control={control}
-                                      name={`connectorWiseTestCards.${connectorId}.failureCard.expMonth`}
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel className="text-xs">MM</FormLabel>
-                                          <FormControl><Input placeholder="12" maxLength={2} {...field} className="bg-background text-xs h-8" /></FormControl>
-                                        </FormItem>
-                                      )}
-                                    />
-                                    <FormField
-                                      control={control}
-                                      name={`connectorWiseTestCards.${connectorId}.failureCard.expYear`}
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel className="text-xs">YY</FormLabel>
-                                          <FormControl><Input placeholder="26" maxLength={2} {...field} className="bg-background text-xs h-8" /></FormControl>
-                                        </FormItem>
-                                      )}
-                                    />
-                                  </div>
-                                  <FormField
-                                    control={control}
-                                    name={`connectorWiseTestCards.${connectorId}.failureCard.cvc`}
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel className="text-xs">CVC</FormLabel>
-                                        <FormControl><Input placeholder="999" maxLength={4} {...field} className="bg-background text-xs h-8 w-20" /></FormControl>
-                                      </FormItem>
-                                    )}
-                                  />
-                                </div>
+                                <FormField
+                                  control={control}
+                                  name={`connectorWiseSuccessCard.${connectorId}`}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel className="text-xs">Success Card Number</FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          placeholder="Default: 4242..."
+                                          maxLength={19}
+                                          {...field}
+                                          className="bg-background text-xs h-8"
+                                        />
+                                      </FormControl>
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={control}
+                                  name={`connectorWiseFailureCard.${connectorId}`}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel className="text-xs">Failure Card Number</FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          placeholder="Default: 4000..."
+                                          maxLength={19}
+                                          {...field}
+                                          className="bg-background text-xs h-8"
+                                        />
+                                      </FormControl>
+                                    </FormItem>
+                                  )}
+                                />
                               </div>
                             </AccordionContent>
                           </AccordionItem>
