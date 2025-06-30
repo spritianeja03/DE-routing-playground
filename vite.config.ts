@@ -5,6 +5,12 @@ import { defineConfig } from "vite"
 export default defineConfig({
   plugins: [react()],
   build:{
+    lib: {
+      entry: path.resolve(__dirname, 'src/App.tsx'), // or index.ts
+      name:"DERoutingPlayground",
+      fileName: (format) => `index.${format}.js`, // Output file name
+      formats: ['es', 'umd']
+    },
     rollupOptions: {
       // Externalize React, ReactDOM, and React Router
       external: ['react', 'react-dom', 'react-router-dom'],

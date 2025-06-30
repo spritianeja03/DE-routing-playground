@@ -2,7 +2,8 @@
   "name": "nextn",
   "version": "0.1.0",
   "private": true,
-  "main": "dist/assets/index-Dk1CVoYE.js",
+  "main": "dist/index.umd.js",
+  "module": "dist/index.es.js",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
