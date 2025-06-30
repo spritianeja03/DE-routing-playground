@@ -4,6 +4,19 @@ import { defineConfig } from "vite"
 
 export default defineConfig({
   plugins: [react()],
+  build:{
+    rollupOptions: {
+      // Externalize React, ReactDOM, and React Router
+      external: ['react', 'react-dom', 'react-router-dom'],
+      output: {
+        globals: {
+          react: 'React',
+          'react-dom': 'ReactDOM',
+          'react-router-dom': 'ReactRouterDOM'
+        }
+      }
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -61,6 +74,7 @@ export default defineConfig({
       },
     },
   },
+
   define: {
     'process.env': {}
   }
