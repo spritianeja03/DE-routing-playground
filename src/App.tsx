@@ -10,8 +10,7 @@ const App: React.FC = () => {
     <TooltipProvider>
       <Router>
         <Routes>
-          <Route path="/" element={<AppLayout><HomePage /></AppLayout>} />
-          <Route path="*" element={<AppLayout><Test /></AppLayout>} />
+          <Route path="/dashboard/de-routing/*" element={<AppLayout><HomePage /></AppLayout>} />
         </Routes>
       </Router>
     </TooltipProvider>
