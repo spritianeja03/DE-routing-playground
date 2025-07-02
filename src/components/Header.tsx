@@ -67,24 +67,6 @@ export function Header({
       </div>
 
       <div className="flex items-center gap-2">
-        {(isIdle || isPaused) && (
-          <Button onClick={onStartSimulation} disabled={isSimulating} variant="primary" size="default">
-            {isSimulating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlayCircle className="mr-2 h-5 w-5" />}
-            {isPaused ? 'Resume Simulation' : 'Start Simulation'}
-          </Button>
-        )}
-        {isSimulating && (
-          <Button onClick={onPauseSimulation} variant="outline" size="default">
-            <PauseCircle className="mr-2 h-5 w-5" />
-            Pause Simulation
-          </Button>
-        )}
-        {(isSimulating || isPaused) && (
-          <Button onClick={onStopSimulation} variant="destructive" size="default">
-            <StopCircle className="mr-2 h-5 w-5" />
-            Stop Simulation
-          </Button>
-        )}
       </div>
     </header>
   );
