@@ -4,6 +4,7 @@ import { defineConfig } from "vite"
 
 export default defineConfig({
   plugins: [react()],
+  
   build:{
     lib: {
       entry: path.resolve(__dirname, 'src/App.tsx'), // or index.ts
@@ -22,6 +23,7 @@ export default defineConfig({
         }
       }
     },
+    cssCodeSplit: false,
   },
   resolve: {
     alias: {

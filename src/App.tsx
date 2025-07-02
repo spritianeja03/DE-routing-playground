@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/AppLayout';
 import HomePage from './pages/HomePage';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import Test from './pages/Test';
 
 const App: React.FC = () => {
   return (
