@@ -22,7 +22,7 @@ export default defineConfig({
         }
       }
     },
-    cssCodeSplit: false,
+
   },
   resolve: {
     alias: {
