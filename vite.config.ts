@@ -13,13 +13,12 @@ export default defineConfig({
       formats: ['es', 'umd']
     },
     rollupOptions: {
-      // Externalize React, ReactDOM, and React Router
-      external: ['react', 'react-dom', 'react-router-dom'],
+      // Externalize React, ReactDOM
+      external: ['react', 'react-dom'],
       output: {
         globals: {
           react: 'React',
           'react-dom': 'ReactDOM',
-          'react-router-dom': 'ReactRouterDOM'
         }
       }
     },
