@@ -1,5 +1,4 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Header } from '@/components/Header';
 import { BottomControlsPanel, type FormValues } from '@/components/BottomControlsPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
@@ -9,7 +8,7 @@ import { AnalyticsGraphsView } from '@/components/AnalyticsGraphsView';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2 } from 'lucide-react';
+import { Loader2, PlayCircle, PauseCircle, StopCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { PaymentMethod, ProcessorMetricsHistory, StructuredRule, ControlsState, OverallSRHistory, OverallSRHistoryDataPoint, TimeSeriesDataPoint, MerchantConnector, TransactionLogEntry, AISummaryInput, AISummaryOutput } from '@/lib/types';
 import { PAYMENT_METHODS } from '@/lib/constants';
@@ -704,6 +703,11 @@ export default function HomePage() {
     toast({ title: "Simulation Started" });
   }, [apiKey, profileId, merchantId, merchantConnectors.length, toast, fetchMerchantConnectors]);
 
+  const handleResumeSimulation = useCallback(() => {
+    setSimulationState('running');
+    toast({ title: "Simulation Resumed" });
+  }, [toast]);
+
   const handlePauseSimulation = useCallback(() => {
     if (simulationState === 'running') {
       setSimulationState('paused');
@@ -839,15 +843,7 @@ export default function HomePage() {
   return (
     <>
       <div className="theme-intelligent">
-        <Header
-          activeTab={parentTab}
-          onTabChange={tab => setParentTab(tab as 'intelligent-routing' | 'least-cost-routing')}
-          onStartSimulation={handleStartSimulation}
-          onPauseSimulation={handlePauseSimulation}
-          onStopSimulation={handleStopSimulation}
-          simulationState={simulationState}
-        />
-        <div className="flex flex-row flex-grow overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
+        <div className="flex flex-row flex-grow overflow-hidden" style={{ height: 'calc(100vh)' }}>
           <MiniSidebar
             activeSection={activeSection}
             onSectionChange={setActiveSection}
@@ -875,10 +871,38 @@ export default function HomePage() {
             <Allotment.Pane>
               <div className="flex flex-col h-full">
                 <Tabs value={contentTab} onValueChange={(value) => setContentTab(value as 'stats' | 'analytics')} className="flex flex-col h-full">
-                  <TabsList className="p-4 pb-0">
-                    <TabsTrigger value="stats">Stats</TabsTrigger>
-                    <TabsTrigger value="analytics">Analytics</TabsTrigger>
-                  </TabsList>
+                  <div className="flex justify-between items-center p-4 pb-0">
+                    <TabsList>
+                      <TabsTrigger value="stats">Stats</TabsTrigger>
+                      <TabsTrigger value="analytics">Analytics</TabsTrigger>
+                    </TabsList>
+                    <div className="flex items-center gap-2">
+                      {simulationState === 'idle' && (
+                        <Button onClick={() => handleStartSimulation()} variant="primary" size="default">
+                          <PlayCircle className="mr-2 h-5 w-5" />
+                          Start Simulation
+                        </Button>
+                      )}
+                      {simulationState === 'paused' && (
+                        <Button onClick={handleResumeSimulation} variant="primary" size="default">
+                          <PlayCircle className="mr-2 h-5 w-5" />
+                          Resume Simulation
+                        </Button>
+                      )}
+                      {simulationState === 'running' && (
+                        <Button onClick={handlePauseSimulation} variant="outline" size="default">
+                          <PauseCircle className="mr-2 h-5 w-5" />
+                          Pause Simulation
+                        </Button>
+                      )}
+                      {(simulationState === 'running' || simulationState === 'paused') && (
+                        <Button onClick={handleStopSimulation} variant="destructive" size="default">
+                          <StopCircle className="mr-2 h-5 w-5" />
+                          Stop Simulation
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                   <TabsContent value="stats" className="flex-1 h-full">
                     <ScrollArea className="h-full">
                       <div className="p-4">

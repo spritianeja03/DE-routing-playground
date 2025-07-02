@@ -94,8 +94,8 @@ export function StatsView({
 
   return (
     <div className="space-y-6 flex flex-col">
-      {/* Stats Cards in a 2-column grid for wider screens, stack on smaller */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+      {/* Stats Cards in a 3-column grid for wider screens, stack on smaller */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-6 pl-6 pr-6">
             <CardTitle className="text-sm font-medium">Total Processed</CardTitle>
