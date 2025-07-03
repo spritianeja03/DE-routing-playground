@@ -4,6 +4,7 @@
   "private": true,
   "main": "dist/index.umd.js",
   "module": "dist/index.es.js",
+  "style":"dist/style.css",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
