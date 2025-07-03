@@ -5450,7 +5450,7 @@ function RR({
     ] }) }),
     /* @__PURE__ */ x.jsx("div", { className: "flex-grow flex justify-center", children: /* @__PURE__ */ x.jsx(aO, { value: e, onValueChange: t, className: "", children: /* @__PURE__ */ x.jsx(Pv, { children: /* @__PURE__ */ x.jsx(Su, { value: "intelligent-routing", children: "Intelligent Routing" }) }) }) }),
     /* @__PURE__ */ x.jsxs("div", { className: "flex items-center gap-2", children: [
-      (c || s) && /* @__PURE__ */ x.jsxs(xo, { className: "bg-purpleTest", onClick: r, disabled: o, variant: "primary", size: "default", children: [
+      (c || s) && /* @__PURE__ */ x.jsxs(xo, { onClick: r, disabled: o, variant: "primary", size: "default", children: [
         o ? /* @__PURE__ */ x.jsx(nk, { className: "mr-2 h-5 w-5 animate-spin" }) : /* @__PURE__ */ x.jsx(G$, { className: "mr-2 h-5 w-5" }),
         s ? "Resume Simulation" : "Start Simulation"
       ] }),

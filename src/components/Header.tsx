@@ -68,7 +68,7 @@ export function Header({
 
       <div className="flex items-center gap-2">
         {(isIdle || isPaused) && (
-          <Button className="bg-purpleTest" onClick={onStartSimulation} disabled={isSimulating} variant="primary" size="default">
+          <Button onClick={onStartSimulation} disabled={isSimulating} variant="primary" size="default">
             {isSimulating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlayCircle className="mr-2 h-5 w-5" />}
             {isPaused ? 'Resume Simulation' : 'Start Simulation'}
           </Button>
