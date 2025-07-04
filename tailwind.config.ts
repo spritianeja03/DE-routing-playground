@@ -6,7 +6,7 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
-  prefix: "de-",
+
   theme: {
   	extend: {
       fontFamily: {
