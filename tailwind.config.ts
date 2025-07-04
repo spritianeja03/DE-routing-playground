@@ -1,6 +1,9 @@
 import type { Config } from "tailwindcss";
 const { fontFamily } = require("tailwindcss/defaultTheme");
 
+function withOpacity(variableName: string): string {
+  return `rgb(var(${variableName}))`;
+}
 export default {
     content: [
     "./index.html",
@@ -14,7 +17,7 @@ export default {
         mono: ["var(--font-geist-mono)", ...fontFamily.mono],
       },
   		colors: {
-  			background: 'hsl(var(--colors-background))',
+  			background: withOpacity("--colors-background"),
   			foreground: 'hsl(var(--foreground))',
   			card: {
   				DEFAULT: 'hsl(var(--card))',
@@ -25,11 +28,11 @@ export default {
   				foreground: 'hsl(var(--popover-foreground))'
   			},
   			primary: {
-  				DEFAULT: 'hsl(var(--colors-primary))',
+  				DEFAULT: withOpacity("--colors-primary"),
   				foreground: 'hsl(var(--primary-foreground))'
   			},
   			secondary: {
-  				DEFAULT: 'hsl(var(--colors-secondary))',
+  				DEFAULT: withOpacity("--colors-secondary"),
   				foreground: 'hsl(var(--secondary-foreground))'
   			},
   			muted: {
@@ -44,7 +47,7 @@ export default {
   				DEFAULT: 'hsl(var(--destructive))',
   				foreground: 'hsl(var(--destructive-foreground))'
   			},
-  			border: 'hsl(var(--borders-border-color))',
+  			border: withOpacity("--borders-border-color"),
   			input: 'hsl(var(--input))',
         'input-border': 'hsl(var(--input-border))',
   			ring: 'hsl(var(--ring))',
@@ -58,7 +61,7 @@ export default {
   			sidebar: {
   				DEFAULT: 'hsl(var(--sidebar-background))',
   				foreground: 'hsl(var(--sidebar-foreground))',
-  				primary: 'hsl(var(--sidebar-primary))',
+  				primary: withOpacity("--sidebar-primary"),
   				'primary-foreground': 'hsl(var(--sidebar-primary-foreground))',
   				accent: 'hsl(var(--sidebar-accent))',
   				'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
