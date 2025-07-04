@@ -22,7 +22,9 @@ export default defineConfig(({ command }) => ({
         }
       }
     },
+    cssCodeSplit:false,
   },
+  
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

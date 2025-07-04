@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/AppLayout';
 import HomePage from './pages/HomePage';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import './style.css'
 
 interface AppProps {
   basename?: string;
