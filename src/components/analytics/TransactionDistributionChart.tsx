@@ -103,7 +103,7 @@ export function TransactionDistributionChart({ data, merchantConnectors }: Trans
                 labelLine={false}
                 label={renderCustomizedLabel} // Add the label prop here
                 fontSize={12}
-                stroke="hsl(var(--background))" // Use direct background for stroke between cells
+                stroke="hsl(var(--colors-background))" // Use direct background for stroke between cells
                 strokeWidth={2}
               >
                 {currentData.map((entry, index) => (

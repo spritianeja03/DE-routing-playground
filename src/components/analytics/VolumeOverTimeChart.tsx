@@ -128,7 +128,7 @@ export function VolumeOverTimeChart({ data, merchantConnectors, connectorToggleS
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
           <AreaChart data={chartData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--borders-border-color))" />
             <XAxis
               dataKey="time"
               stroke="hsl(var(--muted-foreground))" 

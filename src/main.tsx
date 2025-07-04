@@ -6,6 +6,6 @@ import './style.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <App basename={import.meta.env.BASE_URL} />
   </React.StrictMode>,
 )

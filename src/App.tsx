@@ -4,12 +4,16 @@ import { AppLayout } from './components/AppLayout';
 import HomePage from './pages/HomePage';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
-const App: React.FC = () => {
+interface AppProps {
+  basename?: string;
+}
+
+const App: React.FC<AppProps> = ({ basename = "/" }) => {
   return (
     <TooltipProvider>
-      <Router>
+      <Router basename={basename}>
         <Routes>
-          <Route path="/dashboard/de-routing/*" element={<AppLayout><HomePage /></AppLayout>} />
+          <Route path="/de-routing/*" element={<AppLayout><HomePage /></AppLayout>} />
         </Routes>
       </Router>
     </TooltipProvider>

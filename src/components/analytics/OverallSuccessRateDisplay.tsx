@@ -39,8 +39,8 @@ export function OverallSuccessRateDisplay({ rate, history }: OverallSuccessRateD
                 <Tooltip
                   contentStyle={{
                     backgroundColor: 'hsl(var(--popover))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: 'var(--radius)',
+                    border: '1px solid hsl(var(--borders-border-color))',
+                    borderRadius: 'var(--borders-default-radius)',
                     color: 'hsl(var(--popover-foreground))',
                     fontSize: '0.75rem', // text-xs
                     boxShadow: '0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1)'
@@ -52,7 +52,7 @@ export function OverallSuccessRateDisplay({ rate, history }: OverallSuccessRateD
                 <Line
                   type="monotone"
                   dataKey="overallSR"
-                  stroke="hsl(var(--primary))"
+                  stroke="hsl(var(--colors-primary))"
                   strokeWidth={2}
                   dot={false}
                   activeDot={{ r: 4 }}

@@ -93,7 +93,7 @@ export function SuccessRateOverTimeChart({ data, merchantConnectors, connectorTo
       <CardContent className="p-6">
         <ResponsiveContainer width="100%" height={300}>
           <AreaChart data={data} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--borders-border-color))" />
             <XAxis 
               dataKey="time" 
               stroke="hsl(var(--muted-foreground))" 

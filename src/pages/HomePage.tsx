@@ -848,7 +848,7 @@ export default function HomePage() {
             activeSection={activeSection}
             onSectionChange={setActiveSection}
             collapsed={sidebarCollapsed}
-            onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+            onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
           />
           <Allotment>
             <Allotment.Pane minSize={400} maxSize={600}>
@@ -861,8 +861,8 @@ export default function HomePage() {
                   apiKey={apiKey}
                   profileId={profileId}
                   merchantId={merchantId}
-                  collapsed={false}
-                  onToggleCollapse={() => { }}
+                  collapsed={sidebarCollapsed}
+                  onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
                   activeTab={activeSection}
                   parentTab={parentTab}
                 />

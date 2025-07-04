@@ -466,7 +466,7 @@ export function BottomControlsPanel({
                       </div>
                     )}
                     {/* Payment Request Payload Example Section */}
-                    <div className="bg-white dark:bg-card rounded-xl shadow-xs border border-gray-200 dark:border-border p-4 mb-4 w-full overflow-x-auto relative">
+                    <div className="bg-white rounded-xl shadow-xs border border-gray-200 p-4 mb-4 w-full overflow-x-auto relative">
                       <div className="text-sm font-semibold mb-2 flex items-center justify-between">
                         <span>Payment Request Payload (Example)</span>
                         <button
@@ -532,7 +532,7 @@ export function BottomControlsPanel({
                         </button>
                       </div>
                       <div style={{ height: 200, overflowY: 'auto' }}>
-                        <pre className="bg-muted dark:bg-muted/40 rounded-md p-3 text-xs overflow-x-auto whitespace-pre-wrap break-all text-gray-800 dark:text-gray-100" style={{ maxWidth: '100%', minHeight: 200 }}>{`
+                        <pre className="bg-muted rounded-md p-3 text-xs overflow-x-auto whitespace-pre-wrap break-all text-gray-800" style={{ maxWidth: '100%', minHeight: 200 }}>{`
 {
   "amount": 6540,
   "currency": "USD",
@@ -588,7 +588,7 @@ export function BottomControlsPanel({
                 </ScrollArea>
               )}
               {activeTab === 'processors' && (
-                <div className="bg-white dark:bg-card rounded-xl p-2 flex flex-col flex-grow"> {/* Added flex flex-col flex-grow */}
+                <div className="bg-white rounded-xl p-2 flex flex-col flex-grow"> {/* Added flex flex-col flex-grow */}
                   <CardHeader><CardTitle className="text-base">Processor ↔ PM Matrix</CardTitle></CardHeader>
                   <CardContent className="flex flex-col gap-4 flex-grow overflow-y-auto"> {/* Added flex-grow overflow-y-auto */}
                     <div className="flex flex-col gap-2">
@@ -626,7 +626,7 @@ export function BottomControlsPanel({
                       </div>
                       <div className="text-xs text-muted-foreground pt-2">Select and configure intelligent routing strategies. Fields are shown if a strategy is enabled.</div>
                     </div>
-                    <div className="bg-white dark:bg-card rounded-xl p-2">
+                    <div className="bg-white rounded-xl p-2">
                       <FormField
                         control={control}
                         name="isSuccessBasedRoutingEnabled"
@@ -672,14 +672,14 @@ export function BottomControlsPanel({
                             <FormItem>
                               <FormLabel className="text-xs">Bucket Size</FormLabel>
                               <FormControl>
-                                <Input type="number" placeholder="e.g., 200" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} min="0" className="bg-gray-50 dark:bg-muted border border-gray-200 dark:border-border text-gray-900 dark:text-white rounded-md px-3 py-2" />
+                                <Input type="number" placeholder="e.g., 200" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} min="0" className="bg-gray-50 border border-gray-200 text-gray-900 rounded-md px-3 py-2" />
                               </FormControl>
                               <FormDescription className="text-xs">Size of the buckets for success rate calculation.</FormDescription>
                               <FormMessage />
                             </FormItem>
                           )}
                         /> */}
-                        <div className="bg-white dark:bg-card rounded-xl p-2">
+                        <div className="bg-white rounded-xl p-2">
                           <h4 className="text-sm font-medium mb-2">Success Rate Window Parameters</h4>
                           {/* <FormField
                             control={control}
@@ -688,7 +688,7 @@ export function BottomControlsPanel({
                               <FormItem>
                                 <FormLabel className="text-xs">Minimum Bucket Count (min_aggregates_size)</FormLabel>
                                 <FormControl>
-                                  <Input type="number" placeholder="e.g., 5" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} min="0" className="bg-gray-50 dark:bg-muted border border-gray-200 dark:border-border text-gray-900 dark:text-white rounded-md px-3 py-2" />
+                                  <Input type="number" placeholder="e.g., 5" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} min="0" className="bg-gray-50 border border-gray-200 text-gray-900 rounded-md px-3 py-2" />
                                 </FormControl>
                                 <FormDescription className="text-xs">Min. aggregate data points for SR calculation (for /fetch).</FormDescription>
                                 <FormMessage />
@@ -702,7 +702,7 @@ export function BottomControlsPanel({
                               <FormItem>
                                 <FormLabel className="text-xs">Payment Count for Each Bucket (max_aggregates_size)</FormLabel>
                                 <FormControl>
-                                  <Input type="number" placeholder="e.g., 10" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} min="0" className="bg-gray-50 dark:bg-muted border border-gray-200 dark:border-border text-gray-900 dark:text-white rounded-md px-3 py-2" />
+                                  <Input type="number" placeholder="e.g., 10" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} min="0" className="bg-gray-50 border border-gray-200 text-gray-900 rounded-md px-3 py-2" />
                                 </FormControl>
                                 <FormDescription className="text-xs">Max. aggregate data points in a window (for /update).</FormDescription>
                                 <FormMessage />
@@ -730,7 +730,7 @@ export function BottomControlsPanel({
                               <FormItem>
                                 <FormLabel className="text-xs">Bucket Size (bucketSize)</FormLabel>
                                 <FormControl>
-                                  <Input type="number" placeholder="e.g., 5" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} min="0" className="bg-gray-50 dark:bg-muted border border-gray-200 dark:border-border text-gray-900 dark:text-white rounded-md px-3 py-2" />
+                                  <Input type="number" placeholder="e.g., 5" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} min="0" className="bg-gray-50 border border-gray-200 text-gray-900 rounded-md px-3 py-2" />
                                 </FormControl>
                                 <FormDescription className="text-xs">Bucket size for SR calculation (for /fetch).</FormDescription>
                                 <FormMessage />
@@ -741,7 +741,7 @@ export function BottomControlsPanel({
                       </div>
                     )}
                   </div>
-                <div className="bg-white dark:bg-card rounded-xl p-2">
+                <div className="bg-white rounded-xl p-2">
                   <div className="mb-2">
                     <span className="text-base font-medium">Routing Parameters</span>
                   </div>

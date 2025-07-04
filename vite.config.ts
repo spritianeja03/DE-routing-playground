@@ -2,9 +2,9 @@ import path from "path"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [react()],
-  
+  base: command === 'serve' ? '/' : './',
   build:{
     lib: {
       entry: path.resolve(__dirname, 'src/App.tsx'), // or index.ts
@@ -84,4 +84,4 @@ export default defineConfig({
   define: {
     'process.env': {}
   }
-})
+}));

@@ -2,7 +2,6 @@ import type { Config } from "tailwindcss";
 const { fontFamily } = require("tailwindcss/defaultTheme");
 
 export default {
-    darkMode: ["class"],
     content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
@@ -14,7 +13,7 @@ export default {
         mono: ["var(--font-geist-mono)", ...fontFamily.mono],
       },
   		colors: {
-  			background: 'hsl(var(--background))',
+  			background: 'hsl(var(--colors-background))',
   			foreground: 'hsl(var(--foreground))',
   			card: {
   				DEFAULT: 'hsl(var(--card))',
@@ -25,11 +24,11 @@ export default {
   				foreground: 'hsl(var(--popover-foreground))'
   			},
   			primary: {
-  				DEFAULT: 'hsl(var(--primary))',
+  				DEFAULT: 'hsl(var(--colors-primary))',
   				foreground: 'hsl(var(--primary-foreground))'
   			},
   			secondary: {
-  				DEFAULT: 'hsl(var(--secondary))',
+  				DEFAULT: 'hsl(var(--colors-secondary))',
   				foreground: 'hsl(var(--secondary-foreground))'
   			},
   			muted: {
@@ -44,7 +43,7 @@ export default {
   				DEFAULT: 'hsl(var(--destructive))',
   				foreground: 'hsl(var(--destructive-foreground))'
   			},
-  			border: 'hsl(var(--border))',
+  			border: 'hsl(var(--borders-border-color))',
   			input: 'hsl(var(--input))',
         'input-border': 'hsl(var(--input-border))',
   			ring: 'hsl(var(--ring))',
@@ -67,9 +66,9 @@ export default {
   			}
   		},
   		borderRadius: {
-  			lg: 'var(--radius)',
-  			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
+  			lg: 'var(--borders-default-radius)',
+  			md: 'calc(var(--borders-default-radius) - 2px)',
+  			sm: 'calc(var(--borders-default-radius) - 4px)'
   		},
       // Removed custom boxShadow for neumorphism. Will use Tailwind defaults or ShadCN's standard shadows.
   		keyframes: {

@@ -1,7 +1,6 @@
 import React from 'react';
-import { Settings2, VenetianMaskIcon, Zap, TrendingUp, ChevronLeft, ChevronRight, Sun, Moon } from 'lucide-react';
+import { Settings2, VenetianMaskIcon, Zap, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import * as Tooltip from '@radix-ui/react-tooltip';
-import { useEffect, useState } from 'react';
 
 interface MiniSidebarProps {
   activeSection: string;
@@ -11,19 +10,8 @@ interface MiniSidebarProps {
 }
 
 export const MiniSidebar: React.FC<MiniSidebarProps> = ({ activeSection, onSectionChange, collapsed, onToggleCollapse }) => {
-  // Theme toggle state
-  const [isDark, setIsDark] = useState(false);
-
-  useEffect(() => {
-    if (isDark) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [isDark]);
-
   return (
-    <div className="bg-white dark:bg-card border-r border-gray-200 dark:border-border rounded-none flex flex-col h-full justify-between items-center w-16 py-4 gap-4 z-30">
+    <div className="bg-white border-r border-gray-200 rounded-none flex flex-col h-full justify-between items-center w-16 py-4 gap-4 z-30">
       <div className="flex flex-col gap-4">
         <Tooltip.Root delayDuration={0}>
           <Tooltip.Trigger asChild>
@@ -81,13 +69,6 @@ export const MiniSidebar: React.FC<MiniSidebarProps> = ({ activeSection, onSecti
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {collapsed ? <ChevronRight /> : <ChevronLeft />}
-        </button>
-        <button
-          onClick={() => setIsDark((d) => !d)}
-          className="p-2 rounded-xl border border-border bg-muted hover:bg-accent transition-colors"
-          aria-label="Toggle dark mode"
-        >
-          {isDark ? <Sun className="h-5 w-5 text-yellow-400" /> : <Moon className="h-5 w-5 text-blue-600" />}
         </button>
       </div>
     </div>
