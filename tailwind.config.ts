@@ -6,6 +6,7 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  prefix: "de-",
   theme: {
   	extend: {
       fontFamily: {
@@ -24,7 +25,7 @@ export default {
   				foreground: 'hsl(var(--popover-foreground))'
   			},
   			primary: {
-  				DEFAULT: 'hsl(var(--colors-primary))',
+  				DEFAULT: 'hsl(var(--colors-primary-test))',
   				foreground: 'hsl(var(--primary-foreground))'
   			},
   			secondary: {
@@ -65,11 +66,11 @@ export default {
   				ring: 'hsl(var(--sidebar-ring))'
   			}
   		},
-  		borderRadius: {
-  			lg: 'var(--borders-default-radius)',
-  			md: 'calc(var(--borders-default-radius) - 2px)',
-  			sm: 'calc(var(--borders-default-radius) - 4px)'
-  		},
+  		// borderRadius: {
+  		// 	lg: 'var(--borders-default-radius)',
+  		// 	md: 'calc(var(--borders-default-radius) - 2px)',
+  		// 	sm: 'calc(var(--borders-default-radius) - 4px)'
+  		// },
       // Removed custom boxShadow for neumorphism. Will use Tailwind defaults or ShadCN's standard shadows.
   		keyframes: {
   			'accordion-down': {
