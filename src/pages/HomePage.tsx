@@ -244,6 +244,12 @@ export default function HomePage() {
 
       setIsApiCredentialsModalOpen(true);
     }
+    
+    // Cleanup function to close dialogs when component unmounts
+    return () => {
+      setIsApiCredentialsModalOpen(false);
+      setIsSummaryModalOpen(false);
+    };
   }, []);
 
   useEffect(() => {
