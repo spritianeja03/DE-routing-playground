@@ -28,7 +28,7 @@ export default {
   				foreground: 'hsl(var(--popover-foreground))'
   			},
   			primary: {
-  				DEFAULT: withOpacity("--colors-primary"),
+  				DEFAULT: 'hsl(var(--colors-primary))',
   				foreground: 'hsl(var(--primary-foreground))'
   			},
   			secondary: {
