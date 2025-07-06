@@ -259,6 +259,13 @@ export default function HomePage() {
       setSummaryText('');
       setIsSummarizing(false);
       setSummaryAttempted(false);
+      
+      // Explicitly remove any portal elements that might have been left behind
+      setTimeout(() => {
+        document.querySelectorAll('[data-radix-portal]').forEach(el => {
+          el.remove();
+        });
+      }, 0);
     };
   }, []);
 
@@ -971,22 +978,28 @@ export default function HomePage() {
           </Allotment>
         </div>
       </div>
-      <Dialog open={isApiCredentialsModalOpen} onOpenChange={setIsApiCredentialsModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>API Credentials</DialogTitle>
-          </DialogHeader>
-          <div className="py-4 space-y-4">
-            <div><Label htmlFor="apiKey">API Key</Label><Input id="apiKey" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} /></div>
-            <div><Label htmlFor="profileId">Profile ID</Label><Input id="profileId" value={profileId} onChange={(e) => setProfileId(e.target.value)} /></div>
-            <div><Label htmlFor="merchantId">Merchant ID</Label><Input id="merchantId" value={merchantId} onChange={(e) => setMerchantId(e.target.value)} /></div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsApiCredentialsModalOpen(false)}>Cancel</Button>
-            <Button onClick={handleApiCredentialsSubmit}>Save</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {isApiCredentialsModalOpen && (
+        <Dialog 
+          key={`api-credentials-dialog-${Date.now()}`}
+          open={true} 
+          onOpenChange={setIsApiCredentialsModalOpen}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>API Credentials</DialogTitle>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
+              <div><Label htmlFor="apiKey">API Key</Label><Input id="apiKey" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} /></div>
+              <div><Label htmlFor="profileId">Profile ID</Label><Input id="profileId" value={profileId} onChange={(e) => setProfileId(e.target.value)} /></div>
+              <div><Label htmlFor="merchantId">Merchant ID</Label><Input id="merchantId" value={merchantId} onChange={(e) => setMerchantId(e.target.value)} /></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsApiCredentialsModalOpen(false)}>Cancel</Button>
+              <Button onClick={handleApiCredentialsSubmit}>Save</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }
