@@ -244,11 +244,21 @@ export default function HomePage() {
 
       setIsApiCredentialsModalOpen(true);
     }
-    
-    // Cleanup function to close dialogs when component unmounts
+  }, []);
+  
+  // Dedicated cleanup effect for dialogs
+  useEffect(() => {
+    // This effect only handles cleanup when component unmounts
     return () => {
+      console.log("Cleaning up HomePage component...");
+      // Reset all dialog states
       setIsApiCredentialsModalOpen(false);
       setIsSummaryModalOpen(false);
+      
+      // Also reset any dialog-related state
+      setSummaryText('');
+      setIsSummarizing(false);
+      setSummaryAttempted(false);
     };
   }, []);
 
