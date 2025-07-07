@@ -241,7 +241,7 @@ export default function HomePage() {
       if (storedApiKey) setApiKey(storedApiKey);
       if (storedProfileId) setProfileId(storedProfileId);
       if (storedMerchantId) setMerchantId(storedMerchantId);
-
+      console.log("Inside use effect");
       setIsApiCredentialsModalOpen(true);
     }
   }, []);

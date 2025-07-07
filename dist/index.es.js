@@ -35764,7 +35764,7 @@ function koe() {
   nr(() => {
     if (typeof window < "u") {
       const pe = localStorage.getItem(cS), Ce = localStorage.getItem(lS), Ee = localStorage.getItem(uS);
-      pe && b(pe), Ce && x(Ce), Ee && g(Ee), m(!0);
+      pe && b(pe), Ce && x(Ce), Ee && g(Ee), console.log("Inside use effect"), m(!0);
     }
   }, []), nr(() => () => {
     console.log("Cleaning up HomePage component..."), m(!1), B(!1), X(""), le(!1), fe(!1), setTimeout(() => {
