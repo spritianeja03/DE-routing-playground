@@ -978,7 +978,7 @@ export default function HomePage() {
           </Allotment>
         </div>
       </div>
-      {isApiCredentialsModalOpen && (
+      {/* {isApiCredentialsModalOpen && (
         <Dialog 
           key={`api-credentials-dialog-${Date.now()}`}
           open={true} 
@@ -999,7 +999,7 @@ export default function HomePage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      )}
+      )} */}
     </>
   );
 }
