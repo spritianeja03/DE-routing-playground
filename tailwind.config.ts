@@ -1,12 +1,13 @@
 import type { Config } from "tailwindcss";
 const { fontFamily } = require("tailwindcss/defaultTheme");
+import { withOpacity } from "./src/lib/utils";
 
 export default {
-    darkMode: ["class"],
     content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+
   theme: {
   	extend: {
       fontFamily: {
@@ -14,7 +15,7 @@ export default {
         mono: ["var(--font-geist-mono)", ...fontFamily.mono],
       },
   		colors: {
-  			background: 'hsl(var(--background))',
+  			background: withOpacity("--colors-background"),
   			foreground: 'hsl(var(--foreground))',
   			card: {
   				DEFAULT: 'hsl(var(--card))',
@@ -25,11 +26,11 @@ export default {
   				foreground: 'hsl(var(--popover-foreground))'
   			},
   			primary: {
-  				DEFAULT: 'hsl(var(--primary))',
+  				DEFAULT: withOpacity("--colors-primary"),
   				foreground: 'hsl(var(--primary-foreground))'
   			},
   			secondary: {
-  				DEFAULT: 'hsl(var(--secondary))',
+  				DEFAULT: withOpacity("--colors-secondary"),
   				foreground: 'hsl(var(--secondary-foreground))'
   			},
   			muted: {
@@ -44,7 +45,7 @@ export default {
   				DEFAULT: 'hsl(var(--destructive))',
   				foreground: 'hsl(var(--destructive-foreground))'
   			},
-  			border: 'hsl(var(--border))',
+  			border: withOpacity("--borders-border-color"),
   			input: 'hsl(var(--input))',
         'input-border': 'hsl(var(--input-border))',
   			ring: 'hsl(var(--ring))',
@@ -58,7 +59,7 @@ export default {
   			sidebar: {
   				DEFAULT: 'hsl(var(--sidebar-background))',
   				foreground: 'hsl(var(--sidebar-foreground))',
-  				primary: 'hsl(var(--sidebar-primary))',
+  				primary: withOpacity("--sidebar-primary"),
   				'primary-foreground': 'hsl(var(--sidebar-primary-foreground))',
   				accent: 'hsl(var(--sidebar-accent))',
   				'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
@@ -66,11 +67,11 @@ export default {
   				ring: 'hsl(var(--sidebar-ring))'
   			}
   		},
-  		borderRadius: {
-  			lg: 'var(--radius)',
-  			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
-  		},
+  		// borderRadius: {
+  		// 	lg: 'var(--borders-default-radius)',
+  		// 	md: 'calc(var(--borders-default-radius) - 2px)',
+  		// 	sm: 'calc(var(--borders-default-radius) - 4px)'
+  		// },
       // Removed custom boxShadow for neumorphism. Will use Tailwind defaults or ShadCN's standard shadows.
   		keyframes: {
   			'accordion-down': {

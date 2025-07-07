@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TrendingUp } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, Tooltip, YAxis } from 'recharts';
 import type { OverallSRHistory } from '@/lib/types';
+import { withOpacity } from "@/lib/utils";
 
 interface OverallSuccessRateDisplayProps {
   rate: number;
@@ -39,8 +40,8 @@ export function OverallSuccessRateDisplay({ rate, history }: OverallSuccessRateD
                 <Tooltip
                   contentStyle={{
                     backgroundColor: 'hsl(var(--popover))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: 'var(--radius)',
+                    border:'1px solid' + withOpacity("--borders-border-color"),
+                    borderRadius: withOpacity("--borders-default-radius"),
                     color: 'hsl(var(--popover-foreground))',
                     fontSize: '0.75rem', // text-xs
                     boxShadow: '0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1)'
@@ -52,7 +53,7 @@ export function OverallSuccessRateDisplay({ rate, history }: OverallSuccessRateD
                 <Line
                   type="monotone"
                   dataKey="overallSR"
-                  stroke="hsl(var(--primary))"
+                  stroke={withOpacity("--colors-primary")}
                   strokeWidth={2}
                   dot={false}
                   activeDot={{ r: 4 }}

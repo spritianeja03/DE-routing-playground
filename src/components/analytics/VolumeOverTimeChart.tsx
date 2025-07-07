@@ -5,6 +5,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { BarChartBig } from 'lucide-react';
 import type { ProcessorMetricsHistory, MerchantConnector, TimeSeriesDataPoint } from '@/lib/types'; // Added MerchantConnector
+import { withOpacity } from '@/lib/utils';
 
 interface VolumeOverTimeChartProps {
   data: ProcessorMetricsHistory;
@@ -128,7 +129,7 @@ export function VolumeOverTimeChart({ data, merchantConnectors, connectorToggleS
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
           <AreaChart data={chartData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <CartesianGrid strokeDasharray="3 3" stroke={withOpacity("--borders-border-color")} />
             <XAxis
               dataKey="time"
               stroke="hsl(var(--muted-foreground))" 

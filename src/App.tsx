@@ -3,13 +3,18 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/AppLayout';
 import HomePage from './pages/HomePage';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import "./style.css";
 
-const App: React.FC = () => {
+interface AppProps {
+  basename?: string;
+}
+
+const App: React.FC<AppProps> = ({ basename = "/" }) => {
   return (
     <TooltipProvider>
-      <Router>
+      <Router basename={basename}>
         <Routes>
-          <Route path="/" element={<AppLayout><HomePage /></AppLayout>} />
+          <Route path="/de-routing/*" element={<AppLayout><HomePage /></AppLayout>} />
         </Routes>
       </Router>
     </TooltipProvider>

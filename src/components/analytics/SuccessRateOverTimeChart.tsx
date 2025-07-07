@@ -5,6 +5,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { LineChart } from 'lucide-react';
 import type { ProcessorMetricsHistory, MerchantConnector } from '@/lib/types';
+import { withOpacity } from '@/lib/utils';
 
 interface SuccessRateOverTimeChartProps {
   data: ProcessorMetricsHistory;
@@ -93,7 +94,7 @@ export function SuccessRateOverTimeChart({ data, merchantConnectors, connectorTo
       <CardContent className="p-6">
         <ResponsiveContainer width="100%" height={300}>
           <AreaChart data={data} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <CartesianGrid strokeDasharray="3 3" stroke={withOpacity("--borders-border-color")} />
             <XAxis 
               dataKey="time" 
               stroke="hsl(var(--muted-foreground))" 

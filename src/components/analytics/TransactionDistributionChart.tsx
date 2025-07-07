@@ -5,6 +5,7 @@ import { PieChart as PieChartIcon } from 'lucide-react'; // Renamed to avoid con
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts"; // Removed Text
 import React, { useEffect, useRef, useMemo, useCallback } from 'react'; // Added useCallback
 import type { MerchantConnector } from '@/lib/types'; // Import MerchantConnector
+import { withOpacity } from '@/lib/utils';
 
 interface TransactionDistributionChartProps {
   data: Array<{ name: string; value: number; fill?: string }>; // Made fill optional
@@ -103,7 +104,7 @@ export function TransactionDistributionChart({ data, merchantConnectors }: Trans
                 labelLine={false}
                 label={renderCustomizedLabel} // Add the label prop here
                 fontSize={12}
-                stroke="hsl(var(--background))" // Use direct background for stroke between cells
+                stroke={withOpacity("--colors-background")} // Use direct background for stroke between cells
                 strokeWidth={2}
               >
                 {currentData.map((entry, index) => (

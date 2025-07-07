@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { BottomControlsPanel, type FormValues } from '@/components/BottomControlsPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -241,9 +242,32 @@ export default function HomePage() {
       if (storedApiKey) setApiKey(storedApiKey);
       if (storedProfileId) setProfileId(storedProfileId);
       if (storedMerchantId) setMerchantId(storedMerchantId);
-
+      
       setIsApiCredentialsModalOpen(true);
     }
+  }, []);
+  
+  // Dedicated cleanup effect for dialogs
+  useEffect(() => {
+    // This effect only handles cleanup when component unmounts
+    return () => {
+  
+      // Reset all dialog states
+      setIsApiCredentialsModalOpen(false);
+      setIsSummaryModalOpen(false);
+      
+      // Also reset any dialog-related state
+      setSummaryText('');
+      setIsSummarizing(false);
+      setSummaryAttempted(false);
+      
+      // Explicitly remove any portal elements that might have been left behind
+      setTimeout(() => {
+        document.querySelectorAll('[data-radix-portal]').forEach(el => {
+          el.remove();
+        });
+      }, 0);
+    };
   }, []);
 
   useEffect(() => {
@@ -848,7 +872,7 @@ export default function HomePage() {
             activeSection={activeSection}
             onSectionChange={setActiveSection}
             collapsed={sidebarCollapsed}
-            onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+            onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
           />
           <Allotment>
             <Allotment.Pane minSize={400} maxSize={600}>
@@ -861,8 +885,8 @@ export default function HomePage() {
                   apiKey={apiKey}
                   profileId={profileId}
                   merchantId={merchantId}
-                  collapsed={false}
-                  onToggleCollapse={() => { }}
+                  collapsed={sidebarCollapsed}
+                  onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
                   activeTab={activeSection}
                   parentTab={parentTab}
                 />
@@ -955,22 +979,29 @@ export default function HomePage() {
           </Allotment>
         </div>
       </div>
-      <Dialog open={isApiCredentialsModalOpen} onOpenChange={setIsApiCredentialsModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>API Credentials</DialogTitle>
-          </DialogHeader>
-          <div className="py-4 space-y-4">
-            <div><Label htmlFor="apiKey">API Key</Label><Input id="apiKey" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} /></div>
-            <div><Label htmlFor="profileId">Profile ID</Label><Input id="profileId" value={profileId} onChange={(e) => setProfileId(e.target.value)} /></div>
-            <div><Label htmlFor="merchantId">Merchant ID</Label><Input id="merchantId" value={merchantId} onChange={(e) => setMerchantId(e.target.value)} /></div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsApiCredentialsModalOpen(false)}>Cancel</Button>
-            <Button onClick={handleApiCredentialsSubmit}>Save</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {isApiCredentialsModalOpen && (
+        <Dialog 
+          key={`api-credentials-dialog-${Date.now()}`}
+          open={true} 
+          onOpenChange={setIsApiCredentialsModalOpen}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>API Credentials</DialogTitle>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
+              <div><Label htmlFor="apiKey">API Key</Label><Input id="apiKey" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} /></div>
+              <div><Label htmlFor="profileId">Profile ID</Label><Input id="profileId" value={profileId} onChange={(e) => setProfileId(e.target.value)} /></div>
+              <div><Label htmlFor="merchantId">Merchant ID</Label><Input id="merchantId" value={merchantId} onChange={(e) => setMerchantId(e.target.value)} /></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsApiCredentialsModalOpen(false)}>Cancel</Button>
+              <Button onClick={handleApiCredentialsSubmit}>Save</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }
+
