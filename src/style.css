@@ -5,7 +5,7 @@
 @layer base {
   :root {
     /* Colors */
-    --colors-primary: 222.2 47.4% 11.2%;
+    --colors-primary: 0, 109, 249;
     --colors-secondary: 48, 62, 95;
     --colors-background: 0, 109, 249;
     --sidebar-text-color: 82, 88, 102;
@@ -41,7 +41,7 @@
   }
   :host {
     /* Colors */
-    --colors-primary: 222.2 47.4% 11.2%;
+    --colors-primary: 0, 109, 249;
     --colors-secondary: 48, 62, 95;
     --colors-background: 0, 109, 249;
     --sidebar-text-color: 82, 88, 102;

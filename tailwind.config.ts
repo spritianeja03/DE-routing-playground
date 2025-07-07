@@ -1,9 +1,7 @@
 import type { Config } from "tailwindcss";
 const { fontFamily } = require("tailwindcss/defaultTheme");
+import { withOpacity } from "./src/lib/utils";
 
-function withOpacity(variableName: string): string {
-  return `rgb(var(${variableName}))`;
-}
 export default {
     content: [
     "./index.html",
@@ -28,7 +26,7 @@ export default {
   				foreground: 'hsl(var(--popover-foreground))'
   			},
   			primary: {
-  				DEFAULT: 'hsl(var(--colors-primary))',
+  				DEFAULT: withOpacity("--colors-primary"),
   				foreground: 'hsl(var(--primary-foreground))'
   			},
   			secondary: {
