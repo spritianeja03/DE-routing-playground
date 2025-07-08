@@ -6,6 +6,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { usePortalContainer } from "@/providers/PortalProvider"
 
 const Sheet = SheetPrimitive.Root
 
@@ -13,7 +14,19 @@ const SheetTrigger = SheetPrimitive.Trigger
 
 const SheetClose = SheetPrimitive.Close
 
-const SheetPortal = SheetPrimitive.Portal
+const SheetPortal = ({ children, ...props }: SheetPrimitive.DialogPortalProps) => {
+  const { container } = usePortalContainer();
+  
+  if (!container) {
+    return null;
+  }
+  
+  return (
+    <SheetPrimitive.Portal {...props} container={container}>
+      {children}
+    </SheetPrimitive.Portal>
+  );
+};
 
 const SheetOverlay = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Overlay>,
@@ -24,6 +37,7 @@ const SheetOverlay = React.forwardRef<
       "fixed inset-0 z-50 bg-black/80  data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className
     )}
+    style={{ pointerEvents: 'auto' }}
     {...props}
     ref={ref}
   />
@@ -62,6 +76,7 @@ const SheetContent = React.forwardRef<
     <SheetPrimitive.Content
       ref={ref}
       className={cn(sheetVariants({ side }), className)}
+      style={{ pointerEvents: 'auto' }}
       {...props}
     >
       {children}

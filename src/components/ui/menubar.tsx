@@ -5,6 +5,7 @@ import * as MenubarPrimitive from "@radix-ui/react-menubar"
 import { Check, ChevronRight, Circle } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { usePortalContainer } from "@/providers/PortalProvider"
 
 function MenubarMenu({
   ...props
@@ -19,9 +20,20 @@ function MenubarGroup({
 }
 
 function MenubarPortal({
+  children,
   ...props
 }: React.ComponentProps<typeof MenubarPrimitive.Portal>) {
-  return <MenubarPrimitive.Portal {...props} />
+  const { container } = usePortalContainer();
+  
+  if (!container) {
+    return null;
+  }
+  
+  return (
+    <MenubarPrimitive.Portal {...props} container={container}>
+      {children}
+    </MenubarPrimitive.Portal>
+  );
 }
 
 function MenubarRadioGroup({
@@ -110,7 +122,7 @@ const MenubarContent = React.forwardRef<
     { className, align = "start", alignOffset = -4, sideOffset = 8, ...props },
     ref
   ) => (
-    <MenubarPrimitive.Portal>
+    <MenubarPortal>
       <MenubarPrimitive.Content
         ref={ref}
         align={align}
@@ -120,9 +132,10 @@ const MenubarContent = React.forwardRef<
           "z-50 min-w-[12rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
           className
         )}
+        style={{ pointerEvents: 'auto' }}
         {...props}
       />
-    </MenubarPrimitive.Portal>
+    </MenubarPortal>
   )
 )
 MenubarContent.displayName = MenubarPrimitive.Content.displayName
