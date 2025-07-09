@@ -18,6 +18,14 @@ import { Allotment } from "allotment";
 import "allotment/dist/style.css";
 import { MiniSidebar } from '@/components/MiniSidebar';
 
+const getApiUrl = (path: string) => {
+  const baseUrl = process.env.VITE_API_BASE_URL;
+  if (baseUrl === '/api/hs-proxy') {
+    return path;
+  }
+  return `${baseUrl}${path.replace('/api/hs-proxy', '')}`;
+};
+
 const SIMULATION_INTERVAL_MS = 50;
 
 const LOCALSTORAGE_API_KEY = 'hyperswitch_apiKey';
@@ -113,7 +121,7 @@ export default function HomePage() {
     console.log("[updateRuleConfiguration] Payload:", JSON.stringify(payload, null, 2));
 
     try {
-      const response = await fetch('/api/hs-proxy/rule/update', {
+      const response = await fetch(getApiUrl('/api/hs-proxy/rule/update'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -408,7 +416,7 @@ export default function HomePage() {
     };
 
     try {
-      const response = await fetch('/api/hs-proxy/decide-gateway', {
+      const response = await fetch(getApiUrl('/api/hs-proxy/decide-gateway'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -488,7 +496,7 @@ export default function HomePage() {
     };
 
     try {
-      await fetch('/api/hs-proxy/update-gateway-score', {
+      await fetch(getApiUrl('/api/hs-proxy/update-gateway-score'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -766,7 +774,7 @@ export default function HomePage() {
     };
 
     try {
-      const response = await fetch('/api/hs-proxy/rule/create', {
+      const response = await fetch(getApiUrl('/api/hs-proxy/rule/create'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -792,7 +800,7 @@ export default function HomePage() {
 
   const createMerchant = useCallback(async (merchantId: string, controls: FormValues | null) => {
     try {
-      const response = await fetch('/api/hs-proxy/merchant-account/create', {
+      const response = await fetch(getApiUrl('/api/hs-proxy/merchant-account/create'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -821,7 +829,7 @@ export default function HomePage() {
 
   const checkMerchantExists = useCallback(async (merchantId: string) => {
     try {
-      const response = await fetch(`/api/hs-proxy/merchant-account/${merchantId}`, {
+      const response = await fetch(getApiUrl(`/api/hs-proxy/merchant-account/${merchantId}`), {
         method: 'GET',
         headers: {
           'x-feature': 'decision-engine'
@@ -1004,4 +1012,3 @@ export default function HomePage() {
     </>
   );
 }
-
