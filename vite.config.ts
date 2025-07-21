@@ -99,6 +99,7 @@ export default defineConfig(({ command, mode }) => {
         env.VITE_USE_PROXY === "true"
           ? JSON.stringify("/api/hs-proxy")
           : JSON.stringify("https://sandbox.hyperswitch.io"),
+      "process.env.VITE_USE_PROXY": JSON.stringify(env.VITE_USE_PROXY),
     },
   };
 });
