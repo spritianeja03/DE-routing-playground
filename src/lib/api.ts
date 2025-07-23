@@ -24,11 +24,10 @@ export const getApiUrl = (path: string): string => {
   
   // For local development, we use a proxy which is handled by the path itself.
   if (!baseUrl) {
-    // Special case for fetching merchant connectors directly
-    if (path.includes('/profile/connectors')) {
-      return `https://sandbox.hyperswitch.io${path}`;
+    if (path.startsWith('/api/hs-proxy')) {
+      return path;
     }
-    return path;
+    return `https://sandbox.hyperswitch.io${path}`;
   }
   
   return `${baseUrl}${path.replace('/api/hs-proxy', '')}`;
@@ -43,4 +42,43 @@ export const getPaymentApiUrl = (path: string): string => {
     }
     
     return `${baseUrl}${path}`;
+}
+
+export const toggleSR = async (merchantId: string, profileId: string) => {
+  console.log("Toggling SR");
+  const apiKey = localStorage.getItem("hyperswitch_apiKey");
+  if (!apiKey) {
+    console.error("API key not found");
+    return;
+  }
+  const response = await fetch(getApiUrl(`/account/${merchantId}/business_profile/${profileId}/dynamic_routing/success_based/toggle?enable=dynamic_connector_selection`), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'api-key': apiKey,
+      'x-merchant-id': merchantId,
+      'x-profile-id': profileId,
+    },
+  });
+  const data = await response.json();
+  console.log("Toggle SR response:", data);
+  return data.id;
+}
+
+export const setVolumeSplit = async (merchantId: string, profileId: string) => {
+  console.log("Setting volume split");
+  const apiKey = localStorage.getItem("hyperswitch_apiKey");
+  if (!apiKey) {
+    console.error("API key not found");
+    return;
+  }
+  await fetch(getApiUrl(`/account/${merchantId}/business_profile/${profileId}/dynamic_routing/set_volume_split?split=100`), {
+    method: 'POST',
+    headers: {
+      'api-key': apiKey,
+      'x-merchant-id': merchantId,
+    },
+  });
+  console.log("Volume split set");
 }
