@@ -42,7 +42,6 @@ export function TransactionDistributionChart({ data, merchantConnectors }: Trans
     uniqueNames.forEach((name, i) => {
       map.set(name, PIE_CHART_COLORS[i % PIE_CHART_COLORS.length]);
     });
-    console.log('Generated nameColorMap:', map); // Debugging output
     return map;
   }, [uniqueNames]);
 
