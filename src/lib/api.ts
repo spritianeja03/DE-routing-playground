@@ -1,7 +1,7 @@
 const getBaseUrl = (): string => {
   if (typeof window === 'undefined') {
     // Return a default or handle server-side rendering
-    return 'https://sandbox.hyperswitch.io';
+    return 'https://integ.hyperswitch.io/api';
   }
 
   const hostname = window.location.hostname;
@@ -27,7 +27,7 @@ export const getApiUrl = (path: string): string => {
     if (path.startsWith('/api/hs-proxy')) {
       return path;
     }
-    return `https://sandbox.hyperswitch.io${path}`;
+    return `https://integ.hyperswitch.io/api${path}`;
   }
   
   return `${baseUrl}${path.replace('/api/hs-proxy', '')}`;
@@ -38,7 +38,7 @@ export const getPaymentApiUrl = (path: string): string => {
 
     if (!baseUrl) {
         // For local development, the full path for payments is used directly
-        return 'https://sandbox.hyperswitch.io/payments';
+        return 'https://integ.hyperswitch.io/api/payments';
     }
     
     return `${baseUrl}${path}`;

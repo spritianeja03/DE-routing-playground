@@ -84,17 +84,17 @@ export default function HomePage() {
   const { toast } = useToast();
 
   const updateRuleConfiguration = useCallback(async (
-    merchantId: string,
+    profileId: string,
     explorationPercent: number,
     bucketSize: number
   ) => {
-    if (!merchantId) {
-      console.warn("[updateRuleConfiguration] Missing merchantId.");
+    if (!profileId) {
+      console.warn("[updateRuleConfiguration] Missing profileId.");
       return;
     }
 
     const payload = {
-      merchant_id: merchantId,
+      merchant_id: profileId,
       config: {
         type: "successRate",
         data: {
@@ -305,7 +305,7 @@ export default function HomePage() {
           (currentExplorationPercent !== prevExplorationPercent || currentBucketSize !== prevBucketSize)
         ) {
           console.log("Exploration percentage or bucket size changed. Updating rule configuration.");
-          updateRuleConfiguration(merchantId, currentExplorationPercent, currentBucketSize);
+          updateRuleConfiguration(profileId, currentExplorationPercent, currentBucketSize);
         }
       }
       prevControlsRef.current = currentControls;
@@ -356,13 +356,14 @@ export default function HomePage() {
         cardSwitchProvider: null
       }
     };
-    console.log("decide-gateway url: ", getApiUrl('/decide-gateway'));
+    console.log("routing/evaluate url: ", getApiUrl('/routing/evaluate'));
     try {
-      const data = await fetcher(getApiUrl('/api/hs-proxy/decide-gateway'), {
+      const data = await fetcher(getApiUrl('/api/hs-proxy/routing/evaluate'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-feature': 'decision-engine'
+          'api-key': localStorage.getItem(LOCALSTORAGE_API_KEY) || '',
+          // 'x-feature': 'decision-engine'
         },
         body: JSON.stringify(payload),
       });
@@ -428,11 +429,12 @@ export default function HomePage() {
     };
 
     try {
-      await fetcher(getApiUrl('/api/hs-proxy/update-gateway-score'), {
+      await fetcher(getApiUrl('/api/hs-proxy/routing/feedback'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-feature': 'decision-engine'
+          // 'x-feature': 'decision-engine'
+          'api-key': localStorage.getItem(LOCALSTORAGE_API_KEY) || '',
         },
         body: JSON.stringify(payload),
       });
