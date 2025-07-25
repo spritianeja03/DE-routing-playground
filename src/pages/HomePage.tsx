@@ -224,9 +224,32 @@ export default function HomePage() {
   }, [profileId, toast]);
 
   const fetchCredsFromJwt = async () => {
-    // TODO: Implement JWT fetching logic here
     console.log("Fetching credentials from JWT...");
-    return { merchantId: "merchant_from_jwt", profileId: "profile_from_jwt" };
+    const hardcodedJwt = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNTRhZTU5NWItZjU4YS00OTNmLWE5ZmYtM2E5YjczYzNkMjJhIiwibWVyY2hhbnRfaWQiOiJtZXJjaGFudF8xNzUzMzQ2MjM0Iiwicm9sZV9pZCI6Im9yZ19hZG1pbiIsImV4cCI6MTc1MzUzMzg0NCwib3JnX2lkIjoib3JnXzNMZzdCU2lXajhqVzk2OGI4QWhVIiwicHJvZmlsZV9pZCI6InByb19LaEQ4N1NpNEloaXVoTUROeGM5byIsInRlbmFudF9pZCI6InB1YmxpYyJ9.TlkkJ8Jd5uW7rnUpCRvEnD3ZyNZTbBvDzzoGug7yMbA";
+
+    try {
+      const response = await fetcher('https://integ.hyperswitch.io/api/user', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${hardcodedJwt}`,
+          'Content-Type': 'application/json',
+          'Cookie': '_ga=GA1.1.1687557033.1727071250; mp_dd4da7f62941557e716fbc0a19f9cc7e_mixpanel=%7B%22distinct_id%22%3A%20%221921e7af9b515f-0f1cc2ee747244-17525637-1d73c0-1921e7af9b6cfb%22%2C%22%24device_id%22%3A%20%221921e7af9b515f-0f1cc2ee747244-17525637-1d73c0-1921e7af9b6cfb%22%2C%22%24initial_referrer%22%3A%20%22https%3A%2F%2Fdocs.hyperswitch.io%2Fhyperswitch-open-source%2Flocal-setup-guide%22%2C%22%24initial_referring_domain%22%3A%20%22docs.hyperswitch.io%22%7D; signals-sdk-user-id=1ae01735-fe33-43ce-81d2-4fe5dd4272f5; mf_user=e6e31998d8f9d7027861d243e8a3bc6c|; mp_dcfbbd14ec111210c440e113a23c1ae6_mixpanel=%7B%22distinct_id%22%3A%22%24device%3A74bb39db-88ba-499f-9ecf-a0024ea4e9fe%22%2C%22%24device_id%22%3A%2274bb39db-88ba-499f-9ecf-a0024ea4e9fe%22%2C%22%24initial_referrer%22%3A%22%24direct%22%2C%22%24initial_referring_domain%22%3A%22%24direct%22%2C%22__mps%22%3A%7B%7D%2C%22__mpso%22%3A%7B%22%24initial_referrer%22%3A%22%24direct%22%2C%22%24initial_referring_domain%22%3A%22%24direct%22%7D%2C%22__mpus%22%3A%7B%7D%2C%22__mpa%22%3A%7B%7D%2C%22__mpu%22%3A%7B%7D%2C%22__mpr%22%3A%5B%5D%2C%22__mpap%22%3A%5B%5D%7D; mp_773ae99db494f9e23d86ab7a160bc21b_mixpanel=%7B%22distinct_id%22%3A%22%24device%3Acae9808d-01c5-4747-9d20-3c3879a1addf%22%2C%22%24device_id%22%3A%22cae9808d-01c5-4747-9d20-3c3879a1addf%22%2C%22%24initial_referrer%22%3A%22%24direct%22%2C%22%24initial_referring_domain%22%3A%22%24direct%22%2C%22__mps%22%3A%7B%7D%2C%22__mpso%22%3A%7B%22%24initial_referrer%22%3A%22%24direct%22%2C%22%24initial_referring_domain%22%3A%22%24direct%22%7D%2C%22__mpus%22%3A%7B%7D%2C%22__mpa%22%3A%7B%7D%2C%22__mpu%22%3A%7B%7D%2C%22__mpr%22%3A%5B%5D%2C%22__mpap%22%3A%5B%5D%7D; _fbp=fb.1.1751026055997.632638634911935858; _cbp=fb.1.1751026056543.967545439; FPID=FPID2.2.RTDP4wk0aZin2dhD7%2Fg%2FIbdvJM6UcCag9031de5Yqns%3D.1727071250; didomi_token_cpra=eyJ1c2VyX2lkIjoiMTk3YjE0OTMtN2Y4Yy02OGU1LTllYTktNGE5ZmQ0ZWM2YTU5IiwiY3JlYXRlZCI6IjIwMjUtMDYtMjdUMTI6MDc6MzUuMTYwWiIsInVwZGF0ZWQiOiIyMDI1LTA2LTI3VDEyOjExOjA0LjM5MFoiLCJ2ZXJzaW9uIjoyLCJwdXJwb3Nlc19saSI6eyJlbmFibGVkIjpbImNvb2tpZXMiLCJjcmVhdGVfYWRzX3Byb2ZpbGUiLCJzZWxlY3RfcGVyc29uYWxpemVkX2FkcyIsInNlbGVjdF9iYXNpY19hZHMiLCJtZWFzdXJlX2FkX3BlcmZvcm1hbmNlIiwibWFya2V0X3Jlc2VhcmNoIiwiaW1wcm92ZV9wcm9kdWN0cyIsIm1lYXN1cmVfY29udGVudF9wZXJmb3JtYW5jZSJdfSwidmVuZG9yc19saSI6eyJlbmFibGVkIjpbImM6Z29vZ2xlIiwiYzpnb29nbGVhbmEtNFRYbkppZ1IiLCJjOmh1YnNwb3QtZm9ybXMiLCJjOmh1YnNwb3QiXX19; _ga_WBYNDZK777=GS2.1.s1751269164%24o2%24g0%24t1751269164%24j60%24l0%24h1441840699; _gcl_au=1.1.1444061989.1747736521.1930653185.1752057910.1752057922; mp_b00355f29d9548d1333608df71d5d53d_mixpanel=%7B%22distinct_id%22%3A%20%22194d59ee8c32a3d-050dad52099d7-1e525636-1d73c0-194d59ee8c43dda%22%2C%22%24device_id%22%3A%20%22194d59ee8c32a3d-050dad52099d7-1e525636-1d73c0-194d59ee8c43dda%22%2C%22%24search_engine%22%3A%20%22google%22%2C%22%24initial_referrer%22%3A%20%22https%3A%2F%2Fwww.google.com%2F%22%2C%22%24initial_referring_domain%22%3A%20%22www.google.com%22%7D; _ga_D9DGP9GJTP=GS2.1.s1752825495$o29$g1$t1752825513$j42$l0$h503525571; _ga_1X38KQVJ1S=GS2.1.s1752825495$o48$g1$t1752825513$j42$l0$h0; ph_phc_TXdpocbGVeZVm5VJmAsHTMrCofBQu3e0kN8HGMNGTVW_posthog=%7B%22distinct_id%22%3A%2201921dd2-26aa-7428-b30d-adee3b7e789d%22%2C%22%24sesid%22%3A%5B1753177153566%2C%2201983180-4423-7ec5-a136-ef7ea94fe66d%22%2C1753177146403%5D%7D; _clck=12jbwmp%7C2%7Cfxu%7C0%7C1968; login_token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNTRhZTU5NWItZjU4YS00OTNmLWE5ZmYtM2E5YjczYzNkMjJhIiwibWVyY2hhbnRfaWQiOiJtZXJjaGFudF8xNzUzMzQ2MjM0Iiwicm9sZV9pZCI6Im9yZ19hZG1pbiIsImV4cCI6MTc1MzUzMzg0NCwib3JnX2lkIjoib3JnXzNMZzdCU2lXajhqVzk2OGI4QWhVIiwicHJvZmlsZV9pZCI6InByb19LaEQ4N1NpNEloaXVoTUROeGM5byIsInRlbmFudF9pZCI6InB1YmxpYyJ9.TlkkJ8Jd5uW7rnUpCRvEnD3ZyNZTbBvDzzoGug7yMbA',
+        },
+      });
+      
+      // Assuming the response has the structure { merchant_id: "...", profile_id: "..." }
+      // You might need to adjust the keys based on the actual API response
+      const { merchant_id, profile_id } = response;
+
+      if (!merchant_id || !profile_id) {
+        throw new Error("Merchant ID or Profile ID not found in response");
+      }
+
+      return { merchantId: merchant_id, profileId: profile_id };
+    } catch (error) {
+      console.error("Error fetching credentials from JWT:", error);
+      throw error; // Re-throw the error to be caught by the caller
+    }
   };
 
   useEffect(() => {
