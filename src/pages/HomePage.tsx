@@ -84,17 +84,17 @@ export default function HomePage() {
   const { toast } = useToast();
 
   const updateRuleConfiguration = useCallback(async (
-    merchantId: string,
+    profileId: string,
     explorationPercent: number,
     bucketSize: number
   ) => {
-    if (!merchantId) {
-      console.warn("[updateRuleConfiguration] Missing merchantId.");
+    if (!profileId) {
+      console.warn("[updateRuleConfiguration] Missing profileId.");
       return;
     }
 
     const payload = {
-      merchant_id: merchantId,
+      merchant_id: profileId,
       config: {
         type: "successRate",
         data: {
@@ -230,35 +230,22 @@ export default function HomePage() {
   };
 
   useEffect(() => {
-    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-    if (isLocalhost) {
-      if (typeof window !== 'undefined' && process.env.VITE_USE_PROXY === 'true') {
-        const storedApiKey = localStorage.getItem(LOCALSTORAGE_API_KEY);
-        const storedProfileId = localStorage.getItem(LOCALSTORAGE_PROFILE_ID);
-        const storedMerchantId = localStorage.getItem(LOCALSTORAGE_MERCHANT_ID);
+    const storedApiKey = localStorage.getItem(LOCALSTORAGE_API_KEY);
+    const storedProfileId = localStorage.getItem(LOCALSTORAGE_PROFILE_ID);
+    const storedMerchantId = localStorage.getItem(LOCALSTORAGE_MERCHANT_ID);
 
-        console.log("Stored credentials:", { storedApiKey, storedProfileId, storedMerchantId });
-
-        if (storedApiKey && storedProfileId && storedMerchantId) {
-          setApiKey(storedApiKey);
-          setProfileId(storedProfileId);
-          setMerchantId(storedMerchantId);
-        }
-        setIsApiCredentialsModalOpen(true);
-      }
-    } else {
-      const apiKey = localStorage.getItem("apiKey");
-      if (apiKey) {
-        setApiKey(apiKey);
-        fetchCredsFromJwt().then(({ merchantId, profileId }) => {
-          setMerchantId(merchantId);
-          setProfileId(profileId);
-          
-        });
-      } else {
-        // Handle case where API key is not available in non-local environments
-      }
+    if (storedApiKey) {
+      setApiKey(storedApiKey);
     }
+    if (storedProfileId) {
+      setProfileId(storedProfileId);
+    }
+    if (storedMerchantId) {
+      setMerchantId(storedMerchantId);
+    }
+
+    // Always open the modal on initial load.
+    setIsApiCredentialsModalOpen(true);
   }, []);
 
   
@@ -305,7 +292,7 @@ export default function HomePage() {
           (currentExplorationPercent !== prevExplorationPercent || currentBucketSize !== prevBucketSize)
         ) {
           console.log("Exploration percentage or bucket size changed. Updating rule configuration.");
-          updateRuleConfiguration(merchantId, currentExplorationPercent, currentBucketSize);
+          updateRuleConfiguration(profileId, currentExplorationPercent, currentBucketSize);
         }
       }
       prevControlsRef.current = currentControls;
@@ -356,13 +343,14 @@ export default function HomePage() {
         cardSwitchProvider: null
       }
     };
-    console.log("decide-gateway url: ", getApiUrl('/decide-gateway'));
+    console.log("routing/evaluate url: ", getApiUrl('/routing/evaluate'));
     try {
-      const data = await fetcher(getApiUrl('/api/hs-proxy/decide-gateway'), {
+      const data = await fetcher(getApiUrl('/api/hs-proxy/routing/evaluate'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-feature': 'decision-engine'
+          'api-key': localStorage.getItem(LOCALSTORAGE_API_KEY) || '',
+          // 'x-feature': 'decision-engine'
         },
         body: JSON.stringify(payload),
       });
@@ -428,11 +416,12 @@ export default function HomePage() {
     };
 
     try {
-      await fetcher(getApiUrl('/api/hs-proxy/update-gateway-score'), {
+      await fetcher(getApiUrl('/api/hs-proxy/routing/feedback'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-feature': 'decision-engine'
+          // 'x-feature': 'decision-engine'
+          'api-key': localStorage.getItem(LOCALSTORAGE_API_KEY) || '',
         },
         body: JSON.stringify(payload),
       });
@@ -655,7 +644,12 @@ export default function HomePage() {
 
   const handleStartSimulation = useCallback(async (forceStart = false) => {
     if (!apiKey || !profileId || !merchantId) {
-      setIsApiCredentialsModalOpen(true);
+      toast({
+        title: "API Credentials Required",
+        description: "Please save your API credentials in the modal before starting the simulation.",
+        variant: "destructive",
+      });
+      setIsApiCredentialsModalOpen(true); // Also re-open the modal for convenience
       return;
     }
     if (forceStart || merchantConnectors.length === 0) {
@@ -684,22 +678,50 @@ export default function HomePage() {
   }, [toast]);
 
   const handleApiCredentialsSubmit = useCallback(async () => {
-    console.log("handleApiCredentialsSubmit called");
-    if (!apiKey || !profileId || !merchantId) {
-      toast({ title: "API Credentials Required", variant: "destructive" });
+    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    
+    if (!apiKey) {
+      toast({ title: "API Key is Required", variant: "destructive" });
       return;
     }
-
     localStorage.setItem(LOCALSTORAGE_API_KEY, apiKey);
-    localStorage.setItem(LOCALSTORAGE_PROFILE_ID, profileId);
-    localStorage.setItem(LOCALSTORAGE_MERCHANT_ID, merchantId);
+
+    let currentMerchantId = merchantId;
+    let currentProfileId = profileId;
+
+    if (isLocalhost) {
+      if (!profileId || !merchantId) {
+        toast({ title: "Profile ID and Merchant ID are Required", variant: "destructive" });
+        return;
+      }
+      localStorage.setItem(LOCALSTORAGE_PROFILE_ID, profileId);
+      localStorage.setItem(LOCALSTORAGE_MERCHANT_ID, merchantId);
+    } else {
+      try {
+        const creds = await fetchCredsFromJwt();
+        currentMerchantId = creds.merchantId;
+        currentProfileId = creds.profileId;
+        setMerchantId(currentMerchantId);
+        setProfileId(currentProfileId);
+        localStorage.setItem(LOCALSTORAGE_PROFILE_ID, currentProfileId);
+        localStorage.setItem(LOCALSTORAGE_MERCHANT_ID, currentMerchantId);
+      } catch (error) {
+        console.error("Failed to fetch credentials from JWT", error);
+        toast({ title: "Failed to fetch credentials", description: "Could not retrieve merchant and profile IDs.", variant: "destructive" });
+        return;
+      }
+    }
+
     setIsApiCredentialsModalOpen(false);
-    await fetchMerchantConnectors(merchantId, apiKey, profileId);
-    const newRoutingId = await toggleSR(merchantId, profileId);
-    if (newRoutingId && newRoutingId !== routingId) {
-      localStorage.setItem(LOCALSTORAGE_ROUTING_ID, newRoutingId);
-      setRoutingId(newRoutingId);
-      await setVolumeSplit(merchantId, profileId);
+
+    if (currentMerchantId && currentProfileId) {
+      await fetchMerchantConnectors(currentMerchantId, apiKey, currentProfileId);
+      const newRoutingId = await toggleSR(currentMerchantId, currentProfileId);
+      if (newRoutingId && newRoutingId !== routingId) {
+        localStorage.setItem(LOCALSTORAGE_ROUTING_ID, newRoutingId);
+        setRoutingId(newRoutingId);
+        await setVolumeSplit(currentMerchantId, currentProfileId);
+      }
     }
   }, [apiKey, profileId, merchantId, toast, fetchMerchantConnectors, routingId]);
 
@@ -843,8 +865,12 @@ export default function HomePage() {
             </DialogHeader>
             <div className="py-4 space-y-4">
               <div><Label htmlFor="apiKey">API Key</Label><Input id="apiKey" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} /></div>
-              <div><Label htmlFor="profileId">Profile ID</Label><Input id="profileId" value={profileId} onChange={(e) => setProfileId(e.target.value)} /></div>
-              <div><Label htmlFor="merchantId">Merchant ID</Label><Input id="merchantId" value={merchantId} onChange={(e) => setMerchantId(e.target.value)} /></div>
+              {(window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") && (
+                <>
+                  <div><Label htmlFor="profileId">Profile ID</Label><Input id="profileId" value={profileId} onChange={(e) => setProfileId(e.target.value)} /></div>
+                  <div><Label htmlFor="merchantId">Merchant ID</Label><Input id="merchantId" value={merchantId} onChange={(e) => setMerchantId(e.target.value)} /></div>
+                </>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsApiCredentialsModalOpen(false)}>Cancel</Button>
