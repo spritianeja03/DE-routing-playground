@@ -383,7 +383,11 @@ export default function HomePage() {
                    : 'default';
 
       if (data.decided_gateway) {
-        return { selectedConnector: data.decided_gateway, routingApproach: routingApproachForLog, srScores: srScoresForLog };
+        // Extract connector name from the format "connector_name:mca_id" if it contains ":"
+        const connectorName = data.decided_gateway.includes(':') 
+          ? data.decided_gateway.split(':')[0] 
+          : data.decided_gateway;
+        return { selectedConnector: connectorName, routingApproach: routingApproachForLog, srScores: srScoresForLog };
       } else {
         toast({ title: "Decide Gateway Info", description: "No connector decided or scores missing." });
         return { selectedConnector: null, routingApproach: routingApproachForLog, srScores: srScoresForLog };
@@ -450,7 +454,7 @@ export default function HomePage() {
     const paymentId = `PAY${Math.floor(Math.random() * 100000)}_${paymentIndex}`;
     const activeConnectorLabels = merchantConnectors
       .filter(mc => connectorToggleStates[mc.connector_name])
-      .map(mc => mc.connector_name);
+      .map(mc => `${mc.connector_name}:${mc.merchant_connector_id}`);
 
     const decisionResult = await decideGateway(
       currentControls,
@@ -843,7 +847,17 @@ export default function HomePage() {
                         <p>Status: <span className={log.status === 'succeeded' ? 'text-green-500' : 'text-red-500'}>{log.status}</span></p>
                         <p>Connector: {log.connector}</p>
                         <p>Routing: {log.routingApproach}</p>
-                        {log.sr_scores && <p>Scores: {JSON.stringify(log.sr_scores)}</p>}
+                        {log.sr_scores && (
+                          <p>Scores: {
+                            Object.entries(log.sr_scores)
+                              .map(([key, value]) => {
+                                // Extract connector name from "connector:mca_id" format
+                                const connectorName = key.includes(':') ? key.split(':')[0] : key;
+                                return `${connectorName}: ${value}`;
+                              })
+                              .join(', ')
+                          }</p>
+                        )}
                       </div>
                     ))
                   ) : (
