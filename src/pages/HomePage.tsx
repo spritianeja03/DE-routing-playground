@@ -16,7 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Allotment } from "allotment";
 import "allotment/dist/style.css";
 import { MiniSidebar } from '@/components/MiniSidebar';
-import { getApiUrl, getPaymentApiUrl, toggleSR, setVolumeSplit } from '@/lib/api';
+import { getApiUrl, getPaymentApiUrl, toggleSR, setVolumeSplit, updateRuleConfiguration as updateRuleConfigurationAPI } from '@/lib/api';
 import { fetcher } from '@/lib/fetcher';
 
 const SIMULATION_INTERVAL_MS = 50;
@@ -88,49 +88,28 @@ export default function HomePage() {
     explorationPercent: number,
     bucketSize: number
   ) => {
-    if (!profileId) {
-      console.warn("[updateRuleConfiguration] Missing profileId.");
+    if (!profileId || !merchantId || !routingId) {
+      console.warn("[updateRuleConfiguration] Missing required parameters:", { profileId, merchantId, routingId });
+      toast({ title: "Configuration Error", description: "Missing required parameters for rule update.", variant: "destructive" });
       return;
     }
 
-    const payload = {
-      merchant_id: profileId,
-      config: {
-        type: "successRate",
-        data: {
-          defaultLatencyThreshold: 90,
-          defaultSuccessRate: 0.5,
-          defaultBucketSize: bucketSize,
-          defaultHedgingPercent: 5,
-          subLevelInputConfig: [
-            {
-              paymentMethod: "card",
-              bucketSize: bucketSize,
-              hedgingPercent: explorationPercent
-            }
-          ]
-        }
-      }
-    };
-
-    console.log("[updateRuleConfiguration] Payload:", JSON.stringify(payload, null, 2));
-
     try {
-      const responseData = await fetcher(getApiUrl('/api/hs-proxy/rule/update'), {
-        method: 'POST',
-        headers: {
-          'x-feature': 'decision-engine'
-        },
-        body: JSON.stringify(payload),
-      });
+      const responseData = await updateRuleConfigurationAPI(
+        merchantId,
+        profileId,
+        explorationPercent,
+        bucketSize,
+        routingId
+      );
 
-      console.log("[updateRuleConfiguration] Response Data:", responseData);
       toast({ title: "Rule Configuration Updated", description: "Success Rate Configuration updated successfully." });
+      return responseData;
     } catch (error: any) {
-      console.error("[updateRuleConfiguration] Fetch Error:", error);
-      toast({ title: "Rule Update Network Error", description: error.message, variant: "destructive" });
+      console.error("[updateRuleConfiguration] Error:", error);
+      toast({ title: "Rule Update Error", description: error.message, variant: "destructive" });
     }
-  }, [toast]);
+  }, [merchantId, routingId, toast]);
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mainPaneSize, setMainPaneSize] = useState('50%');
@@ -324,7 +303,7 @@ export default function HomePage() {
     return () => {
       clearTimeout(handler);
     };
-  }, [currentControls, profileId, updateRuleConfiguration]);
+  }, [currentControls, profileId, merchantId, routingId, updateRuleConfiguration]);
 
   const decideGateway = useCallback(async (
     currentControls: FormValues,
@@ -536,9 +515,9 @@ export default function HomePage() {
         sr_scores: srScores,
       };
 
-      if (merchantId && routedProcessorId && typeof routedProcessorId === 'string' && routedProcessorId !== 'unknown') {
-        await updateGatewayScore(profileId, routedProcessorId, isSuccess, currentControls, paymentId);
-      }
+      // if (merchantId && routedProcessorId && typeof routedProcessorId === 'string' && routedProcessorId !== 'unknown') {
+      //   await updateGatewayScore(profileId, routedProcessorId, isSuccess, currentControls, paymentId);
+      // }
     } catch (error: any) {
       if (error.name !== 'AbortError') {
         console.error("Error during payment API call:", error);

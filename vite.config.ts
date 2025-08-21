@@ -25,6 +25,22 @@ export default defineConfig(({ command, mode }) => {
               "Access-Control-Allow-Origin": "*",
             },
           },
+          "/api/hs-proxy/routing": {
+            target: "https://integ.hyperswitch.io/api",
+            changeOrigin: true,
+            rewrite: (path) => path.replace(/^\/api\/hs-proxy/, ""),
+            headers: {
+              "Access-Control-Allow-Origin": "*",
+            },
+          },
+          "/api/hs-proxy/account": {
+            target: "https://integ.hyperswitch.io/api",
+            changeOrigin: true,
+            rewrite: (path) => path.replace(/^\/api\/hs-proxy/, ""),
+            headers: {
+              "Access-Control-Allow-Origin": "*",
+            },
+          },
           "/api/hs-proxy/merchant-account/create": {
             target: "https://integ.hyperswitch.io/api",
             changeOrigin: true,
