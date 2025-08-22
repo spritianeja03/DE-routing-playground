@@ -78,7 +78,25 @@ export default defineConfig(({ command, mode }) => {
   return {
     plugins: [react()],
     base: command === "serve" ? "/" : "./",
-  
+    build: {
+    lib: {
+      entry: path.resolve(__dirname, 'src/App.tsx'), // or index.ts
+      name:"DERoutingPlayground",
+      fileName: (format) => `index.${format}.js`, // Output file name
+      formats: ['es', 'umd']
+    },
+    rollupOptions: {
+      // Externalize React, ReactDOM
+      external: ['react', 'react-dom'],
+      output: {
+        globals: {
+          react: 'React',
+          'react-dom': 'ReactDOM',
+        }
+      }
+    },
+    cssCodeSplit:false,
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
