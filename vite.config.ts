@@ -73,6 +73,14 @@ export default defineConfig(({ command, mode }) => {
               "Access-Control-Allow-Origin": "*",
             },
           },
+          "/api/hs-proxy/user": {
+            target: "https://integ.hyperswitch.io/api",
+            changeOrigin: true,
+            rewrite: (path) => path.replace(/^\/api\/hs-proxy/, ""),
+            headers: {
+              "Access-Control-Allow-Origin": "*",
+            },
+          },
         }
       : undefined;
   return {

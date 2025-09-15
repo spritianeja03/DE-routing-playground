@@ -12,8 +12,8 @@ const getBaseUrl = (): string => {
   if (hostname.includes('integ.hyperswitch.io')) {
     return 'https://integ.hyperswitch.io';
   }
-  if (hostname.includes('live.hyperswitch.io')) {
-    return 'https://live.hyperswitch.io';
+  if (hostname.includes('integ-api.hyperswitch.io')) {
+    return 'https://integ-api.hyperswitch.io';
   }
   // Default for local development
   return ''; 

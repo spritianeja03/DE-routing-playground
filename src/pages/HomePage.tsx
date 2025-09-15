@@ -1,15 +1,11 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { BottomControlsPanel, type FormValues } from '@/components/BottomControlsPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { StatsView } from '@/components/StatsView';
 import { AnalyticsGraphsView } from '@/components/AnalyticsGraphsView';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, PlayCircle, PauseCircle, StopCircle } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
+import { PlayCircle, PauseCircle, StopCircle } from 'lucide-react';
 import type { PaymentMethod, ProcessorMetricsHistory, StructuredRule, ControlsState, OverallSRHistory, OverallSRHistoryDataPoint, TimeSeriesDataPoint, MerchantConnector, TransactionLogEntry, AISummaryInput, AISummaryOutput } from '@/lib/types';
 import { PAYMENT_METHODS } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +14,7 @@ import "allotment/dist/style.css";
 import { MiniSidebar } from '@/components/MiniSidebar';
 import { getApiUrl, getPaymentApiUrl, toggleSR, setVolumeSplit, updateRuleConfiguration as updateRuleConfigurationAPI } from '@/lib/api';
 import { fetcher } from '@/lib/fetcher';
+import { ApiKeyModal } from '@/components/ApiKeyModal';
 
 const SIMULATION_INTERVAL_MS = 50;
 
@@ -55,7 +52,7 @@ export default function HomePage() {
   const [volumeHistory, setVolumeHistory] = useState<ProcessorMetricsHistory>([]);
   const [overallSuccessRateHistory, setOverallSuccessRateHistory] = useState<OverallSRHistory>([]);
 
-  const [isApiCredentialsModalOpen, setIsApiCredentialsModalOpen] = useState<boolean>(false);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(false);
   const [apiKey, setApiKey] = useState<string>('');
   const [profileId, setProfileId] = useState<string>('');
   const [merchantId, setMerchantId] = useState<string>('');
@@ -202,32 +199,108 @@ export default function HomePage() {
     }
   }, [profileId, toast]);
 
+  // Helper function to get all cookies from browser storage
+  const getAllCookies = (): string => {
+    return document.cookie;
+  };
+
+  // Helper function to get a specific cookie value
+  const getCookie = (name: string): string | null => {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+    return null;
+  };
+
+  // Helper function to get the appropriate base URL for the user endpoint
+  const getUserEndpointUrl = (): string => {
+    if (typeof window === 'undefined') {
+      return 'https://integ.hyperswitch.io/api/user';
+    }
+
+    const hostname = window.location.hostname;
+
+    // Check if we're in local development and proxy is enabled
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      // Use proxy endpoint for local development
+      return '/api/hs-proxy/user';
+    }
+
+    if (hostname.includes('sandbox.hyperswitch.io')) {
+      return 'https://sandbox.hyperswitch.io/user';
+    }
+    if (hostname.includes('integ.hyperswitch.io')) {
+      return 'https://integ.hyperswitch.io/api/user';
+    }
+    if (hostname.includes('integ-api.hyperswitch.io')) {
+      return 'https://integ-api.hyperswitch.io/user';
+    }
+    // Default for local development - use proxy
+    return '/api/hs-proxy/user';
+  };
+
   const fetchCredsFromJwt = async () => {
     console.log("Fetching credentials from JWT...");
-    const hardcodedJwt = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNTRhZTU5NWItZjU4YS00OTNmLWE5ZmYtM2E5YjczYzNkMjJhIiwibWVyY2hhbnRfaWQiOiJtZXJjaGFudF8xNzUzMzQ2MjM0Iiwicm9sZV9pZCI6Im9yZ19hZG1pbiIsImV4cCI6MTc1MzUzMzg0NCwib3JnX2lkIjoib3JnXzNMZzdCU2lXajhqVzk2OGI4QWhVIiwicHJvZmlsZV9pZCI6InByb19LaEQ4N1NpNEloaXVoTUROeGM5byIsInRlbmFudF9pZCI6InB1YmxpYyJ9.TlkkJ8Jd5uW7rnUpCRvEnD3ZyNZTbBvDzzoGug7yMbA";
+    
+    // Get JWT token from browser storage - USER_INFO is the correct localStorage key
+    const userInfo = localStorage.getItem('USER_INFO');
+    let jwtToken = getCookie('login_token') || null;
+    
+    // Try to extract token from USER_INFO if it exists
+    if (userInfo && !jwtToken) {
+      try {
+        const parsedUserInfo = JSON.parse(userInfo);
+        jwtToken = parsedUserInfo.token || parsedUserInfo.jwt || parsedUserInfo.access_token;
+      } catch (error) {
+        console.warn("Failed to parse USER_INFO from localStorage:", error);
+      }
+    }
+    
+    if (!jwtToken) {
+      throw new Error("No JWT token found in browser storage");
+    }
+
+    // Get all cookies from browser storage
+    const allCookies = getAllCookies();
+    
+    // Get the appropriate endpoint URL based on current environment
+    const userEndpointUrl = getUserEndpointUrl();
+    
+    console.log("Using JWT token:", jwtToken);
+    console.log("Using cookies:", allCookies);
+    console.log("Using endpoint URL:", userEndpointUrl);
 
     try {
-      const response = await fetcher('https://integ.hyperswitch.io/api/user', {
+      // Use fetch directly instead of fetcher to have full control over headers and credentials
+      const response = await fetch(userEndpointUrl, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${hardcodedJwt}`,
+          'Authorization': `Bearer ${jwtToken}`,
           'Content-Type': 'application/json',
-          'Cookie': '_ga=GA1.1.1687557033.1727071250; mp_dd4da7f62941557e716fbc0a19f9cc7e_mixpanel=%7B%22distinct_id%22%3A%20%221921e7af9b515f-0f1cc2ee747244-17525637-1d73c0-1921e7af9b6cfb%22%2C%22%24device_id%22%3A%20%221921e7af9b515f-0f1cc2ee747244-17525637-1d73c0-1921e7af9b6cfb%22%2C%22%24initial_referrer%22%3A%20%22https%3A%2F%2Fdocs.hyperswitch.io%2Fhyperswitch-open-source%2Flocal-setup-guide%22%2C%22%24initial_referring_domain%22%3A%20%22docs.hyperswitch.io%22%7D; signals-sdk-user-id=1ae01735-fe33-43ce-81d2-4fe5dd4272f5; mf_user=e6e31998d8f9d7027861d243e8a3bc6c|; mp_dcfbbd14ec111210c440e113a23c1ae6_mixpanel=%7B%22distinct_id%22%3A%22%24device%3A74bb39db-88ba-499f-9ecf-a0024ea4e9fe%22%2C%22%24device_id%22%3A%2274bb39db-88ba-499f-9ecf-a0024ea4e9fe%22%2C%22%24initial_referrer%22%3A%22%24direct%22%2C%22%24initial_referring_domain%22%3A%22%24direct%22%2C%22__mps%22%3A%7B%7D%2C%22__mpso%22%3A%7B%22%24initial_referrer%22%3A%22%24direct%22%2C%22%24initial_referring_domain%22%3A%22%24direct%22%7D%2C%22__mpus%22%3A%7B%7D%2C%22__mpa%22%3A%7B%7D%2C%22__mpu%22%3A%7B%7D%2C%22__mpr%22%3A%5B%5D%2C%22__mpap%22%3A%5B%5D%7D; mp_773ae99db494f9e23d86ab7a160bc21b_mixpanel=%7B%22distinct_id%22%3A%22%24device%3Acae9808d-01c5-4747-9d20-3c3879a1addf%22%2C%22%24device_id%22%3A%22cae9808d-01c5-4747-9d20-3c3879a1addf%22%2C%22%24initial_referrer%22%3A%22%24direct%22%2C%22%24initial_referring_domain%22%3A%22%24direct%22%2C%22__mps%22%3A%7B%7D%2C%22__mpso%22%3A%7B%22%24initial_referrer%22%3A%22%24direct%22%2C%22%24initial_referring_domain%22%3A%22%24direct%22%7D%2C%22__mpus%22%3A%7B%7D%2C%22__mpa%22%3A%7B%7D%2C%22__mpu%22%3A%7B%7D%2C%22__mpr%22%3A%5B%5D%2C%22__mpap%22%3A%5B%5D%7D; _fbp=fb.1.1751026055997.632638634911935858; _cbp=fb.1.1751026056543.967545439; FPID=FPID2.2.RTDP4wk0aZin2dhD7%2Fg%2FIbdvJM6UcCag9031de5Yqns%3D.1727071250; didomi_token_cpra=eyJ1c2VyX2lkIjoiMTk3YjE0OTMtN2Y4Yy02OGU1LTllYTktNGE5ZmQ0ZWM2YTU5IiwiY3JlYXRlZCI6IjIwMjUtMDYtMjdUMTI6MDc6MzUuMTYwWiIsInVwZGF0ZWQiOiIyMDI1LTA2LTI3VDEyOjExOjA0LjM5MFoiLCJ2ZXJzaW9uIjoyLCJwdXJwb3Nlc19saSI6eyJlbmFibGVkIjpbImNvb2tpZXMiLCJjcmVhdGVfYWRzX3Byb2ZpbGUiLCJzZWxlY3RfcGVyc29uYWxpemVkX2FkcyIsInNlbGVjdF9iYXNpY19hZHMiLCJtZWFzdXJlX2FkX3BlcmZvcm1hbmNlIiwibWFya2V0X3Jlc2VhcmNoIiwiaW1wcm92ZV9wcm9kdWN0cyIsIm1lYXN1cmVfY29udGVudF9wZXJmb3JtYW5jZSJdfSwidmVuZG9yc19saSI6eyJlbmFibGVkIjpbImM6Z29vZ2xlIiwiYzpnb29nbGVhbmEtNFRYbkppZ1IiLCJjOmh1YnNwb3QtZm9ybXMiLCJjOmh1YnNwb3QiXX19; _ga_WBYNDZK777=GS2.1.s1751269164%24o2%24g0%24t1751269164%24j60%24l0%24h1441840699; _gcl_au=1.1.1444061989.1747736521.1930653185.1752057910.1752057922; mp_b00355f29d9548d1333608df71d5d53d_mixpanel=%7B%22distinct_id%22%3A%20%22194d59ee8c32a3d-050dad52099d7-1e525636-1d73c0-194d59ee8c43dda%22%2C%22%24device_id%22%3A%20%22194d59ee8c32a3d-050dad52099d7-1e525636-1d73c0-194d59ee8c43dda%22%2C%22%24search_engine%22%3A%20%22google%22%2C%22%24initial_referrer%22%3A%20%22https%3A%2F%2Fwww.google.com%2F%22%2C%22%24initial_referring_domain%22%3A%20%22www.google.com%22%7D; _ga_D9DGP9GJTP=GS2.1.s1752825495$o29$g1$t1752825513$j42$l0$h503525571; _ga_1X38KQVJ1S=GS2.1.s1752825495$o48$g1$t1752825513$j42$l0$h0; ph_phc_TXdpocbGVeZVm5VJmAsHTMrCofBQu3e0kN8HGMNGTVW_posthog=%7B%22distinct_id%22%3A%2201921dd2-26aa-7428-b30d-adee3b7e789d%22%2C%22%24sesid%22%3A%5B1753177153566%2C%2201983180-4423-7ec5-a136-ef7ea94fe66d%22%2C1753177146403%5D%7D; _clck=12jbwmp%7C2%7Cfxu%7C0%7C1968; login_token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNTRhZTU5NWItZjU4YS00OTNmLWE5ZmYtM2E5YjczYzNkMjJhIiwibWVyY2hhbnRfaWQiOiJtZXJjaGFudF8xNzUzMzQ2MjM0Iiwicm9sZV9pZCI6Im9yZ19hZG1pbiIsImV4cCI6MTc1MzUzMzg0NCwib3JnX2lkIjoib3JnXzNMZzdCU2lXajhqVzk2OGI4QWhVIiwicHJvZmlsZV9pZCI6InByb19LaEQ4N1NpNEloaXVoTUROeGM5byIsInRlbmFudF9pZCI6InB1YmxpYyJ9.TlkkJ8Jd5uW7rnUpCRvEnD3ZyNZTbBvDzzoGug7yMbA',
+          'Cookie': allCookies, // Use dynamically retrieved cookies
         },
+        credentials: 'include', // This ensures cookies are sent with cross-origin requests
       });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
       
       // Assuming the response has the structure { merchant_id: "...", profile_id: "..." }
       // You might need to adjust the keys based on the actual API response
-      const { merchant_id, profile_id } = response;
+      const { merchant_id, profile_id } = data;
 
       if (!merchant_id || !profile_id) {
         throw new Error("Merchant ID or Profile ID not found in response");
       }
 
+      console.log("Successfully fetched credentials from JWT:", { merchant_id, profile_id });
       return { merchantId: merchant_id, profileId: profile_id };
     } catch (error) {
       console.error("Error fetching credentials from JWT:", error);
-      throw error; // Re-throw the error to be caught by the caller
+      throw error;
     }
   };
 
@@ -247,7 +320,7 @@ export default function HomePage() {
     }
 
     // Always open the modal on initial load.
-    setIsApiCredentialsModalOpen(true);
+    setIsApiKeyModalOpen(true);
   }, []);
 
   
@@ -257,7 +330,7 @@ export default function HomePage() {
     return () => {
   
       // Reset all dialog states
-      setIsApiCredentialsModalOpen(false);
+      setIsApiKeyModalOpen(false);
       setIsSummaryModalOpen(false);
       
       // Also reset any dialog-related state
@@ -655,7 +728,7 @@ export default function HomePage() {
         description: "Please save your API credentials in the modal before starting the simulation.",
         variant: "destructive",
       });
-      setIsApiCredentialsModalOpen(true); // Also re-open the modal for convenience
+      setIsApiKeyModalOpen(true); // Also re-open the modal for convenience
       return;
     }
     if (forceStart || merchantConnectors.length === 0) {
@@ -684,8 +757,6 @@ export default function HomePage() {
   }, [toast]);
 
   const handleApiCredentialsSubmit = useCallback(async () => {
-    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-    
     if (!apiKey) {
       toast({ title: "API Key is Required", variant: "destructive" });
       return;
@@ -695,30 +766,19 @@ export default function HomePage() {
     let currentMerchantId = merchantId;
     let currentProfileId = profileId;
 
-    if (isLocalhost) {
-      if (!profileId || !merchantId) {
-        toast({ title: "Profile ID and Merchant ID are Required", variant: "destructive" });
-        return;
-      }
-      localStorage.setItem(LOCALSTORAGE_PROFILE_ID, profileId);
-      localStorage.setItem(LOCALSTORAGE_MERCHANT_ID, merchantId);
-    } else {
-      try {
-        const creds = await fetchCredsFromJwt();
-        currentMerchantId = creds.merchantId;
-        currentProfileId = creds.profileId;
-        setMerchantId(currentMerchantId);
-        setProfileId(currentProfileId);
-        localStorage.setItem(LOCALSTORAGE_PROFILE_ID, currentProfileId);
-        localStorage.setItem(LOCALSTORAGE_MERCHANT_ID, currentMerchantId);
-      } catch (error) {
-        console.error("Failed to fetch credentials from JWT", error);
-        toast({ title: "Failed to fetch credentials", description: "Could not retrieve merchant and profile IDs.", variant: "destructive" });
-        return;
-      }
+    try {
+      const creds = await fetchCredsFromJwt();
+      currentMerchantId = creds.merchantId;
+      currentProfileId = creds.profileId;
+      setMerchantId(currentMerchantId);
+      setProfileId(currentProfileId);
+      localStorage.setItem(LOCALSTORAGE_PROFILE_ID, currentProfileId);
+      localStorage.setItem(LOCALSTORAGE_MERCHANT_ID, currentMerchantId);
+    } catch (error) {
+      console.error("Failed to fetch credentials from JWT", error);
+      toast({ title: "Failed to fetch credentials", description: "Could not retrieve merchant and profile IDs.", variant: "destructive" });
+      return;
     }
-
-    setIsApiCredentialsModalOpen(false);
 
     if (currentMerchantId && currentProfileId) {
       await fetchMerchantConnectors(currentMerchantId, apiKey, currentProfileId);
@@ -869,32 +929,14 @@ export default function HomePage() {
           </Allotment>
         </div>
       </div>
-      {isApiCredentialsModalOpen && (
-        <Dialog 
-          key={`api-credentials-dialog-${Date.now()}`}
-          open={true} 
-          onOpenChange={setIsApiCredentialsModalOpen}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>API Credentials</DialogTitle>
-            </DialogHeader>
-            <div className="py-4 space-y-4">
-              <div><Label htmlFor="apiKey">API Key</Label><Input id="apiKey" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} /></div>
-              {(window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") && (
-                <>
-                  <div><Label htmlFor="profileId">Profile ID</Label><Input id="profileId" value={profileId} onChange={(e) => setProfileId(e.target.value)} /></div>
-                  <div><Label htmlFor="merchantId">Merchant ID</Label><Input id="merchantId" value={merchantId} onChange={(e) => setMerchantId(e.target.value)} /></div>
-                </>
-              )}
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsApiCredentialsModalOpen(false)}>Cancel</Button>
-              <Button onClick={handleApiCredentialsSubmit}>Save</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      <ApiKeyModal
+        isOpen={isApiKeyModalOpen}
+        onClose={() => setIsApiKeyModalOpen(false)}
+        onSave={async (savedApiKey: string) => {
+          setApiKey(savedApiKey);
+          await handleApiCredentialsSubmit();
+        }}
+      />
     </>
   );
 }
