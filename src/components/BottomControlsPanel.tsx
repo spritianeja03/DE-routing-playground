@@ -657,7 +657,14 @@ export function BottomControlsPanel({
                                 <Slider
                                   value={[field.value || 20]} // Changed from defaultValue to value
                                   min={0} max={100} step={1}
-                                  onValueChange={(value: number[]) => { field.onChange(value[0]); }}
+                                  onValueChange={(value: number[]) => { 
+                                    field.onChange(value[0]);
+                                    // Trigger form validation and dirty state to ensure the change is detected
+                                    form.setValue('explorationPercent', value[0], { 
+                                      shouldValidate: true, 
+                                      shouldDirty: true 
+                                    });
+                                  }}
                                 />
                               </FormControl>
                               <FormDescription className="text-xs">Percentage of traffic for exploring new routes.</FormDescription>

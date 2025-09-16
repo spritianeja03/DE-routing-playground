@@ -7,29 +7,42 @@ export default defineConfig(({ command, mode }) => {
   const proxyOptions =
     env.VITE_USE_PROXY === "true"
       ? {
-          "/api/hs-proxy/decide-gateway": {
-            target: "https://sandbox.hyperswitch.io",
+          "/api/hs-proxy/routing/evaluate": {
+            target: "https://integ.hyperswitch.io/api",
             changeOrigin: true,
             rewrite: (path) =>
-              path.replace(/^\/api\/hs-proxy\/decide-gateway/, "/decide-gateway"),
+              path.replace(/^\/api\/hs-proxy\/routing\/evaluate/, "/routing/evaluate"),
             headers: {
               "Access-Control-Allow-Origin": "*",
             },
           },
-          "/api/hs-proxy/update-gateway-score": {
-            target: "https://sandbox.hyperswitch.io",
+          "/api/hs-proxy/routing/feedback": {
+            target: "https://integ.hyperswitch.io/api",
             changeOrigin: true,
             rewrite: (path) =>
-              path.replace(
-                /^\/api\/hs-proxy\/update-gateway-score/,
-                "/update-gateway-score"
-              ),
+              path.replace(/^\/api\/hs-proxy\/routing\/feedback/, "/routing/feedback"),
+            headers: {
+              "Access-Control-Allow-Origin": "*",
+            },
+          },
+          "/api/hs-proxy/routing": {
+            target: "https://integ.hyperswitch.io/api",
+            changeOrigin: true,
+            rewrite: (path) => path.replace(/^\/api\/hs-proxy/, ""),
+            headers: {
+              "Access-Control-Allow-Origin": "*",
+            },
+          },
+          "/api/hs-proxy/account": {
+            target: "https://integ.hyperswitch.io/api",
+            changeOrigin: true,
+            rewrite: (path) => path.replace(/^\/api\/hs-proxy/, ""),
             headers: {
               "Access-Control-Allow-Origin": "*",
             },
           },
           "/api/hs-proxy/merchant-account/create": {
-            target: "https://sandbox.hyperswitch.io",
+            target: "https://integ.hyperswitch.io/api",
             changeOrigin: true,
             rewrite: (path) => path.replace(/^\/api\/hs-proxy/, ""),
             headers: {
@@ -37,7 +50,7 @@ export default defineConfig(({ command, mode }) => {
             },
           },
           "/api/hs-proxy/rule/create": {
-            target: "https://sandbox.hyperswitch.io",
+            target: "https://integ.hyperswitch.io/api",
             changeOrigin: true,
             rewrite: (path) => path.replace(/^\/api\/hs-proxy/, ""),
             headers: {
@@ -45,7 +58,7 @@ export default defineConfig(({ command, mode }) => {
             },
           },
           "/api/hs-proxy/merchant-account/": {
-            target: "https://sandbox.hyperswitch.io",
+            target: "https://integ.hyperswitch.io/api",
             changeOrigin: true,
             rewrite: (path) => path.replace(/^\/api\/hs-proxy/, ""),
             headers: {
@@ -53,7 +66,15 @@ export default defineConfig(({ command, mode }) => {
             },
           },
           "/api/hs-proxy/rule/update": {
-            target: "https://sandbox.hyperswitch.io",
+            target: "https://integ.hyperswitch.io/api",
+            changeOrigin: true,
+            rewrite: (path) => path.replace(/^\/api\/hs-proxy/, ""),
+            headers: {
+              "Access-Control-Allow-Origin": "*",
+            },
+          },
+          "/api/hs-proxy/user": {
+            target: "https://integ.hyperswitch.io/api",
             changeOrigin: true,
             rewrite: (path) => path.replace(/^\/api\/hs-proxy/, ""),
             headers: {
@@ -84,7 +105,6 @@ export default defineConfig(({ command, mode }) => {
     },
     cssCodeSplit:false,
   },
-  
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -98,7 +118,7 @@ export default defineConfig(({ command, mode }) => {
       "process.env.VITE_API_BASE_URL":
         env.VITE_USE_PROXY === "true"
           ? JSON.stringify("/api/hs-proxy")
-          : JSON.stringify("https://sandbox.hyperswitch.io"),
+          : JSON.stringify("https://integ.hyperswitch.io/api"),
       "process.env.VITE_USE_PROXY": JSON.stringify(env.VITE_USE_PROXY),
     },
   };
